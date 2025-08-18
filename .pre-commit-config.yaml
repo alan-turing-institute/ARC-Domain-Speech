@@ -33,7 +33,9 @@ repos:
     rev: "v1.11.1"
     hooks:
       - id: mypy
-        files: src
-        args: []
-        additional_dependencies:
-          - pytest
+        args: ["--config-file=pyproject.toml"]
+
+  -   repo: https://github.com/kynan/nbstripout
+      rev: "0.7.1"
+      hooks:
+      -   id: nbstripout
