@@ -1,0 +1,14 @@
+# Changes here will be overwritten by Copier
+_commit: v0.2.0
+_src_path: https://github.com/alan-turing-institute/python-project-template
+coc: their_coc
+email: alexander.john.hickey@gmail.com
+full_name: Alex Hickey
+license: MIT
+min_python_version: '3.10'
+org: alan-turing-institute
+project_name: ARC-Domain-Speech
+project_short_description: ARC project on domain robust speech activity detection.
+python_name: dr-sad
+typing: strict
+url: https://github.com/alan-turing-institute/ARC-Domain-Speech
