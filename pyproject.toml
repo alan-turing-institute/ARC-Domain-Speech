@@ -30,6 +30,12 @@ dependencies = [
   "pytest >=6",
   "pytest-cov >=3",
   "pre-commit",
+  "torch>=2.8.0",
+  "matplotlib>=3.10.5",
+  "jupyterlab>=4.4.6",
+  "lightning>=2.5.3",
+  "asteroid-filterbanks>=0.4.0",
+  "einops>=0.8.1",
 ]
 
 [project.urls]
@@ -51,7 +57,7 @@ testpaths = [
 ]
 
 [tool.coverage]
-run.source = ["dr-sad"]
+run.source = ["dr_sad"]
 port.exclude_lines = [
   'pragma: no cover',
   '\.\.\.',
