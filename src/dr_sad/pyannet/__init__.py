@@ -2,6 +2,9 @@
 This is adapted from pyannote.audio
 """
 
-__all__ = ("receptive_field",)
+__all__ = (
+    "receptive_field",
+    "sincnet",
+)
 
-from . import receptive_field
+from . import receptive_field, sincnet
