@@ -1,6 +1,14 @@
 
-def roundrobin(*iterables):
-    """Recipe from itertools documentation"""
+def roundrobin(*iterables: list) -> any:
+    """
+    Round-robin iterator for multiple input iterables.
+
+    Returns:
+        An iterator that yields elements from each iterable in turn.
+
+    Yields:
+        Elements from the input iterables.
+    """
     iterators = [iter(it) for it in iterables]
     while iterators:
         try:
@@ -9,7 +17,16 @@ def roundrobin(*iterables):
         except StopIteration:
             iterators.remove(it)
 
-def add_gaps(old_sample):
+def add_gaps(old_sample: dict) -> dict:
+    """
+    Adds gaps in the audio sample where there is no speech.
+
+    Args:
+        old_sample: The original audio sample.
+
+    Returns:
+        The modified audio sample with gaps added.
+    """
     sample = old_sample.copy()
     talking_periods = [(start, end, speaker) for start, end, speaker in zip(sample['timestamps_start'], sample['timestamps_end'], sample['speakers'], strict=True)]
     non_talking_periods = [(start,end,"None") for (_, start,_), (end,_,_) in zip(talking_periods[:-1], talking_periods[1:], strict=True)]
