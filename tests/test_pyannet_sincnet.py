@@ -240,3 +240,15 @@ class TestSincNet:
             assert output.shape[0] == batch_size
             assert output.shape[1] == 60
             assert output.shape[2] == sincnet.num_frames(num_samples)
+
+    def test_frame_hop_and_rate_default_and_custom_stride(self):
+        """Test frame_hop_samples and frame_rate_hz for default and custom strides."""
+        # Default stride (10) -> hop = 10 * 3 * 1 * 3 * 1 * 3 = 270
+        sincnet_default = SincNet()
+        assert sincnet_default.frame_hop_samples == 270
+        assert sincnet_default.frame_rate_hz == pytest.approx(16000.0 / 270)
+
+        # Custom stride (5) -> hop = 5 * 3 * 1 * 3 * 1 * 3 = 135
+        sincnet_custom = SincNet(stride=5)
+        assert sincnet_custom.frame_hop_samples == 135
+        assert sincnet_custom.frame_rate_hz == pytest.approx(16000.0 / 135)

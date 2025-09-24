@@ -17,6 +17,75 @@ from asteroid_filterbanks import Encoder, ParamSincFB
 import dr_sad.pyannet.receptive_field as r_f
 
 
+def _pool_stride(m: nn.MaxPool1d) -> int:
+    # PyTorch allows stride=None -> defaults to kernel_size
+    return int(m.stride if m.stride is not None else m.kernel_size)
+
+
+def _append_1d_spec(
+    K: list[int],
+    S: list[int],
+    P: list[int],
+    D: list[int],
+    k: int,
+    s: int,
+    p: int,
+    d: int,
+):
+    K.append(int(k))
+    S.append(int(s))
+    P.append(int(p))
+    D.append(int(d))
+
+
+def _extract_time_spec(
+    seq: nn.Sequential,
+) -> tuple[list[int], list[int], list[int], list[int]]:
+    """
+    Extracts the time-domain specifications (kernel size, stride, padding, dilation)
+    for all time-related operations within a given `nn.Sequential` module.
+
+    This function iterates through the layers of the provided `seq` and collects
+    the time-domain parameters for convolutional, pooling, and other relevant
+    operations in the order they appear. It supports both standard PyTorch layers
+    (e.g., `nn.Conv1d`, `nn.MaxPool1d`) and custom layers like the Asteroid Sinc
+    Encoder.
+
+    Args:
+        seq (nn.Sequential): A sequential container of PyTorch layers.
+
+    Returns:
+        tuple[list[int], list[int], list[int], list[int]]:
+            - K: List of kernel sizes for each time-related operation.
+            - S: List of strides for each time-related operation.
+            - P: List of paddings for each time-related operation.
+            - D: List of dilations for each time-related operation.
+    """
+    K: list[int] = []
+    S: list[int] = []
+    P: list[int] = []
+    D: list[int] = []
+    for m in seq.modules():
+        # Asteroid Sinc Encoder acts like a Conv1d
+        if isinstance(m, Encoder):
+            fb = m.filterbank
+            k = int(fb.kernel_size)  # asteroid docs expose kernel_size
+            s = int(fb.stride)  # and stride (hop) on the filterbank
+            _append_1d_spec(K, S, P, D, k, s, 0, 1)
+        elif isinstance(m, nn.Conv1d):
+            _append_1d_spec(
+                K, S, P, D, m.kernel_size[0], m.stride[0], m.padding[0], m.dilation[0]
+            )
+        elif isinstance(m, nn.MaxPool1d):
+            _append_1d_spec(
+                K, S, P, D, m.kernel_size, _pool_stride(m), m.padding, m.dilation
+            )
+        else:
+            # Abs / InstanceNorm1d / activations don't affect time geometry
+            continue
+    return K, S, P, D
+
+
 class Abs(nn.Module):  # type: ignore[misc]
     """Absolute value layer"""
 
@@ -77,11 +146,6 @@ class SincNet(nn.Module):  # type: ignore[misc]
 
         self.out_features = 60
 
-        self._K = [251, 3, 5, 3, 5, 3]
-        self._S = [self.stride, 3, 1, 3, 1, 3]
-        self._P = [0, 0, 0, 0, 0, 0]
-        self._D = [1, 1, 1, 1, 1, 1]
-
         # block 0: waveform norm → sinc encoder → |·| → pool → norm → lrelu
         self.block0 = nn.Sequential(
             nn.InstanceNorm1d(1, affine=True),
@@ -119,6 +183,8 @@ class SincNet(nn.Module):  # type: ignore[misc]
 
         # or, if you prefer one container:
         self.features = nn.Sequential(self.block0, self.block1, self.block2)
+
+        self._K, self._S, self._P, self._D = _extract_time_spec(self.features)
 
     def forward(self, waveforms: torch.Tensor) -> torch.Tensor:
         # (B, 1, T) → (B, 60, L)
