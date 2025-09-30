@@ -3,6 +3,7 @@
 These tests are super excessive but we are in a brave new world. :robot:
 """
 
+import numpy as np
 import pytest
 
 from dr_sad.pyannet import receptive_field
@@ -403,3 +404,95 @@ class TestRealisticScenarios:
             )
 
         assert multi_result == single_result
+
+
+class TestMultiConvStartStep:
+    """Tests for multi_conv_start_step function."""
+
+    def test_single_layer(self):
+        """Single layer: start and step are computed correctly."""
+        start, step = receptive_field.multi_conv_start_step(
+            kernel_size=[5], stride=[1], padding=[0], dilation=[1]
+        )
+        assert (start, step) == (2, 1)
+
+    def test_multiple_layers(self):
+        """Multiple layers: check iterative computation."""
+        start, step = receptive_field.multi_conv_start_step(
+            kernel_size=[3, 5], stride=[2, 1], padding=[0, 1], dilation=[1, 1]
+        )
+        assert (start, step) == (3, 2)
+
+    def test_mismatched_lengths(self):
+        """Mismatched parameter lengths should raise ValueError."""
+        msg = "kernel_size, stride, padding, dilation must have equal length"
+        with pytest.raises(ValueError, match=msg):
+            receptive_field.multi_conv_start_step(
+                kernel_size=[3, 5], stride=[2], padding=[0, 1], dilation=[1, 1]
+            )
+
+
+class TestFrameCentersSamples:
+    """Tests for frame_centers_samples function."""
+
+    def test_list_return_and_length(self):
+        """Check list return, length and first/last centers for a simple case."""
+        num_samples = 100
+        ks = [5]
+        st = [1]
+        pad = [0]
+        dil = [1]
+
+        centers = receptive_field.frame_centers_samples(
+            num_samples,
+            kernel_size=ks,
+            stride=st,
+            padding=pad,
+            dilation=dil,
+            as_numpy=False,
+        )
+
+        assert isinstance(centers, list)
+
+        L = receptive_field.multi_conv_num_frames(num_samples, ks, st, pad, dil)
+        assert len(centers) == L
+
+        # start should be 2 for a single layer with kernel=5, padding=0
+        assert centers[0] == 2
+        assert centers[-1] == 2 + (L - 1)
+
+    def test_numpy_return_and_dtype(self):
+        """Check numpy return type and integer dtype."""
+        centers_np = receptive_field.frame_centers_samples(
+            100,
+            kernel_size=[5],
+            stride=[1],
+            padding=[0],
+            dilation=[1],
+            as_numpy=True,
+        )
+        assert isinstance(centers_np, np.ndarray)
+        assert centers_np.dtype.kind in ("i", "u")
+        assert centers_np[0] == 2
+
+    def test_centers_match_start_step(self):
+        """Centers vector should match start + step * arange(L)."""
+        num_samples = 1000
+        ks = [3, 5]
+        st = [2, 1]
+        pad = [0, 1]
+        dil = [1, 1]
+
+        L = receptive_field.multi_conv_num_frames(num_samples, ks, st, pad, dil)
+        start, step = receptive_field.multi_conv_start_step(ks, st, pad, dil)
+
+        centers_np = receptive_field.frame_centers_samples(
+            num_samples,
+            kernel_size=ks,
+            stride=st,
+            padding=pad,
+            dilation=dil,
+            as_numpy=True,
+        )
+        expected = start + step * np.arange(L)
+        assert np.array_equal(centers_np, expected.astype(int))

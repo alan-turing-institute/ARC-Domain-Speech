@@ -9,7 +9,9 @@
 __all__ = ("SincNet",)
 
 import math
+from functools import cached_property
 
+import numpy as np
 import torch
 import torch.nn as nn
 from asteroid_filterbanks import Encoder, ParamSincFB
@@ -250,4 +252,36 @@ class SincNet(nn.Module):  # type: ignore[misc]
             stride=self._S,
             padding=self._P,
             dilation=self._D,
+        )
+
+    @cached_property
+    def frame_center_start_step(self) -> tuple[int, int]:
+        """Compute step (in samples) between the start of two consecutive frames
+
+        Returns:
+            start (int): Start (in samples) of the first frame
+            step (int): Step (in samples) between the start of two consecutive frames
+        """
+        return r_f.multi_conv_start_step(
+            kernel_size=self._K, stride=self._S, padding=self._P, dilation=self._D
+        )
+
+    def frame_centers(
+        self, num_samples: int, as_numpy: bool = False
+    ) -> list[int] | np.ndarray:
+        """Compute centers (in samples) of all output frames
+
+        Args:
+            num_samples (int): Number of input samples
+
+        Returns:
+            centers (list[int]): List of input-sample indices of receptive field centers
+        """
+        return r_f.frame_centers_samples(
+            num_samples,
+            kernel_size=self._K,
+            stride=self._S,
+            padding=self._P,
+            dilation=self._D,
+            as_numpy=as_numpy,
         )

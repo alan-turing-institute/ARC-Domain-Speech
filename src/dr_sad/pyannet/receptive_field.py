@@ -17,6 +17,7 @@ __all__ = (
 
 from collections.abc import Sequence
 
+import numpy as np
 
 
 def _check_int(name: str, x: int) -> None:
@@ -252,3 +253,67 @@ def multi_conv_receptive_field_center(
         )
 
     return receptive_field_center
+
+
+def multi_conv_start_step(
+    kernel_size: Sequence[int],
+    stride: Sequence[int],
+    padding: Sequence[int],
+    dilation: Sequence[int],
+) -> tuple[int, int]:
+    """Compute the start and step of the receptive field samples.
+    Assumes symmetric padding (single int per layer) and ceil_mode=False for pools.
+
+    Args:
+        kernel_size (Sequence[int]): List of kernel sizes
+        stride (Sequence[int]): List of strides
+        padding (Sequence[int]): List of paddings
+        dilation (Sequence[int]): List of dilations
+
+    Returns:
+        start (int): Input-sample index of the center of output frame 0
+        step (int): Effective stride from input samples to output frames
+    """
+    _check_lists(kernel_size, stride, padding, dilation)
+    start, step = 0, 1
+    for k, s, p, d in zip(kernel_size, stride, padding, dilation, strict=True):
+        eff_k = 1 + (k - 1) * d
+        start = start + ((eff_k - 1) // 2 - p) * step
+        step = step * s
+    return int(start), int(step)
+
+
+def frame_centers_samples(
+    num_samples: int,
+    kernel_size: Sequence[int],
+    stride: Sequence[int],
+    padding: Sequence[int],
+    dilation: Sequence[int],
+    as_numpy: bool = False,
+) -> list[int] | np.ndarray:
+    """
+    Vectorized centers for all output frames (in input-sample indices).
+
+    Args:
+        num_samples (int): Number of samples in the input signal
+        kernel_size (Sequence[int]): List of kernel sizes
+        stride (Sequence[int]): List of strides
+        padding (Sequence[int]): List of paddings
+        dilation (Sequence[int]): List of dilations
+        as_numpy (bool): If True, return a numpy array instead of a list
+
+    Returns:
+        centers (list[int] | np.ndarray): List of input-sample indices of receptive
+            field centers
+    """
+    # How many frames?
+    L = multi_conv_num_frames(num_samples, kernel_size, stride, padding, dilation)
+
+    # Get start and step between frames centers
+    start, step = multi_conv_start_step(kernel_size, stride, padding, dilation)
+
+    centers = start + step * np.arange(L)
+    if as_numpy:
+        return centers.astype(int)
+
+    return centers.astype(int).tolist()
