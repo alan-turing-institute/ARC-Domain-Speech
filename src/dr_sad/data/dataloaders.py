@@ -1,14 +1,9 @@
-from datasets import ClassLabel, Dataset, concatenate_datasets, load_dataset
+from datasets import Dataset, concatenate_datasets, load_dataset
 
 from dr_sad.data.callhome_utils import call_home_preprocess
 
-DOMAIN_LANGUAGES = {
-    "eng": 0,
-    "deu": 1,
-    "spa": 2,
-    "jpn": 3,
-    "zho": 4
-}
+DOMAIN_LANGUAGES = {"eng": 0, "deu": 1, "spa": 2, "jpn": 3, "zho": 4}
+
 
 def _callhome_dataloader(languages: list[str] | None = None, **kwargs) -> list[Dataset]:
     """
@@ -32,7 +27,9 @@ def _callhome_dataloader(languages: list[str] | None = None, **kwargs) -> list[D
         data = dataset["data"]
 
         # Add language column using add_column
-        data_with_lang = data.add_column("language", [DOMAIN_LANGUAGES[lang]]*len(data))
+        data_with_lang = data.add_column(
+            "language", [DOMAIN_LANGUAGES[lang]] * len(data)
+        )
 
         # Skip ClassLabel conversion for now - keep as string to avoid PyArrow issues
         # Preprocess this dataset
@@ -49,7 +46,9 @@ def _callhome_dataloader(languages: list[str] | None = None, **kwargs) -> list[D
     return processed_datasets
 
 
-def train_test_split(datasets: list[Dataset], val_size: float = 0.1, test_size: float = 0.1, **kwargs) -> tuple[Dataset, Dataset, Dataset]:
+def train_test_split(
+    datasets: list[Dataset], val_size: float = 0.1, test_size: float = 0.1, **kwargs
+) -> tuple[Dataset, Dataset, Dataset]:
     """
     Split the dataset into training, validation, and test sets.
 
@@ -67,8 +66,8 @@ def train_test_split(datasets: list[Dataset], val_size: float = 0.1, test_size: 
 
     # Shuffle the dataset
     for dataset in datasets:
-        dataset = dataset.shuffle(seed=42)
-        train_split, non_train_splits = dataset.train_test_split(
+        shuffled_dataset = dataset.shuffle(seed=42)
+        train_split, non_train_splits = shuffled_dataset.train_test_split(
             test_size=val_size + test_size
         ).values()
         val_split, test_split = non_train_splits.train_test_split(
@@ -84,6 +83,7 @@ def train_test_split(datasets: list[Dataset], val_size: float = 0.1, test_size: 
 
     return train_split, val_split, test_split
 
+
 def get_callhome_dataset(languages: list[str] | None = None, **kwargs) -> Dataset:
     """
     Load and preprocess the CallHome dataset for the specified languages.
@@ -95,4 +95,4 @@ def get_callhome_dataset(languages: list[str] | None = None, **kwargs) -> Datase
         Preprocessed dataset ready for training.
     """
 
-    return train_test_split(_callhome_dataloader(languages,**kwargs), **kwargs)
+    return train_test_split(_callhome_dataloader(languages, **kwargs), **kwargs)

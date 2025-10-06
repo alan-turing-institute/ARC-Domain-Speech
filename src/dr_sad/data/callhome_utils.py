@@ -2,7 +2,7 @@ import itertools
 from typing import Any
 
 
-def roundrobin(*iterables: list[list[Any]]) -> Any:
+def roundrobin(*iterables: list[Any]) -> Any:
     """
     Round-robin iterator for multiple input iterables.
 
