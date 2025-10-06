@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset
 from torch.utils.data import DataLoader
@@ -104,7 +106,8 @@ def get_callhome_dataset(languages: list[str] | None = None, **kwargs) -> Datase
 
     return DatasetDict({"train": train, "validation": val, "test": test})
 
-def audio_collation(batch):
+
+def audio_collation(batch: list[dict[str, Any]]) -> dict[str, Any]:
     collated_batch = {}
     key = "audio"
     # Process AudioDecoder objects into tensors
@@ -128,13 +131,15 @@ def audio_collation(batch):
     padded_audio = []
     audio_masks = []
 
-    for audio, length in zip(audio_tensors, audio_lengths):
+    for audio, length in zip(audio_tensors, audio_lengths, strict=False):
         # Pad to max length
         if audio.shape[-1] < max_length:
             padding = max_length - audio.shape[-1]
-            audio = torch.nn.functional.pad(audio, (0, padding))
+            padded_tensor = torch.nn.functional.pad(audio, (0, padding))
+        else:
+            padded_tensor = audio
 
-        padded_audio.append(audio)
+        padded_audio.append(padded_tensor)
 
         # Create attention mask (True for real audio, False for padding)
         mask = torch.ones(max_length, dtype=torch.bool)
@@ -147,8 +152,9 @@ def audio_collation(batch):
     collated_batch[f"{key}_lengths"] = torch.tensor(audio_lengths)
     return collated_batch
 
+
 # Define a custom collate function to handle variable-sized data
-def collate_padded(batch):
+def collate_padded(batch: list[dict[str, Any]]) -> dict[str, Any]:
     """Custom collate function with padding for batch processing."""
 
     collated_batch = {}
@@ -205,19 +211,12 @@ def collate_padded(batch):
     return collated_batch
 
 
-def get_callhome_dataloader(
-    dataset: Dataset,
-    **dataloader_kwargs
-) -> DataLoader:
+def get_callhome_dataloader(dataset: Dataset, **dataloader_kwargs) -> DataLoader:
     """
     Create a DataLoader for the CallHome dataset.
 
     Args:
         dataset: The dataset to load
-        process_audio: If True, process AudioDecoder objects into tensors.
-                      If False, keep as AudioDecoder objects (original behavior).
-        audio_strategy: Strategy for audio processing when process_audio=True.
-                       Options: "padded" (pad to same length), "variable" (keep variable lengths)
         **dataloader_kwargs: Additional arguments for DataLoader
     """
     # Extract shuffle parameter before creating sampler
