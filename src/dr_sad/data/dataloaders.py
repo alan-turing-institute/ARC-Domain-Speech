@@ -1,4 +1,4 @@
-from datasets import Dataset, concatenate_datasets, load_dataset
+from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset
 
 from dr_sad.data.callhome_utils import call_home_preprocess
 
@@ -95,4 +95,10 @@ def get_callhome_dataset(languages: list[str] | None = None, **kwargs) -> Datase
         Preprocessed dataset ready for training.
     """
 
-    return train_test_split(_callhome_dataloader(languages, **kwargs), **kwargs)
+    train, val, test = train_test_split(_callhome_dataloader(languages, **kwargs), **kwargs)
+
+    return DatasetDict({
+        "train": train,
+        "validation": val,
+        "test": test
+    })
