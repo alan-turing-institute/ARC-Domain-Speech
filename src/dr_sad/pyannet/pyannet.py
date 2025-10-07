@@ -268,7 +268,11 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         Returns:
             loss (torch.Tensor): Computed loss for the batch.
         """
-        waveforms, annotations, _domains = batch
+        waveforms, annotations, _domains = (
+            batch["waveforms"],
+            batch["annotations"],
+            batch["domains"],
+        )
         outputs = self(waveforms)
         speaker_truth = self.prepare_annotation(waveforms, annotations)
         loss = self.loss_function(speaker_truth, _domains, outputs)
@@ -285,13 +289,16 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
               - annotations (list[list[tuple[float, float]]]): List of annotations
                     for each sample in the batch.
               - _domains (list[int]): List of domain indices for each sample.
-            _batch_idx (int): Batch index, unused.
 
         Logs:
             val_loss (torch.Tensor): Computed loss for the batch.
             val_accuracy (float): Computed accuracy for the batch.
         """
-        waveforms, annotations, _domains = batch
+        waveforms, annotations, _domains = (
+            batch["waveforms"],
+            batch["annotations"],
+            batch["domains"],
+        )
         outputs = self(waveforms)
         speaker_truth = self.prepare_annotation(waveforms, annotations)
         loss = self.loss_function(speaker_truth, _domains, outputs)

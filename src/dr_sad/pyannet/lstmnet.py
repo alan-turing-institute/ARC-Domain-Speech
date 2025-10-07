@@ -80,4 +80,5 @@ class LSTMNet(nn.Module):  # type: ignore[misc]
         if not keep_order:
             # (batch, feature, frame) -> (batch, frame, feature)
             x = rearrange(x, "batch feature frame -> batch frame feature")
+
         return self.lstm(x, hn_cn)  # type: ignore[no-any-return]

@@ -21,6 +21,31 @@ def roundrobin(*iterables: list[Any]) -> Any:
             iterators.remove(it)
 
 
+def remove_overlap(segments: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """
+    Remove overlapping segments by merging them.
+
+    Args:
+        segments: List of (start, end) tuples representing segments.
+
+    Returns:
+        List of non-overlapping (start, end) tuples.
+    """
+
+    # Sort segments by start time
+    segments = sorted(segments, key=lambda x: x[0])
+    merged_segments = [segments[0]]
+
+    for current in segments[1:]:
+        last = merged_segments[-1]
+        if current[0] <= last[1]:  # Overlap
+            merged_segments[-1] = (last[0], max(last[1], current[1]))  # Merge
+        else:
+            merged_segments.append(current)
+
+    return merged_segments
+
+
 def fill_gaps(old_sample: dict[str, Any]) -> dict[str, Any]:
     """
     Adds gaps in the audio sample where there is no speech.
@@ -40,6 +65,11 @@ def fill_gaps(old_sample: dict[str, Any]) -> dict[str, Any]:
             strict=True,
         )
     )
+    annotations = [(talk_period[0], talk_period[1]) for talk_period
+                    in talking_periods if talk_period[2] != "None"]
+
+    annotations = remove_overlap(annotations)
+
     non_talking_periods = [
         (start, end, "None")
         for (_, start, _), (end, _, _) in itertools.pairwise(talking_periods)
@@ -60,6 +90,7 @@ def fill_gaps(old_sample: dict[str, Any]) -> dict[str, Any]:
     if combined_periods[-1][1] < audio_duration:
         combined_periods.append((combined_periods[-1][1], audio_duration, "None"))
 
+    new_sample["annotations"] = annotations
     new_sample["timestamps_start"] = [start for start, _, _ in combined_periods]
     new_sample["timestamps_end"] = [end for _, end, _ in combined_periods]
     new_sample["speakers"] = [speaker for _, _, speaker in combined_periods]
@@ -105,8 +136,5 @@ def call_home_preprocess(sample: dict[str, list[Any]]) -> dict[str, list[Any]]:
     # Handle the final segment
     combined_segments.append((current_start, segments[-1][1]))
     combined_labels.append(current_label)
-
-    sample["segments"] = combined_segments
-    sample["labels"] = combined_labels
 
     return sample

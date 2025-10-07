@@ -33,18 +33,17 @@ def _callhome_dataloader(languages: list[str] | None = None, **kwargs) -> list[D
 
         # Add language column using add_column
         data_with_lang = data.add_column(
-            "language", [DOMAIN_LANGUAGES[lang]] * len(data)
+            "domains", [DOMAIN_LANGUAGES[lang]] * len(data)
         )
-
         # Skip ClassLabel conversion for now - keep as string to avoid PyArrow issues
         # Preprocess this dataset
-        processed_dataset = data_with_lang.map(
+        processed_dataset: Dataset = data_with_lang.map(
             call_home_preprocess,
             batch_size=1,
             keep_in_memory=False,
             writer_batch_size=5,
             remove_columns=["timestamps_start", "timestamps_end", "speakers"],
-        )
+            ).rename_column("audio", "waveforms")
 
         processed_datasets.append(processed_dataset)
 
@@ -108,8 +107,17 @@ def get_callhome_dataset(languages: list[str] | None = None, **kwargs) -> Datase
 
 
 def audio_collation(batch: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    Collate audio data from a batch of samples.
+
+    Args:
+        batch: List of samples, each containing audio data.
+
+    Returns:
+        A dictionary containing collated audio tensors and masks.
+    """
     collated_batch = {}
-    key = "audio"
+    key = "waveforms"
     # Process AudioDecoder objects into tensors
     audio_tensors = []
     audio_lengths = []
@@ -148,65 +156,39 @@ def audio_collation(batch: list[dict[str, Any]]) -> dict[str, Any]:
         audio_masks.append(mask)
 
     collated_batch[key] = torch.stack(padded_audio)
-    collated_batch[f"{key}_mask"] = torch.stack(audio_masks)
-    collated_batch[f"{key}_lengths"] = torch.tensor(audio_lengths)
     return collated_batch
 
 
 # Define a custom collate function to handle variable-sized data
 def collate_padded(batch: list[dict[str, Any]]) -> dict[str, Any]:
-    """Custom collate function with padding for batch processing."""
+    """
+    Custom collate function with padding for batch processing.
+
+    Args:
+        batch: List of samples, each a dictionary with keys like 'audio', 'segments',
+               'labels', and 'language'.
+
+    Returns:
+        A dictionary containing collated and padded tensors for each key.
+    """
 
     collated_batch = {}
 
     # Handle each field in the batch
     for key in batch[0]:
-        if key == "audio":
+        if key == "waveforms":
+            # these need to be batch processed
             audio_collated = audio_collation(batch)
             collated_batch.update(audio_collated)
 
-        elif key in ["segments", "labels"]:
-            # Pad sequences to the same length within the batch
-            sequences = [sample[key] for sample in batch]
-
-            if key == "segments":
-                # Pad segments: each segment is [start, end]
-                max_len = max(len(seq) for seq in sequences)
-                padded_sequences = []
-                attention_masks = []
-
-                for seq in sequences:
-                    # Pad with [0.0, 0.0] for segments
-                    padded = seq + [[0.0, 0.0]] * (max_len - len(seq))
-                    mask = [1] * len(seq) + [0] * (max_len - len(seq))
-                    padded_sequences.append(padded)
-                    attention_masks.append(mask)
-
-                collated_batch[key] = torch.tensor(
-                    padded_sequences, dtype=torch.float32
-                )
-                collated_batch[f"{key}_mask"] = torch.tensor(
-                    attention_masks, dtype=torch.bool
-                )
-
-            elif key == "labels":
-                # Pad labels with -100 (common ignore index)
-                max_len = max(len(seq) for seq in sequences)
-                padded_sequences = []
-
-                for seq in sequences:
-                    padded = seq + [-100] * (max_len - len(seq))
-                    padded_sequences.append(padded)
-
-                collated_batch[key] = torch.tensor(padded_sequences, dtype=torch.long)
-
-        elif key == "language":
+        elif key == "domains":
+            # so do these for domain classification
             collated_batch[key] = torch.tensor(
                 [sample[key] for sample in batch], dtype=torch.long
             )
         else:
-            error_message = f"Unrecognized key in batch: {key}"
-            raise ValueError(error_message)
+            # nothing else needs special handling - just collate as list
+            collated_batch[key] = [sample[key] for sample in batch]
 
     return collated_batch
 
@@ -218,12 +200,15 @@ def get_callhome_dataloader(dataset: Dataset, **dataloader_kwargs) -> DataLoader
     Args:
         dataset: The dataset to load
         **dataloader_kwargs: Additional arguments for DataLoader
+
+    Returns:
+        A DataLoader instance for the dataset.
     """
     # Extract shuffle parameter before creating sampler
     shuffle = dataloader_kwargs.pop("shuffle", True)
 
     stratified_sampler = StratifiedSampler(
-        domains=dataset["language"],
+        domains=dataset["domains"],
         shuffle=shuffle,
     )
 
