@@ -12,7 +12,6 @@ class LSTMNet(nn.Module):  # type: ignore[misc]
         hidden_size: int = 128,
         num_layers: int = 2,
         bidirectional: bool = True,
-        monolithic: bool = True,
         dropout: float = 0.0,
     ):
         """Initializes the LSTM network.
@@ -29,27 +28,15 @@ class LSTMNet(nn.Module):  # type: ignore[misc]
                 Defaults to 2.
             bidirectional (bool, optional): If True, becomes a bidirectional LSTM.
                 Defaults to True.
-            monolithic (bool, optional): If True, uses a single multi-layer LSTM.
-                Defaults to True. If False raises NotImplementedError.
             dropout (float, optional): If non-zero, introduces a `Dropout` layer on
                 the outputs of each LSTM layer except the last layer, with dropout
                 probability equal to `dropout`. Defaults to 0.0. (no dropout).
 
         Attributes:
             lstm (nn.LSTM): The underlying LSTM module.
-            monolithic (bool): Indicates if the LSTM is monolithic. (always True)
             input_size (int): The number of expected features in the input `x`.
             out_features (int): The number of features in the output `y`.
         """
-        if not monolithic:
-            msg = (
-                "monolithic=False is not implemented."
-                " Never use this option it is only for debugging."
-                " It is bad for performance and makes things more complicated."
-                " It is not even used in the original Pyannote implementation."
-            )
-            raise NotImplementedError(msg)
-
         super().__init__()
         self.lstm = nn.LSTM(
             input_size=input_size,
@@ -59,7 +46,6 @@ class LSTMNet(nn.Module):  # type: ignore[misc]
             dropout=dropout if num_layers > 1 else 0.0,
             batch_first=True,
         )
-        self.monolithic = True
         self.input_size = input_size
         self.out_features = hidden_size * (2 if bidirectional else 1)
 

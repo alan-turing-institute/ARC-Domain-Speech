@@ -1,4 +1,3 @@
-import pytest
 import torch
 
 from dr_sad.pyannet.lstmnet import LSTMNet
@@ -13,7 +12,6 @@ class TestLSTMNet:
 
         assert model.input_size == 60
         assert model.out_features == 256  # 128 * 2 (bidirectional)
-        assert model.monolithic is True
         assert isinstance(model.lstm, torch.nn.LSTM)
         assert model.lstm.input_size == 60
         assert model.lstm.hidden_size == 128
@@ -36,13 +34,6 @@ class TestLSTMNet:
         assert model.lstm.hidden_size == 64
         assert model.lstm.num_layers == 3
         assert model.lstm.bidirectional is False
-
-    def test_init_monolithic_false_raises_error(self):
-        """Test that monolithic=False raises NotImplementedError."""
-        with pytest.raises(
-            NotImplementedError, match="monolithic=False is not implemented"
-        ):
-            LSTMNet(monolithic=False)
 
     def test_forward_default_keep_order_false(self):
         """Test forward pass with keep_order=False (default)."""
