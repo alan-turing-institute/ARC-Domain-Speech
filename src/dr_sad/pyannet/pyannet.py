@@ -31,8 +31,6 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         lstm (dict, optional): Keyword arguments passed to the LSTM layer.
             Defaults to {"hidden_size": 128, "num_layers": 2, "bidirectional": True},
             i.e. two bidirectional layers with 128 units each.
-            Set "monolithic" to False to split monolithic multi-layer LSTM into multiple
-            mono-layer LSTMs. This may prove useful for probing LSTM internals.
         linear (dict, optional): Keyword arguments used to initialize linear layers.
             Defaults to {"hidden_size": 128, "num_layers": 2},
             i.e. two linear layers with 128 units each.
@@ -57,7 +55,6 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
             "hidden_size": 128,
             "num_layers": 2,
             "bidirectional": True,
-            "monolithic": True,
             "dropout": 0.0,
         }
         LINEAR_DEFAULTS: dict[str, Any] = {"hidden_size": 128, "num_layers": 2}
