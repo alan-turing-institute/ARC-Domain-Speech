@@ -14,11 +14,20 @@ def roundrobin(*iterables: list[Any]) -> Any:
     """
     iterators = [iter(it) for it in iterables]
     while iterators:
-        try:
-            for it in iterators:
+        # Track which iterators to remove after this round
+        to_remove = []
+
+        # Go through each iterator and try to get the next item
+        for i, it in enumerate(iterators):
+            try:
                 yield next(it)
-        except StopIteration:
-            iterators.remove(it)
+            except StopIteration:
+                # Mark this iterator for removal, but continue with others
+                to_remove.append(i)
+
+        # Remove exhausted iterators (in reverse order to maintain valid indices)
+        for i in reversed(to_remove):
+            iterators.pop(i)
 
 
 def remove_overlap(segments: list[tuple[float, float]]) -> list[tuple[float, float]]:
@@ -33,6 +42,8 @@ def remove_overlap(segments: list[tuple[float, float]]) -> list[tuple[float, flo
     """
 
     # Sort segments by start time
+    if not segments:
+        return []
     segments = sorted(segments, key=lambda x: x[0])
     merged_segments = [segments[0]]
 
