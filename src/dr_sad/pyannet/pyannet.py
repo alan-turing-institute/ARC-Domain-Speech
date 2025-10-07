@@ -274,6 +274,8 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
             batch["domains"],
         )
         outputs = self(waveforms)
+        # (batch, time, channels) -> (batch, channels, time)
+        outputs = outputs.swapaxes(1, 2)
         speaker_truth = self.prepare_annotation(waveforms, annotations)
         loss = self.loss_function(speaker_truth, _domains, outputs)
         self.log("train_loss", loss)

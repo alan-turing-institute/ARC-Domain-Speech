@@ -65,8 +65,11 @@ def fill_gaps(old_sample: dict[str, Any]) -> dict[str, Any]:
             strict=True,
         )
     )
-    annotations = [(talk_period[0], talk_period[1]) for talk_period
-                    in talking_periods if talk_period[2] != "None"]
+    annotations = [
+        (talk_period[0], talk_period[1])
+        for talk_period in talking_periods
+        if talk_period[2] != "None"
+    ]
 
     annotations = remove_overlap(annotations)
 

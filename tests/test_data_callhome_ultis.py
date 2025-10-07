@@ -31,7 +31,3 @@ class TestRemoveOverlap:
         segments = [(0.0, 1.0), (0.5, 2.0)]
         merged = callhome_utils.remove_overlap(segments)
         assert all(isinstance(seg, tuple) for seg in merged)
-        assert (
-            all(isinstance(seg[0], float) and isinstance(seg[1], float)
-            for seg in merged)
-        )

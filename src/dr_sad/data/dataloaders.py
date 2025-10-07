@@ -43,7 +43,7 @@ def _callhome_dataloader(languages: list[str] | None = None, **kwargs) -> list[D
             keep_in_memory=False,
             writer_batch_size=5,
             remove_columns=["timestamps_start", "timestamps_end", "speakers"],
-            ).rename_column("audio", "waveforms")
+        ).rename_column("audio", "waveforms")
 
         processed_datasets.append(processed_dataset)
 
@@ -126,20 +126,14 @@ def audio_collation(batch: list[dict[str, Any]]) -> dict[str, Any]:
         # Extract audio from AudioDecoder using correct method
         audio_samples = sample[key].get_all_samples()
         audio_data = audio_samples.data  # This is the actual tensor
-
-        # Ensure 2D: [channels, samples]
-        if audio_data.dim() == 1:
-            audio_data = audio_data.unsqueeze(0)  # Add channel dimension
-
         audio_tensors.append(audio_data)
         audio_lengths.append(audio_data.shape[-1])  # Last dim is time
 
     # Pad to same length for batch processing
     max_length = max(audio_lengths)
     padded_audio = []
-    audio_masks = []
 
-    for audio, length in zip(audio_tensors, audio_lengths, strict=False):
+    for audio in audio_tensors:
         # Pad to max length
         if audio.shape[-1] < max_length:
             padding = max_length - audio.shape[-1]
@@ -149,13 +143,9 @@ def audio_collation(batch: list[dict[str, Any]]) -> dict[str, Any]:
 
         padded_audio.append(padded_tensor)
 
-        # Create attention mask (True for real audio, False for padding)
-        mask = torch.ones(max_length, dtype=torch.bool)
-        if length < max_length:
-            mask[length:] = False
-        audio_masks.append(mask)
-
-    collated_batch[key] = torch.stack(padded_audio)
+    collated_batch[key] = torch.vstack(padded_audio).unsqueeze(
+        1
+    )  # Add channel dimension
     return collated_batch
 
 
