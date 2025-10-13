@@ -124,8 +124,9 @@ def audio_collation(batch: list[dict[str, Any]]) -> dict[str, Any]:
 
     for sample in batch:
         # Extract audio from AudioDecoder using correct method
-        audio_samples = sample[key].get_all_samples()
-        audio_data = audio_samples.data  # This is the actual tensor
+        audio_data = torch.tensor(
+            sample[key], dtype=torch.float32
+        )  # This is the actual tensor
         audio_tensors.append(audio_data)
         audio_lengths.append(audio_data.shape[-1])  # Last dim is time
 
@@ -174,7 +175,7 @@ def collate_padded(batch: list[dict[str, Any]]) -> dict[str, Any]:
         elif key == "domains":
             # so do these for domain classification
             collated_batch[key] = torch.tensor(
-                [sample[key] for sample in batch], dtype=torch.long
+                [sample[key] for sample in batch], dtype=torch.float32
             )
         else:
             # nothing else needs special handling - just collate as list

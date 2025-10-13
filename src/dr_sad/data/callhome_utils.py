@@ -1,6 +1,16 @@
+import csv
 import itertools
 from pathlib import Path
 from typing import Any
+
+import pandas as pd
+import soundfile
+from torch.utils.data import Dataset
+from tqdm import tqdm
+
+DATA_DIR = Path(__file__).parent.parent.parent.parent / "data" / "callhome"
+
+DOMAIN_LANGUAGES = {"eng": 0, "deu": 1, "spa": 2, "jpn": 3, "zho": 4}
 
 
 def roundrobin(*iterables: list[Any]) -> Any:
@@ -172,3 +182,65 @@ def generate_rttm(
                     f"SPEAKER {file_id} {channel_id} {begin:.3f} {length:.3f} <NA> "
                     f"<NA> {speaker} <NA> <NA>\n"
                 )
+
+
+def load_callhome(data_dir: Path) -> list[dict[str, Any]]:
+    data = []
+    audio_dir = data_dir / "flac"
+    rttm_dir = data_dir / "rttm"
+    sources_df = pd.read_csv(data_dir / "sources.tbl", sep="\t", header=0, index_col=0)
+    audio_files = list(audio_dir.glob("*.flac"))
+
+    for audio_file in tqdm(
+        sorted(audio_files), total=len(audio_files), desc="Loading CallHome data:"
+    ):
+        file_id = Path(audio_file).stem
+        rttm_file = rttm_dir / f"{file_id}.rttm"
+
+        # Load audio
+        waveform = soundfile.read(audio_file)[0]
+
+        # Load RTTM
+        timestamps_start = []
+        timestamps_end = []
+        speakers = []
+        with open(rttm_file) as f:
+            reader = csv.reader(f, delimiter=" ")
+            for row in reader:
+                if row[0] == "SPEAKER":
+                    start_time = float(row[3])
+                    duration = float(row[4])
+                    end_time = start_time + duration
+                    speaker_id = row[7]
+
+                    timestamps_start.append(start_time)
+                    timestamps_end.append(end_time)
+                    speakers.append(speaker_id)
+
+        annotations = remove_overlap(
+            list(zip(timestamps_start, timestamps_end, strict=False))
+        )
+
+        domain = sources_df.loc[file_id, "lang"]
+
+        data.append(
+            {
+                "waveforms": waveform,
+                "annotations": annotations,
+                "domains": DOMAIN_LANGUAGES[domain],
+            }
+        )
+
+    return data
+
+
+class DrSadDataset(Dataset):  # type: ignore[misc]
+    def __init__(self, dataset_name: str = "callhome"):
+        if dataset_name == "callhome":
+            self.data = load_callhome(DATA_DIR)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx: int) -> dict[str, Any]:
+        return self.data[idx]
