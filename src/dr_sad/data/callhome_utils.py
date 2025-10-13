@@ -1,4 +1,5 @@
 import itertools
+from pathlib import Path
 from typing import Any
 
 
@@ -152,3 +153,22 @@ def call_home_preprocess(sample: dict[str, list[Any]]) -> dict[str, list[Any]]:
     combined_labels.append(current_label)
 
     return sample
+
+
+def generate_rttm(
+    data: dict[str, Any],
+    rttm_dir: Path,
+    file_id: str,
+    channel_id: int = 1,
+) -> None:
+    beginnings = data["timestamps_start"]
+    ends = data["timestamps_end"]
+    lengths = [end - start for start, end in zip(beginnings, ends, strict=True)]
+    speakers = data["speakers"]
+    with open(rttm_dir / f"{file_id}.rttm", "w") as f:
+        for begin, length, speaker in zip(beginnings, lengths, speakers, strict=True):
+            if speaker != "None":
+                f.write(
+                    f"SPEAKER {file_id} {channel_id} {begin:.3f} {length:.3f} <NA> "
+                    f"<NA> {speaker} <NA> <NA>\n"
+                )
