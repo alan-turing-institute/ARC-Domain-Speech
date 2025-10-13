@@ -1,4 +1,6 @@
+# Project specific ignores
 /data/musan/*
+.temp/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -161,6 +163,3 @@ Thumbs.db
 # Common editor files
 *~
 *.swp
-
-# Project specific ignores
-.temp/

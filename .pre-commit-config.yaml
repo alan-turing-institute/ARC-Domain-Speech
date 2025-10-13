@@ -33,7 +33,7 @@ repos:
     rev: "v1.11.1"
     hooks:
       - id: mypy
-        args: ["--config-file=pyproject.toml", "--disable-error-code=import-not-found"]
+        args: ["--config-file=pyproject.toml"]
   -   repo: https://github.com/kynan/nbstripout
       rev: "0.7.1"
       hooks:
