@@ -208,7 +208,7 @@ def load_callhome(
 
                     timestamps_start.append(start_time)
                     # times may be longer due to floating point issues
-                    timestamps_end.append(max(end_time, total_duration))
+                    timestamps_end.append(min(end_time, total_duration))
                     speakers.append(speaker_id)
 
         annotations = remove_overlap(
