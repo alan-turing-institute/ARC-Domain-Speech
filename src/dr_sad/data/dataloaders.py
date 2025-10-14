@@ -182,30 +182,3 @@ def collate_padded(batch: list[dict[str, Any]]) -> dict[str, Any]:
             collated_batch[key] = [sample[key] for sample in batch]
 
     return collated_batch
-
-
-def get_callhome_dataloader(dataset: Dataset, **dataloader_kwargs) -> DataLoader:
-    """
-    Create a DataLoader for the CallHome dataset.
-
-    Args:
-        dataset: The dataset to load
-        **dataloader_kwargs: Additional arguments for DataLoader
-
-    Returns:
-        A DataLoader instance for the dataset.
-    """
-    # Extract shuffle parameter before creating sampler
-    shuffle = dataloader_kwargs.pop("shuffle", True)
-
-    stratified_sampler = StratifiedSampler(
-        domains=dataset["domains"],
-        shuffle=shuffle,
-    )
-
-    return DataLoader(
-        dataset,
-        sampler=stratified_sampler,
-        collate_fn=collate_padded,
-        **dataloader_kwargs,
-    )

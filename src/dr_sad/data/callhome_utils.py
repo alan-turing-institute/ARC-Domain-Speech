@@ -184,7 +184,11 @@ def generate_rttm(
                 )
 
 
-def load_callhome(data_dir: Path) -> list[dict[str, Any]]:
+def load_callhome(
+        data_dir: Path,
+        domains: list[str] = list(DOMAIN_LANGUAGES.keys()),
+    ) -> list[dict[str, Any]]:
+
     data = []
     audio_dir = data_dir / "flac"
     rttm_dir = data_dir / "rttm"
@@ -194,8 +198,13 @@ def load_callhome(data_dir: Path) -> list[dict[str, Any]]:
     for audio_file in tqdm(
         sorted(audio_files), total=len(audio_files), desc="Loading CallHome data:"
     ):
+
         file_id = Path(audio_file).stem
         rttm_file = rttm_dir / f"{file_id}.rttm"
+
+        domain = sources_df.loc[file_id, "lang"]
+        if domain not in domains:
+            continue
 
         # Load audio
         waveform = soundfile.read(audio_file)[0]
@@ -221,8 +230,6 @@ def load_callhome(data_dir: Path) -> list[dict[str, Any]]:
             list(zip(timestamps_start, timestamps_end, strict=False))
         )
 
-        domain = sources_df.loc[file_id, "lang"]
-
         data.append(
             {
                 "waveforms": waveform,
@@ -233,11 +240,35 @@ def load_callhome(data_dir: Path) -> list[dict[str, Any]]:
 
     return data
 
+def train_test_split(
+    datasets: Dataset, val_size: float = 0.1, test_size: float = 0.1, **kwargs
+) -> tuple[Dataset, Dataset, Dataset]:
+    """
+    Split the dataset into training, validation, and test sets. Even distribution
+    of languages.
+
+    Args:
+        dataset: The full dataset to split.
+        val_size: Proportion of the dataset to use for validation.
+        test_size: Proportion of the dataset to use for testing.
+    """
+    # Shuffle the dataset
+    shuffled_dataset = datasets.shuffle(seed=42, stratify_by_column="domains")
+    train_split, non_train_splits = shuffled_dataset.train_test_split(
+        test_size=val_size + test_size
+    ).values()
+    val_split, test_split = non_train_splits.train_test_split(
+        test_size=test_size / (val_size + test_size)
+    ).values()
+
+    return train_split, val_split, test_split
+
+
 
 class DrSadDataset(Dataset):  # type: ignore[misc]
-    def __init__(self, dataset_name: str = "callhome"):
+    def __init__(self, dataset_name: str = "callhome", **dataset_kwargs: Any):
         if dataset_name == "callhome":
-            self.data = load_callhome(DATA_DIR)
+            self.data = load_callhome(DATA_DIR, **dataset_kwargs)
 
     def __len__(self):
         return len(self.data)
