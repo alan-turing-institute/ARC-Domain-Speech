@@ -5,7 +5,6 @@ from typing import Any
 
 import pandas as pd
 import soundfile
-from torch.utils.data import Dataset
 from tqdm import tqdm
 
 DATA_DIR = Path(__file__).parent.parent.parent.parent / "data" / "callhome"
@@ -165,40 +164,24 @@ def call_home_preprocess(sample: dict[str, list[Any]]) -> dict[str, list[Any]]:
     return sample
 
 
-def generate_rttm(
-    data: dict[str, Any],
-    rttm_dir: Path,
-    file_id: str,
-    channel_id: int = 1,
-) -> None:
-    beginnings = data["timestamps_start"]
-    ends = data["timestamps_end"]
-    lengths = [end - start for start, end in zip(beginnings, ends, strict=True)]
-    speakers = data["speakers"]
-    with open(rttm_dir / f"{file_id}.rttm", "w") as f:
-        for begin, length, speaker in zip(beginnings, lengths, speakers, strict=True):
-            if speaker != "None":
-                f.write(
-                    f"SPEAKER {file_id} {channel_id} {begin:.3f} {length:.3f} <NA> "
-                    f"<NA> {speaker} <NA> <NA>\n"
-                )
-
-
 def load_callhome(
-        data_dir: Path,
-        domains: list[str] = list(DOMAIN_LANGUAGES.keys()),
-    ) -> list[dict[str, Any]]:
+    data_dir: Path = DATA_DIR,
+    domains: list[str] | None = None,
+) -> pd.DataFrame:
+    if domains is None:
+        domains = list(DOMAIN_LANGUAGES.keys())
 
-    data = []
+    data = pd.DataFrame(columns=["waveforms", "annotations", "domains"])
     audio_dir = data_dir / "flac"
     rttm_dir = data_dir / "rttm"
     sources_df = pd.read_csv(data_dir / "sources.tbl", sep="\t", header=0, index_col=0)
     audio_files = list(audio_dir.glob("*.flac"))
 
-    for audio_file in tqdm(
-        sorted(audio_files), total=len(audio_files), desc="Loading CallHome data:"
+    for sample_index, audio_file in tqdm(
+        enumerate(sorted(audio_files)),
+        total=len(audio_files),
+        desc="Loading CallHome data:",
     ):
-
         file_id = Path(audio_file).stem
         rttm_file = rttm_dir / f"{file_id}.rttm"
 
@@ -208,6 +191,7 @@ def load_callhome(
 
         # Load audio
         waveform = soundfile.read(audio_file)[0]
+        total_duration = len(waveform) / 16000.0
 
         # Load RTTM
         timestamps_start = []
@@ -223,55 +207,18 @@ def load_callhome(
                     speaker_id = row[7]
 
                     timestamps_start.append(start_time)
-                    timestamps_end.append(end_time)
+                    # times may be longer due to floating point issues
+                    timestamps_end.append(max(end_time, total_duration))
                     speakers.append(speaker_id)
 
         annotations = remove_overlap(
-            list(zip(timestamps_start, timestamps_end, strict=False))
+            list(zip(timestamps_start, timestamps_end, strict=True))
         )
 
-        data.append(
-            {
-                "waveforms": waveform,
-                "annotations": annotations,
-                "domains": DOMAIN_LANGUAGES[domain],
-            }
-        )
+        data.loc[sample_index] = {
+            "waveforms": waveform,
+            "annotations": annotations,
+            "domains": DOMAIN_LANGUAGES[domain],
+        }
 
     return data
-
-def train_test_split(
-    datasets: Dataset, val_size: float = 0.1, test_size: float = 0.1, **kwargs
-) -> tuple[Dataset, Dataset, Dataset]:
-    """
-    Split the dataset into training, validation, and test sets. Even distribution
-    of languages.
-
-    Args:
-        dataset: The full dataset to split.
-        val_size: Proportion of the dataset to use for validation.
-        test_size: Proportion of the dataset to use for testing.
-    """
-    # Shuffle the dataset
-    shuffled_dataset = datasets.shuffle(seed=42, stratify_by_column="domains")
-    train_split, non_train_splits = shuffled_dataset.train_test_split(
-        test_size=val_size + test_size
-    ).values()
-    val_split, test_split = non_train_splits.train_test_split(
-        test_size=test_size / (val_size + test_size)
-    ).values()
-
-    return train_split, val_split, test_split
-
-
-
-class DrSadDataset(Dataset):  # type: ignore[misc]
-    def __init__(self, dataset_name: str = "callhome", **dataset_kwargs: Any):
-        if dataset_name == "callhome":
-            self.data = load_callhome(DATA_DIR, **dataset_kwargs)
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx: int) -> dict[str, Any]:
-        return self.data[idx]

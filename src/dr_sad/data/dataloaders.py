@@ -1,184 +1,131 @@
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
-import torch
-from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset
-from torch.utils.data import DataLoader
+import pandas as pd
+from torch.utils.data import DataLoader, Dataset
 
-from dr_sad.data.callhome_utils import call_home_preprocess
+from dr_sad.data.callhome_utils import load_callhome
 from dr_sad.data.sampler import StratifiedSampler
+from dr_sad.data.splitting import stratified_splitter
+from dr_sad.data.utils import collate_padded
 
-DOMAIN_LANGUAGES = {"eng": 0, "deu": 1, "spa": 2, "jpn": 3, "zho": 4}
+DATA_DIR = Path(__file__).parent.parent.parent.parent / "data" / "callhome"
 
 
-def _callhome_dataloader(languages: list[str] | None = None, **kwargs) -> list[Dataset]:
-    """
-    Load and preprocess the CallHome dataset for the specified languages.
+class DrSadDataset(Dataset):  # type: ignore[misc]
+    def __init__(self, data: pd.DataFrame | str, **dataset_gen_kwargs):
+        if isinstance(data, str):
+            data = self.get_data(data, **dataset_gen_kwargs)
+        self.data = data
+        self.key_list = list(data.index)
 
-    Args:
-        languages: List of language codes to load (e.g., ["eng", "spa"]).
+    @staticmethod
+    def get_data(dataset_name, **dataset_gen_kwargs) -> pd.DataFrame:
+        if dataset_name == "callhome":
+            return load_callhome(DATA_DIR, **dataset_gen_kwargs)
 
-    Returns:
-        Preprocessed dataset ready for training.
-    """
-    # Load datasets for specified languages
-    if languages is None:
-        languages = ["eng"]
-    datasets = [load_dataset("talkbank/callhome", lang) for lang in languages]
+        err_msg = f"Unknown dataset name: {dataset_name}"
+        raise ValueError(err_msg)
 
-    # Process each dataset separately
-    processed_datasets = []
-    for dataset, lang in zip(datasets, languages, strict=True):
-        # Get the data split
-        data = dataset["data"]
+    def train_test_split(
+        self, val_ratio: float = 0.1, test_ratio: float = 0.1, random_state: int = 42
+    ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset"]:
+        domains_series = self.data["domains"]
+        domains_series.index = domains_series.index.astype(str)
 
-        # Add language column using add_column
-        data_with_lang = data.add_column(
-            "domains", [DOMAIN_LANGUAGES[lang]] * len(data)
+        train_keys, val_keys, test_keys = stratified_splitter(
+            domains_series,
+            val_ratio=val_ratio,
+            test_ratio=test_ratio,
+            random_seed=random_state,
         )
-        # Skip ClassLabel conversion for now - keep as string to avoid PyArrow issues
-        # Preprocess this dataset
-        processed_dataset: Dataset = data_with_lang.map(
-            call_home_preprocess,
-            batch_size=1,
-            keep_in_memory=False,
-            writer_batch_size=5,
-            remove_columns=["timestamps_start", "timestamps_end", "speakers"],
-        ).rename_column("audio", "waveforms")
 
-        processed_datasets.append(processed_dataset)
+        # Get the indices in the dataset for these keys
+        train_indices = [self.key_list.index(int(k)) for k in train_keys]
+        val_indices = [self.key_list.index(int(k)) for k in val_keys]
+        test_indices = [self.key_list.index(int(k)) for k in test_keys]
 
-    return processed_datasets
+        # Create DrSadDataset objects
+        return (
+            DrSadDataset(self.data.iloc[train_indices]),
+            DrSadDataset(self.data.iloc[val_indices]),
+            DrSadDataset(self.data.iloc[test_indices]),
+        )
 
+    def __len__(self):
+        return len(self.data)
 
-def train_test_split(
-    datasets: list[Dataset], val_size: float = 0.1, test_size: float = 0.1, **kwargs
-) -> tuple[Dataset, Dataset, Dataset]:
-    """
-    Split the dataset into training, validation, and test sets.
-
-    Args:
-        dataset: The full dataset to split.
-        val_size: Proportion of the dataset to use for validation.
-        test_size: Proportion of the dataset to use for testing.
-
-    Returns:
-        A tuple containing the training, validation, and test sets.
-    """
-    train_splits = []
-    val_splits = []
-    test_splits = []
-
-    # Shuffle the dataset
-    for dataset in datasets:
-        shuffled_dataset = dataset.shuffle(seed=42)
-        train_split, non_train_splits = shuffled_dataset.train_test_split(
-            test_size=val_size + test_size
-        ).values()
-        val_split, test_split = non_train_splits.train_test_split(
-            test_size=test_size / (val_size + test_size)
-        ).values()
-        train_splits.append(train_split)
-        val_splits.append(val_split)
-        test_splits.append(test_split)
-
-    train_split = concatenate_datasets(train_splits)
-    val_split = concatenate_datasets(val_splits)
-    test_split = concatenate_datasets(test_splits)
-
-    return train_split, val_split, test_split
+    def __getitem__(self, idx: int) -> dict[str, Any]:
+        return cast(dict[str, Any], self.data.iloc[idx].to_dict())
 
 
-def get_callhome_dataset(languages: list[str] | None = None, **kwargs) -> Dataset:
-    """
-    Load and preprocess the CallHome dataset for the specified languages.
+def get_dataloaders(
+    dataset: DrSadDataset,
+    batch_size: int = 4,
+    val_ratio: float = 0.1,
+    test_ratio: float = 0.1,
+    random_state: int = 42,
+    **dataloader_kwargs,
+) -> tuple[DataLoader, DataLoader, DataLoader]:
+    """Create dataloaders for training, validation, and testing.
 
     Args:
-        languages: List of language codes to load (e.g., ["eng", "spa"]).
+        dataset (DrSadDataset): The full dataset to split and load.
+        batch_size (int, optional): Batch size for the dataloaders. Defaults to 4.
+        val_ratio (float, optional): Proportion of data to use for validation.
+        Defaults to 0.1.
+        test_ratio (float, optional): Proportion of data to use for testing.
+        Defaults to 0.1.
+        random_state (int, optional): Random seed for reproducibility.
+        Defaults to 42.
+        **dataloader_kwargs: Additional keyword arguments for DataLoader.
 
     Returns:
-        Preprocessed dataset ready for training.
+        tuple[DataLoader, DataLoader, DataLoader]: Train, validation, and test
+        dataloaders.
     """
 
-    train, val, test = train_test_split(
-        _callhome_dataloader(languages, **kwargs), **kwargs
+    train, val, test = dataset.train_test_split(
+        val_ratio=val_ratio, test_ratio=test_ratio, random_state=random_state
     )
 
-    return DatasetDict({"train": train, "validation": val, "test": test})
+    # get samplers
+    train_domains = train.data["domains"].tolist()
+    train_sampler = StratifiedSampler(
+        domains=train_domains,
+        shuffle=True,
+    )
+    val_domains = val.data["domains"].tolist()
+    val_sampler = StratifiedSampler(
+        domains=val_domains,
+        shuffle=True,
+    )
+    test_domains = test.data["domains"].tolist()
+    test_sampler = StratifiedSampler(
+        domains=test_domains,
+        shuffle=True,
+    )
+    # create dataloaders
+    train_loader = DataLoader(
+        train,
+        batch_size=batch_size,
+        sampler=train_sampler,
+        collate_fn=collate_padded,
+        **dataloader_kwargs,
+    )
+    val_loader = DataLoader(
+        val,
+        batch_size=batch_size,
+        sampler=val_sampler,
+        collate_fn=collate_padded,
+        **dataloader_kwargs,
+    )
+    test_loader = DataLoader(
+        test,
+        batch_size=batch_size,
+        sampler=test_sampler,
+        collate_fn=collate_padded,
+        **dataloader_kwargs,
+    )
 
-
-def audio_collation(batch: list[dict[str, Any]]) -> dict[str, Any]:
-    """
-    Collate audio data from a batch of samples.
-
-    Args:
-        batch: List of samples, each containing audio data.
-
-    Returns:
-        A dictionary containing collated audio tensors and masks.
-    """
-    collated_batch = {}
-    key = "waveforms"
-    # Process AudioDecoder objects into tensors
-    audio_tensors = []
-    audio_lengths = []
-
-    for sample in batch:
-        # Extract audio from AudioDecoder using correct method
-        audio_data = torch.tensor(
-            sample[key], dtype=torch.float32
-        )  # This is the actual tensor
-        audio_tensors.append(audio_data)
-        audio_lengths.append(audio_data.shape[-1])  # Last dim is time
-
-    # Pad to same length for batch processing
-    max_length = max(audio_lengths)
-    padded_audio = []
-
-    for audio in audio_tensors:
-        # Pad to max length
-        if audio.shape[-1] < max_length:
-            padding = max_length - audio.shape[-1]
-            padded_tensor = torch.nn.functional.pad(audio, (0, padding))
-        else:
-            padded_tensor = audio
-
-        padded_audio.append(padded_tensor)
-
-    collated_batch[key] = torch.vstack(padded_audio).unsqueeze(
-        1
-    )  # Add channel dimension
-    return collated_batch
-
-
-# Define a custom collate function to handle variable-sized data
-def collate_padded(batch: list[dict[str, Any]]) -> dict[str, Any]:
-    """
-    Custom collate function with padding for batch processing.
-
-    Args:
-        batch: List of samples, each a dictionary with keys like 'audio', 'segments',
-               'labels', and 'language'.
-
-    Returns:
-        A dictionary containing collated and padded tensors for each key.
-    """
-
-    collated_batch = {}
-
-    # Handle each field in the batch
-    for key in batch[0]:
-        if key == "waveforms":
-            # these need to be batch processed
-            audio_collated = audio_collation(batch)
-            collated_batch.update(audio_collated)
-
-        elif key == "domains":
-            # so do these for domain classification
-            collated_batch[key] = torch.tensor(
-                [sample[key] for sample in batch], dtype=torch.float32
-            )
-        else:
-            # nothing else needs special handling - just collate as list
-            collated_batch[key] = [sample[key] for sample in batch]
-
-    return collated_batch
+    return train_loader, val_loader, test_loader

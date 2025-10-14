@@ -5,7 +5,7 @@ import soundfile
 from datasets import load_dataset
 from tqdm import tqdm
 
-from dr_sad.data.callhome_utils import generate_rttm
+from dr_sad.data.utils import generate_rttm
 
 DOMAIN_LANGUAGES = {"eng": 0, "deu": 1, "spa": 2, "jpn": 3, "zho": 4}
 
