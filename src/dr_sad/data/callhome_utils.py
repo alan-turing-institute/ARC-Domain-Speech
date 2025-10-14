@@ -107,10 +107,12 @@ def fill_gaps(old_sample: dict[str, Any]) -> dict[str, Any]:
         roundrobin(talking_periods, non_talking_periods)
     )
 
-    for start, end, speaker in combined_periods:
-        if speaker == "None" and start >= end:
-            combined_periods.remove((start, end, speaker))
-
+    # Remove invalid non-talking periods without modifying the list during iteration
+    combined_periods = [
+        (start, end, speaker)
+        for (start, end, speaker) in combined_periods
+        if not (speaker == "None" and start >= end)
+    ]
     if combined_periods[-1][1] < audio_duration:
         combined_periods.append((combined_periods[-1][1], audio_duration, "None"))
 
