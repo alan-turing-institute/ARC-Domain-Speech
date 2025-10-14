@@ -281,7 +281,7 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         self.log("train_loss", loss)
         return loss
 
-    def validation_step(self, batch: Any, _batch_idx: int) -> None:
+    def evaluation_step(self, batch: Any, _batch_idx: int) -> None:
         """Override LightningModule validation step
 
         Args:
@@ -309,3 +309,9 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         self.log("val_loss", loss)
         accuracy = self.accuracy_function(speaker_truth, _domains, outputs)
         self.log("val_accuracy", accuracy)
+
+    def test_step(self, batch: Any, _batch_idx: int) -> None:  # noqa: PT019
+        return self.evaluation_step(batch, _batch_idx)
+
+    def validation_step(self, batch: Any, _batch_idx: int) -> None:
+        return self.evaluation_step(batch, _batch_idx)
