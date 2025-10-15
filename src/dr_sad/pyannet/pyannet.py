@@ -281,8 +281,8 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         self.log("train_loss", loss)
         return loss
 
-    def evaluation_step(self, batch: Any, _batch_idx: int) -> None:
-        """Override LightningModule validation step
+    def evaluate_batch(self, batch: Any, _batch_idx: int) -> tuple[torch.Tensor, float]:
+        """Function for overriding LightningModule validation_step and test_step
 
         Args:
             batch (Any): Batch from the dataloader. Includes:
@@ -293,8 +293,8 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
               - _domains (list[int]): List of domain indices for each sample.
 
         Logs:
-            val_loss (torch.Tensor): Computed loss for the batch.
-            val_accuracy (float): Computed accuracy for the batch.
+            loss (torch.Tensor): Computed loss for the batch.
+            accuracy (float): Computed accuracy for the batch.
         """
         waveforms, annotations, _domains = (
             batch["waveforms"],
@@ -306,12 +306,15 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         outputs = outputs.swapaxes(1, 2)
         speaker_truth = self.prepare_annotation(waveforms, annotations)
         loss = self.loss_function(speaker_truth, _domains, outputs)
-        self.log("val_loss", loss)
         accuracy = self.accuracy_function(speaker_truth, _domains, outputs)
-        self.log("val_accuracy", accuracy)
+        return loss, accuracy
 
     def test_step(self, batch: Any, _batch_idx: int) -> None:  # noqa: PT019
-        return self.evaluation_step(batch, _batch_idx)
+        loss, accuracy = self.evaluate_batch(batch, _batch_idx)
+        self.log("test_loss", loss)
+        self.log("test_accuracy", accuracy)
 
     def validation_step(self, batch: Any, _batch_idx: int) -> None:
-        return self.evaluation_step(batch, _batch_idx)
+        loss, accuracy = self.evaluate_batch(batch, _batch_idx)
+        self.log("val_loss", loss)
+        self.log("val_accuracy", accuracy)

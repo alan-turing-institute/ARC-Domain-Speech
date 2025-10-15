@@ -1,3 +1,9 @@
+"""This script trains the PyanNet model on the CallHome dataset.
+
+Usage:
+    python scripts/train_callhome.py --dataset callhome
+"""
+
 import argparse
 from pathlib import Path
 

@@ -13,7 +13,21 @@ DATA_DIR = Path(__file__).parent.parent.parent.parent / "data" / "callhome"
 
 
 class DrSadDataset(Dataset):  # type: ignore[misc]
+    """
+    A dataset class for the DR-SAD project.
+
+    Args:
+        Dataset: The base dataset class from PyTorch.
+    """
+
     def __init__(self, data: pd.DataFrame | str, **dataset_gen_kwargs):
+        """
+        Initialize the DrSadDataset, takes either a DataFrame or a dataset name.
+
+        Args:
+            data: The data to use for the dataset, either as a DataFrame or a string
+            representing the dataset name.
+        """
         if isinstance(data, str):
             data = self.get_data(data, **dataset_gen_kwargs)
         self.data = data
@@ -21,6 +35,18 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
 
     @staticmethod
     def get_data(dataset_name, **dataset_gen_kwargs) -> pd.DataFrame:
+        """
+        Get the data for a specific dataset.
+
+        Args:
+            dataset_name: The name of the dataset to load.
+
+        Raises:
+            ValueError: If the dataset name is unknown.
+
+        Returns:
+            pd.DataFrame: The loaded dataset.
+        """
         if dataset_name == "callhome":
             return load_callhome(DATA_DIR, **dataset_gen_kwargs)
 
@@ -30,6 +56,18 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
     def train_test_split(
         self, val_ratio: float = 0.1, test_ratio: float = 0.1, random_state: int = 42
     ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset"]:
+        """
+        Split the dataset into training, validation, and test sets.
+
+        Args:
+            val_ratio: Proportion of data to use for validation. Defaults to 0.1.
+            test_ratio: Proportion of data to use for testing. Defaults to 0.1.
+            random_state: Random seed for reproducibility. Defaults to 42.
+
+        Returns:
+            tuple[DrSadDataset, DrSadDataset, DrSadDataset]: The training, validation,
+            and test datasets.
+        """
         domains_series = self.data["domains"]
         domains_series.index = domains_series.index.astype(str)
 
@@ -53,9 +91,11 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         )
 
     def __len__(self):
+        """Return the number of samples in the dataset."""
         return len(self.data)
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
+        """Get a sample from the dataset by index."""
         return cast(dict[str, Any], self.data.iloc[idx].to_dict())
 
 

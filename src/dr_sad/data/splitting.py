@@ -33,7 +33,7 @@ def stratified_splitter(
         if k == 0:
             continue
         chosen = rng.choice(domain_keys, size=k, replace=False)
-        test_keys.extend(chosen.tolist())
+        test_keys.extend([str(k) for k in chosen])
 
     remaining = domains.drop(index=test_keys)
     val_keys = []
@@ -43,8 +43,9 @@ def stratified_splitter(
         if k == 0:
             continue
         chosen = rng.choice(domain_keys, size=k, replace=False)
-        val_keys.extend(chosen.tolist())
+        val_keys.extend([str(k) for k in chosen])
 
     train_keys = list(remaining.drop(index=val_keys).index)
+    train_keys = [str(k) for k in train_keys]
 
     return train_keys, val_keys, test_keys

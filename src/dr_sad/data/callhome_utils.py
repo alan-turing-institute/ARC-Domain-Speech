@@ -12,7 +12,7 @@ DATA_DIR = Path(__file__).parent.parent.parent.parent / "data" / "callhome"
 DOMAIN_LANGUAGES = {"eng": 0, "deu": 1, "spa": 2, "jpn": 3, "zho": 4}
 
 
-def roundrobin(*iterables: list[Any]) -> Any:
+def _roundrobin(*iterables: list[Any]) -> Any:
     """
     Round-robin iterator for multiple input iterables.
 
@@ -67,7 +67,7 @@ def remove_overlap(segments: list[tuple[float, float]]) -> list[tuple[float, flo
     return merged_segments
 
 
-def fill_gaps(old_sample: dict[str, Any]) -> dict[str, Any]:
+def _fill_gaps(old_sample: dict[str, Any]) -> dict[str, Any]:
     """
     Adds gaps in the audio sample where there is no speech.
 
@@ -104,7 +104,7 @@ def fill_gaps(old_sample: dict[str, Any]) -> dict[str, Any]:
     )
 
     combined_periods: list[tuple[float, float, str]] = list(
-        roundrobin(talking_periods, non_talking_periods)
+        _roundrobin(talking_periods, non_talking_periods)
     )
 
     # Remove invalid non-talking periods without modifying the list during iteration
@@ -123,7 +123,7 @@ def fill_gaps(old_sample: dict[str, Any]) -> dict[str, Any]:
     return new_sample
 
 
-def call_home_preprocess(sample: dict[str, list[Any]]) -> dict[str, list[Any]]:
+def _call_home_preprocess(sample: dict[str, list[Any]]) -> dict[str, list[Any]]:
     """
     Preprocess the CallHome data by combining consecutive speaking segments.
     This ensures labels alternate between 0 (silence) and 1 (speech).
@@ -136,7 +136,7 @@ def call_home_preprocess(sample: dict[str, list[Any]]) -> dict[str, list[Any]]:
     """
 
     # First, fill gaps to get alternating speech/silence
-    sample = fill_gaps(sample)
+    sample = _fill_gaps(sample)
 
     # Extract segments and create initial labels
     speakers = [0 if spk == "None" else 1 for spk in sample["speakers"]]
@@ -170,6 +170,16 @@ def load_callhome(
     data_dir: Path = DATA_DIR,
     domains: list[str] | None = None,
 ) -> pd.DataFrame:
+    """
+    Load the CallHome dataset.
+
+    Args:
+       data_dir: Path to the CallHome dataset directory.
+       domains: List of domain languages to include. If None, include all.
+
+    Returns:
+        pd.DataFrame: The loaded dataset.
+    """
     if domains is None:
         domains = list(DOMAIN_LANGUAGES.keys())
 

@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 from dr_sad.data.dataloaders import DrSadDataset
@@ -12,7 +13,6 @@ def create_test_dataframe(n_samples: int = 100) -> pd.DataFrame:
     Returns:
         DataFrame with test data including domains for stratified splitting
     """
-    import numpy as np
 
     # Create test data with different domains for stratified splitting
     domains = np.random.choice(["eng_1", "eng_2", "spa_1", "spa_2"], size=n_samples)
