@@ -31,12 +31,12 @@ dependencies = [
   "pytest-cov >=3",
   "pre-commit",
   "torch>=2.8.0",
-  "matplotlib>=3.10.5",
   "jupyterlab>=4.4.6",
   "lightning>=2.5.3",
   "asteroid-filterbanks>=0.4.0",
   "einops>=0.8.1",
   "pandas>=2.3.3",
+  "soundfile>=0.12.1",
 ]
 
 [project.urls]

@@ -1,6 +1,6 @@
 import numpy as np
 
-from dr_sad import sampler
+from dr_sad.data import sampler
 
 
 class TestStratifiedSampling:

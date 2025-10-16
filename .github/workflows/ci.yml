@@ -43,6 +43,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup FFmpeg
+        uses: AnimMouse/setup-ffmpeg@v1
+        with:
+          version: '7.1'  # specify the desired FFmpeg version
+
       - name: Install uv and set the python version
         uses: astral-sh/setup-uv@v6
         with:

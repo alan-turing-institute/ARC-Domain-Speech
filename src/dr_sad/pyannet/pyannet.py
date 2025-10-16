@@ -8,8 +8,8 @@
 
 from typing import Any
 
+import lightning.pytorch as pl
 import numpy as np
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from torch.nn.functional import binary_cross_entropy
@@ -268,15 +268,21 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         Returns:
             loss (torch.Tensor): Computed loss for the batch.
         """
-        waveforms, annotations, _domains = batch
+        waveforms, annotations, _domains = (
+            batch["waveforms"],
+            batch["annotations"],
+            batch["domains"],
+        )
         outputs = self(waveforms)
+        # (batch, time, channels) -> (batch, channels, time)
+        outputs = outputs.swapaxes(1, 2)
         speaker_truth = self.prepare_annotation(waveforms, annotations)
         loss = self.loss_function(speaker_truth, _domains, outputs)
         self.log("train_loss", loss)
         return loss
 
-    def validation_step(self, batch: Any, _batch_idx: int) -> None:
-        """Override LightningModule validation step
+    def evaluate_batch(self, batch: Any, _batch_idx: int) -> tuple[torch.Tensor, float]:
+        """Function for overriding LightningModule validation_step and test_step
 
         Args:
             batch (Any): Batch from the dataloader. Includes:
@@ -285,16 +291,30 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
               - annotations (list[list[tuple[float, float]]]): List of annotations
                     for each sample in the batch.
               - _domains (list[int]): List of domain indices for each sample.
-            _batch_idx (int): Batch index, unused.
 
         Logs:
-            val_loss (torch.Tensor): Computed loss for the batch.
-            val_accuracy (float): Computed accuracy for the batch.
+            loss (torch.Tensor): Computed loss for the batch.
+            accuracy (float): Computed accuracy for the batch.
         """
-        waveforms, annotations, _domains = batch
+        waveforms, annotations, _domains = (
+            batch["waveforms"],
+            batch["annotations"],
+            batch["domains"],
+        )
         outputs = self(waveforms)
+        # (batch, time, channels) -> (batch, channels, time)
+        outputs = outputs.swapaxes(1, 2)
         speaker_truth = self.prepare_annotation(waveforms, annotations)
         loss = self.loss_function(speaker_truth, _domains, outputs)
-        self.log("val_loss", loss)
         accuracy = self.accuracy_function(speaker_truth, _domains, outputs)
+        return loss, accuracy
+
+    def test_step(self, batch: Any, _batch_idx: int) -> None:  # noqa: PT019
+        loss, accuracy = self.evaluate_batch(batch, _batch_idx)
+        self.log("test_loss", loss)
+        self.log("test_accuracy", accuracy)
+
+    def validation_step(self, batch: Any, _batch_idx: int) -> None:
+        loss, accuracy = self.evaluate_batch(batch, _batch_idx)
+        self.log("val_loss", loss)
         self.log("val_accuracy", accuracy)
