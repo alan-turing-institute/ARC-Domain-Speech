@@ -1,3 +1,12 @@
+"""
+Script to generate CallHome dataset files and RTTM annotations.
+
+This is done by downloading the dataset using HuggingFace datasets library.
+The generated files are stored in the `data/callhome` directory.
+
+This script takes no arguments.
+"""
+
 from pathlib import Path
 
 import pandas as pd
