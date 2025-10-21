@@ -54,15 +54,15 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         raise ValueError(err_msg)
 
     def train_test_split(
-        self, val_ratio: float = 0.1, test_ratio: float = 0.1, random_state: int = 42
+        self, val_ratio: float = 0.1, test_ratio: float = 0.2, random_state: int = 42
     ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset"]:
         """
         Split the dataset into training, validation, and test sets.
 
         Args:
-            val_ratio: Proportion of data to use for validation. Defaults to 0.1.
-            test_ratio: Proportion of data to use for testing. Defaults to 0.1.
-            random_state: Random seed for reproducibility. Defaults to 42.
+            val_ratio: Proportion of data to use for validation. Defaults to 0.1
+            test_ratio: Proportion of data to use for testing. Defaults to 0.2.
+            random_state: Random seed for reproducibility. Defaults to 42
 
         Returns:
             tuple[DrSadDataset, DrSadDataset, DrSadDataset]: The training, validation,
@@ -103,7 +103,7 @@ def get_dataloaders(
     dataset: DrSadDataset,
     batch_size: int = 4,
     val_ratio: float = 0.1,
-    test_ratio: float = 0.1,
+    test_ratio: float = 0.2,
     random_state: int = 42,
     **dataloader_kwargs,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
@@ -113,11 +113,11 @@ def get_dataloaders(
         dataset (DrSadDataset): The full dataset to split and load.
         batch_size (int, optional): Batch size for the dataloaders. Defaults to 4.
         val_ratio (float, optional): Proportion of data to use for validation.
-        Defaults to 0.1.
+        Defaults to 0.1
         test_ratio (float, optional): Proportion of data to use for testing.
-        Defaults to 0.1.
+        Defaults to 0.2
         random_state (int, optional): Random seed for reproducibility.
-        Defaults to 42.
+        Defaults to 42
         **dataloader_kwargs: Additional keyword arguments for DataLoader.
 
     Returns:
