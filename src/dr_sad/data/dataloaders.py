@@ -30,6 +30,43 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         self.key_list = list(data.index)
 
     @classmethod
+    def from_split_domain(
+        cls,
+        data: pd.DataFrame,
+        train_keys: list[str],
+        val_keys: list[str],
+        test_keys: list[str],
+        domain: int,
+    ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset", "DrSadDataset"]:
+        """
+        Create a DrSadDataset for a specific domain.
+
+        Args:
+            data (pd.DataFrame): The full dataset to filter.
+            train_keys (list): List of keys for the training set.
+            val_keys (list): List of keys for the validation set.
+            test_keys (list): List of keys for the test set.
+            domain (int): The domain index to filter by.
+
+        Returns:
+            train (DrSadDataset): Training dataset excluding the specified domain.
+            val (DrSadDataset): Validation dataset excluding the specified domain.
+            test (DrSadDataset): Test dataset excluding the specified domain.
+            domain_data (DrSadDataset): Dataset containing only the specified domain.
+        """
+        domain_keys = data[data["domains"] == domain].index.to_list()
+        train_data = data.loc[list(set(train_keys) - set(domain_keys))]
+        val_data = data.loc[list(set(val_keys) - set(domain_keys))]
+        test_data = data.loc[list(set(test_keys) - set(domain_keys))]
+        domain_data = data.loc[domain_keys]
+        return (
+            cls(train_data, domain=domain),
+            cls(val_data, domain=domain),
+            cls(test_data, domain=domain),
+            cls(domain_data, domain=domain),
+        )
+
+    @classmethod
     def from_splitting_keys(
         cls,
         data: pd.DataFrame,
@@ -279,3 +316,81 @@ def from_keys_dataloaders(
     )
 
     return train_loader, val_loader, test_loader
+
+
+def domain_split_dataloaders(
+    data: pd.DataFrame,
+    train_keys: list[str],
+    val_keys: list[str],
+    test_keys: list[str],
+    domain: int,
+    batch_size: int = 4,
+    random_seed: int | None = None,
+    dataloader_kwargs: dict[str, Any] | None = None,
+) -> tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
+    """Create dataloaders for training, validation, testing, and a specific domain.
+
+    Args:
+        data (pd.DataFrame): The full dataset to split and load.
+            This must contain "waveforms", "annotations", and "domains" columns.
+        train_keys (list): List of keys for the training set.
+        val_keys (list): List of keys for the validation set.
+        test_keys (list): List of keys for the test set.
+        domain (int): The domain index to filter by.
+        batch_size (int, optional): Batch size for the dataloaders.
+            Defaults to 4.
+        random_seed (int, optional): Random seed for reproducibility.
+            Defaults to None (no seed).
+        dataloader_kwargs (dict, optional): Additional keyword arguments to pass
+            to the DataLoader constructor. Defaults to {}.
+
+    Returns:
+        train_loader (DataLoader): DataLoader for the training set excluding the domain.
+        val_loader (DataLoader): DataLoader for the validation set excluding the domain.
+        test_loader (DataLoader): DataLoader for the test set excluding the domain.
+        domain_loader (DataLoader): DataLoader for the specified domain.
+    """
+    if dataloader_kwargs is None:
+        dataloader_kwargs = {}
+
+    train, val, test, domain_data = DrSadDataset.from_split_domain(
+        data, train_keys, val_keys, test_keys, domain
+    )
+    if random_seed is None:
+        random_seed = np.random.randint(0, 1_000_000)
+    train_rng = np.random.default_rng(random_seed)
+    val_rng = np.random.default_rng(random_seed + 1)
+    test_rng = np.random.default_rng(random_seed + 2)
+    domain_rng = np.random.default_rng(random_seed + 3)
+
+    # Create dataloaders
+    train_loader = make_dataloader(
+        train,
+        batch_size=batch_size,
+        shuffle=True,
+        random_state=train_rng,
+        **dataloader_kwargs,
+    )
+    val_loader = make_dataloader(
+        val,
+        batch_size=batch_size,
+        shuffle=False,
+        random_state=val_rng,
+        **dataloader_kwargs,
+    )
+    test_loader = make_dataloader(
+        test,
+        batch_size=batch_size,
+        shuffle=False,
+        random_state=test_rng,
+        **dataloader_kwargs,
+    )
+    domain_loader = make_dataloader(
+        domain_data,
+        batch_size=batch_size,
+        shuffle=False,
+        random_state=domain_rng,
+        **dataloader_kwargs,
+    )
+
+    return train_loader, val_loader, test_loader, domain_loader

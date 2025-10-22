@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import (
     DrSadDataset,
+    domain_split_dataloaders,
     from_keys_dataloaders,
     make_dataloader,
     train_test_split_dataloaders,
@@ -129,6 +130,60 @@ class TestDrSadDataset:
         assert train_indices.isdisjoint(val_indices)
         assert train_indices.isdisjoint(test_indices)
         assert val_indices.isdisjoint(test_indices)
+
+    def test_from_split_domain(self, test_dataset):
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        domain = 1
+
+        train, val, test, domain_data = DrSadDataset.from_split_domain(
+            data, train_keys, val_keys, test_keys, domain
+        )
+
+        # domain_data should contain only samples from the chosen domain
+        domain_indices = set(domain_data.data.index)
+        assert len(domain_indices) > 0
+        for idx in domain_indices:
+            assert int(data.loc[idx, "domains"]) == domain
+
+        # returned datasets should carry the domain attribute
+        assert train.domain == domain
+        assert val.domain == domain
+        assert test.domain == domain
+        assert domain_data.domain == domain
+
+        # domain keys must be excluded from train/val/test
+        assert domain_indices.isdisjoint(set(train.data.index))
+        assert domain_indices.isdisjoint(set(val.data.index))
+        assert domain_indices.isdisjoint(set(test.data.index))
+
+        # train/val/test should equal provided keys minus domain keys
+        expected_train = set(train_keys) - domain_indices
+        expected_val = set(val_keys) - domain_indices
+        expected_test = set(test_keys) - domain_indices
+
+        assert set(train.data.index) == expected_train
+        assert set(val.data.index) == expected_val
+        assert set(test.data.index) == expected_test
+
+        # union of all returned indices should equal the original dataset indices
+        all_returned = (
+            set(train.data.index)
+            | set(val.data.index)
+            | set(test.data.index)
+            | domain_indices
+        )
+        assert all_returned == set(data.index)
 
 
 class TestDataloader:
@@ -340,3 +395,130 @@ class TestFromKeysDataloaders:
             assert "waveforms" in batch
             assert "annotations" in batch
             assert "domains" in batch
+
+
+class TestDomainSplitDataloaders:
+    def test_domain_split_dataloaders_basic(self, test_dataset):
+        """Test basic functionality of domain_split_dataloaders."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        domain = 1
+
+        train_loader, val_loader, test_loader, domain_loader = domain_split_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            domain,
+            batch_size=2,
+            random_seed=42,
+        )
+
+        # Check that all returned objects are DataLoaders
+        assert isinstance(train_loader, DataLoader)
+        assert isinstance(val_loader, DataLoader)
+        assert isinstance(test_loader, DataLoader)
+        assert isinstance(domain_loader, DataLoader)
+
+        # Check batch sizes
+        assert train_loader.batch_size == 2
+        assert val_loader.batch_size == 2
+        assert test_loader.batch_size == 2
+        assert domain_loader.batch_size == 2
+
+        # Check that all have StratifiedSampler
+        assert isinstance(train_loader.sampler, StratifiedSampler)
+        assert isinstance(val_loader.sampler, StratifiedSampler)
+        assert isinstance(test_loader.sampler, StratifiedSampler)
+        assert isinstance(domain_loader.sampler, StratifiedSampler)
+
+    def test_domain_split_dataloaders_custom_params(self, test_dataset):
+        """Test domain_split_dataloaders with custom parameters."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        domain = 1
+        custom_kwargs = {"num_workers": 0}
+
+        train_loader, val_loader, test_loader, domain_loader = domain_split_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            domain,
+            batch_size=3,
+            random_seed=123,
+            dataloader_kwargs=custom_kwargs,
+        )
+
+        # Check custom batch size
+        assert train_loader.batch_size == 3
+        assert val_loader.batch_size == 3
+        assert test_loader.batch_size == 3
+        assert domain_loader.batch_size == 3
+
+        # Check custom dataloader kwargs were applied
+        assert train_loader.num_workers == 0
+        assert val_loader.num_workers == 0
+        assert test_loader.num_workers == 0
+        assert domain_loader.num_workers == 0
+
+    def test_domain_split_dataloaders_iteration(self, test_dataset):
+        """Test that we can iterate through all created dataloaders."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        domain = 1
+
+        train_loader, val_loader, test_loader, domain_loader = domain_split_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            domain,
+            batch_size=2,
+            random_seed=42,
+        )
+
+        # Test that we can get batches from each loader
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+        domain_batch = next(iter(domain_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch, domain_batch]:
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+
+        # Verify domain_batch contains only the specified domain
+        assert all(d != domain for d in train_batch["domains"])
+        assert all(d != domain for d in val_batch["domains"])
+        assert all(d != domain for d in test_batch["domains"])
+        assert all(d == domain for d in domain_batch["domains"])
