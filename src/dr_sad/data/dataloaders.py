@@ -115,7 +115,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         Args:
             val_ratio: Proportion of data to use for validation. Defaults to 0.1
             test_ratio: Proportion of data to use for testing. Defaults to 0.2.
-            random_state: Random seed for reproducibility.
+            random_seed: Random seed for reproducibility.
                 Defaults to None (no seed).
 
         Returns:

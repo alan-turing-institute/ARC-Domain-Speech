@@ -76,7 +76,9 @@ def load_data(
     domains_idx: dict[str, int] | None = None,
 ) -> pd.DataFrame:
     """
-    Load the CallHome dataset.
+    Load a dataset from the specified source. Supports predefined datasets
+    ("callhome" and "dihard") or custom datasets by specifying the path and
+    domain information.
 
     Args:
         data_choice (str | None): Predefined dataset choice. Currently supports
