@@ -4,7 +4,7 @@ from typing import Any, cast
 import pandas as pd
 from torch.utils.data import DataLoader, Dataset
 
-from dr_sad.data.callhome_utils import load_callhome
+from dr_sad.data.data_fetching import load_data
 from dr_sad.data.sampler import StratifiedSampler
 from dr_sad.data.splitting import stratified_splitter
 from dr_sad.data.utils import collate_padded
@@ -48,7 +48,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             pd.DataFrame: The loaded dataset.
         """
         if dataset_name == "callhome":
-            return load_callhome(DATA_DIR, **dataset_gen_kwargs)
+            return load_data("callhome")
 
         err_msg = f"Unknown dataset name: {dataset_name}"
         raise ValueError(err_msg)
