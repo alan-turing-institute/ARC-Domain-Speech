@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import (
     DrSadDataset,
+    from_keys_dataloaders,
     make_dataloader,
     train_test_split_dataloaders,
 )
@@ -80,7 +81,7 @@ class TestDrSadDataset:
         assert len(first_annotations) == 2
         assert first_annotations[0] == (0.5, 1.0)
 
-    def test_dataset_split(self, test_dataset):
+    def test_from_dataset_split(self, test_dataset):
         """Test that DrSadDataset.train_test_split correctly splits the dataset."""
         data = load_data(
             data_choice=None,
@@ -89,8 +90,35 @@ class TestDrSadDataset:
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
 
-        train, val, test = DrSadDataset.train_test_split(
+        train, val, test = DrSadDataset.from_train_test_split(
             data, val_ratio=0.2, test_ratio=0.2, random_seed=123
+        )
+
+        # Check that splits are non-overlapping
+        train_indices = set(train.data.index)
+        val_indices = set(val.data.index)
+        test_indices = set(test.data.index)
+
+        assert train_indices.isdisjoint(val_indices)
+        assert train_indices.isdisjoint(test_indices)
+        assert val_indices.isdisjoint(test_indices)
+
+    def test_from_splitting_keys(self, test_dataset):
+        """Test that DrSadDataset.from_splitting_keys correctly creates datasets."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        train, val, test = DrSadDataset.from_splitting_keys(
+            data, train_keys, val_keys, test_keys
         )
 
         # Check that splits are non-overlapping
@@ -243,3 +271,72 @@ class TestTrainTestSplitDataloaders:
             assert "annotations" in batch
             assert "domains" in batch
             assert len(batch["waveforms"]) == 2
+
+
+class TestFromKeysDataloaders:
+    def test_from_keys_dataloaders_basic(self, test_dataset):
+        """Test basic functionality of from_keys_dataloaders."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        train_loader, val_loader, test_loader = from_keys_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            batch_size=2,
+            random_seed=42,
+        )
+
+        # Check that all returned objects are DataLoaders
+        assert isinstance(train_loader, DataLoader)
+        assert isinstance(val_loader, DataLoader)
+        assert isinstance(test_loader, DataLoader)
+
+        # Check batch sizes
+        assert train_loader.batch_size == 2
+        assert val_loader.batch_size == 2
+        assert test_loader.batch_size == 2
+
+    def test_from_keys_dataloaders_iteration(self, test_dataset):
+        """Test that we can iterate through the created dataloaders."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        train_loader, val_loader, test_loader = from_keys_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            batch_size=2,
+            random_seed=42,
+        )
+
+        # Test that we can get batches from each loader
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch]:
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch

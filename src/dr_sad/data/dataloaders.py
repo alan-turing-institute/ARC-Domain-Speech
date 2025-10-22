@@ -30,7 +30,34 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         self.key_list = list(data.index)
 
     @classmethod
-    def train_test_split(
+    def from_splitting_keys(
+        cls,
+        data: pd.DataFrame,
+        train_keys: list[str],
+        val_keys: list[str],
+        test_keys: list[str],
+    ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset"]:
+        """
+        Create training, validation, and test datasets from splitting keys.
+
+        Args:
+            data (pd.DataFrame): The full dataset to split.
+            train_keys (list): List of keys for the training set.
+            val_keys (list): List of keys for the validation set.
+            test_keys (list): List of keys for the test set.
+
+        Returns:
+            train (DrSadDataset): Training dataset.
+            val (DrSadDataset): Validation dataset.
+            test (DrSadDataset): Test dataset.
+        """
+        train_data = data.loc[train_keys]
+        val_data = data.loc[val_keys]
+        test_data = data.loc[test_keys]
+        return cls(train_data), cls(val_data), cls(test_data)
+
+    @classmethod
+    def from_train_test_split(
         cls,
         data: pd.DataFrame,
         val_ratio: float = 0.1,
@@ -123,9 +150,9 @@ def make_dataloader(
 
 def train_test_split_dataloaders(
     data: pd.DataFrame,
-    batch_size: int = 4,
     val_ratio: float = 0.1,
     test_ratio: float = 0.2,
+    batch_size: int = 4,
     random_seed: int | None = None,
     dataloader_kwargs: dict[str, Any] | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
@@ -134,12 +161,12 @@ def train_test_split_dataloaders(
     Args:
         data (pd.DataFrame): The full dataset to split and load.
             This must contain "waveforms", "annotations", and "domains" columns.
-        batch_size (int, optional): Batch size for the dataloaders.
-            Defaults to 4.
         val_ratio (float, optional): Proportion of data to use for validation.
             Defaults to 0.1
         test_ratio (float, optional): Proportion of data to use for testing.
             Defaults to 0.2
+        batch_size (int, optional): Batch size for the dataloaders.
+            Defaults to 4.
         random_state (int, optional): Random seed for reproducibility.
             Defaults to None (no seed).
         dataloader_kwargs (dict, optional): Additional keyword arguments to pass
@@ -153,19 +180,102 @@ def train_test_split_dataloaders(
     if dataloader_kwargs is None:
         dataloader_kwargs = {}
 
-    train, val, test = DrSadDataset.train_test_split(
+    train, val, test = DrSadDataset.from_train_test_split(
         data, val_ratio=val_ratio, test_ratio=test_ratio, random_seed=random_seed
     )
+    if random_seed is None:
+        random_seed = np.random.randint(0, 1_000_000)
+    train_rng = np.random.default_rng(random_seed)
+    val_rng = np.random.default_rng(random_seed + 1)
+    test_rng = np.random.default_rng(random_seed + 2)
 
     # Create dataloaders
     train_loader = make_dataloader(
-        train, batch_size=batch_size, shuffle=True, **dataloader_kwargs
+        train,
+        batch_size=batch_size,
+        shuffle=True,
+        random_state=train_rng,
+        **dataloader_kwargs,
     )
     val_loader = make_dataloader(
-        val, batch_size=batch_size, shuffle=False, **dataloader_kwargs
+        val,
+        batch_size=batch_size,
+        shuffle=False,
+        random_state=val_rng,
+        **dataloader_kwargs,
     )
     test_loader = make_dataloader(
-        test, batch_size=batch_size, shuffle=False, **dataloader_kwargs
+        test,
+        batch_size=batch_size,
+        shuffle=False,
+        random_state=test_rng,
+        **dataloader_kwargs,
+    )
+
+    return train_loader, val_loader, test_loader
+
+
+def from_keys_dataloaders(
+    data: pd.DataFrame,
+    train_keys: list[str],
+    val_keys: list[str],
+    test_keys: list[str],
+    batch_size: int = 4,
+    random_seed: int | None = None,
+    dataloader_kwargs: dict[str, Any] | None = None,
+) -> tuple[DataLoader, DataLoader, DataLoader]:
+    """Create dataloaders for training, validation, and testing from keys.
+
+    Args:
+        data (pd.DataFrame): The full dataset to split and load.
+            This must contain "waveforms", "annotations", and "domains" columns.
+        train_keys (list): List of keys for the training set.
+        val_keys (list): List of keys for the validation set.
+        test_keys (list): List of keys for the test set.
+        batch_size (int, optional): Batch size for the dataloaders.
+            Defaults to 4.
+        random_seed (int, optional): Random seed for reproducibility.
+            Defaults to None (no seed).
+        dataloader_kwargs (dict, optional): Additional keyword arguments to pass
+            to the DataLoader constructor. Defaults to {}.
+
+    Returns:
+        train_loader (DataLoader): DataLoader for the training set.
+        val_loader (DataLoader): DataLoader for the validation set.
+        test_loader (DataLoader): DataLoader for the test set.
+    """
+    if dataloader_kwargs is None:
+        dataloader_kwargs = {}
+
+    train, val, test = DrSadDataset.from_splitting_keys(
+        data, train_keys, val_keys, test_keys
+    )
+    if random_seed is None:
+        random_seed = np.random.randint(0, 1_000_000)
+    train_rng = np.random.default_rng(random_seed)
+    val_rng = np.random.default_rng(random_seed + 1)
+    test_rng = np.random.default_rng(random_seed + 2)
+    # Create dataloaders
+    train_loader = make_dataloader(
+        train,
+        batch_size=batch_size,
+        shuffle=True,
+        random_state=train_rng,
+        **dataloader_kwargs,
+    )
+    val_loader = make_dataloader(
+        val,
+        batch_size=batch_size,
+        shuffle=False,
+        random_state=val_rng,
+        **dataloader_kwargs,
+    )
+    test_loader = make_dataloader(
+        test,
+        batch_size=batch_size,
+        shuffle=False,
+        random_state=test_rng,
+        **dataloader_kwargs,
     )
 
     return train_loader, val_loader, test_loader
