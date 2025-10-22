@@ -10,14 +10,15 @@ from pathlib import Path
 import torch
 from lightning.pytorch import Trainer
 
-from dr_sad.data.dataloaders import DrSadDataset, get_dataloaders
+from dr_sad.data.data_fetching import load_data
+from dr_sad.data.dataloaders import train_test_split_dataloaders
 from dr_sad.pyannet.pyannet import PyanNet
 
 
 def main(args) -> None:
-    dataset = DrSadDataset(args.dataset, domains=["eng"])
-    train_loader, val_loader, test_loader = get_dataloaders(
-        dataset, batch_size=4, val_ratio=0.1, test_ratio=0.1, random_state=42
+    data = load_data(args.dataset)
+    train_loader, val_loader, test_loader = train_test_split_dataloaders(
+        data, batch_size=4, val_ratio=0.1, test_ratio=0.1, random_seed=42
     )
 
     model = PyanNet()

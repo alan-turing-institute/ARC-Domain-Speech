@@ -6,6 +6,8 @@
 # Hervé Bredin - http://herve.niderb.fr
 # Updated by ARC
 
+__all__ = ("PyanNet",)
+
 from typing import Any
 
 import lightning.pytorch as pl

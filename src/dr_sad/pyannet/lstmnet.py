@@ -1,5 +1,7 @@
 # Made by ARC - Adapted from pyannote.audio
 
+__all__ = ("LSTMNet",)
+
 import torch
 import torch.nn as nn
 from einops import rearrange
