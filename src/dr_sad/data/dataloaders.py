@@ -1,15 +1,12 @@
-from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader, Dataset
 
-from dr_sad.data.data_fetching import load_data
 from dr_sad.data.sampler import StratifiedSampler
 from dr_sad.data.splitting import stratified_splitter
 from dr_sad.data.utils import collate_padded
-
-DATA_DIR = Path(__file__).parent.parent.parent.parent / "data" / "callhome"
 
 
 class DrSadDataset(Dataset):  # type: ignore[misc]
@@ -20,41 +17,25 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         Dataset: The base dataset class from PyTorch.
     """
 
-    def __init__(self, data: pd.DataFrame | str, **dataset_gen_kwargs):
+    def __init__(self, data: pd.DataFrame, domain: int | None = None):
         """
-        Initialize the DrSadDataset, takes either a DataFrame or a dataset name.
+        Initialize the DrSadDataset.
 
         Args:
-            data: The data to use for the dataset, either as a DataFrame or a string
-            representing the dataset name.
+            data (pd.DataFrame): The data to use for the dataset.
+            domain (int, optional): The domain index for the dataset.
         """
-        if isinstance(data, str):
-            data = self.get_data(data, **dataset_gen_kwargs)
         self.data = data
+        self.domain = domain
         self.key_list = list(data.index)
 
-    @staticmethod
-    def get_data(dataset_name, **dataset_gen_kwargs) -> pd.DataFrame:
-        """
-        Get the data for a specific dataset.
-
-        Args:
-            dataset_name: The name of the dataset to load.
-
-        Raises:
-            ValueError: If the dataset name is unknown.
-
-        Returns:
-            pd.DataFrame: The loaded dataset.
-        """
-        if dataset_name == "callhome":
-            return load_data("callhome")
-
-        err_msg = f"Unknown dataset name: {dataset_name}"
-        raise ValueError(err_msg)
-
+    @classmethod
     def train_test_split(
-        self, val_ratio: float = 0.1, test_ratio: float = 0.2, random_state: int = 42
+        cls,
+        data: pd.DataFrame,
+        val_ratio: float = 0.1,
+        test_ratio: float = 0.2,
+        random_seed: int | None = None,
     ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset"]:
         """
         Split the dataset into training, validation, and test sets.
@@ -62,32 +43,37 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         Args:
             val_ratio: Proportion of data to use for validation. Defaults to 0.1
             test_ratio: Proportion of data to use for testing. Defaults to 0.2.
-            random_state: Random seed for reproducibility. Defaults to 42
+            random_state: Random seed for reproducibility.
+                Defaults to None (no seed).
 
         Returns:
-            tuple[DrSadDataset, DrSadDataset, DrSadDataset]: The training, validation,
-            and test datasets.
+            train (DrSadDataset): Training dataset.
+            val (DrSadDataset): Validation dataset.
+            test (DrSadDataset): Test dataset.
         """
-        domains_series = self.data["domains"]
+        if random_seed is None:
+            random_seed = np.random.randint(0, 1_000_000)
+        domains_series = data["domains"]
+        key_list = list(data.index)
         domains_series.index = domains_series.index.astype(str)
 
         train_keys, val_keys, test_keys = stratified_splitter(
             domains_series,
             val_ratio=val_ratio,
             test_ratio=test_ratio,
-            random_seed=random_state,
+            random_seed=random_seed,
         )
 
         # Get the indices in the dataset for these keys
-        train_indices = [self.key_list.index(int(k)) for k in train_keys]
-        val_indices = [self.key_list.index(int(k)) for k in val_keys]
-        test_indices = [self.key_list.index(int(k)) for k in test_keys]
+        train_indices = [key_list.index(int(k)) for k in train_keys]
+        val_indices = [key_list.index(int(k)) for k in val_keys]
+        test_indices = [key_list.index(int(k)) for k in test_keys]
 
         # Create DrSadDataset objects
         return (
-            DrSadDataset(self.data.iloc[train_indices]),
-            DrSadDataset(self.data.iloc[val_indices]),
-            DrSadDataset(self.data.iloc[test_indices]),
+            cls(data.iloc[train_indices]),
+            cls(data.iloc[val_indices]),
+            cls(data.iloc[test_indices]),
         )
 
     def __len__(self):
@@ -99,73 +85,87 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         return cast(dict[str, Any], self.data.iloc[idx].to_dict())
 
 
-def get_dataloaders(
+def make_dataloader(
     dataset: DrSadDataset,
+    batch_size: int = 4,
+    shuffle: bool = True,
+    random_state: np.random.RandomState | None = None,
+    **dataloader_kwargs: Any,
+) -> DataLoader:
+    """Create a DataLoader for the given DrSadDataset.
+
+    Args:
+        dataset (DrSadDataset): The dataset to load.
+        batch_size (int, optional): Batch size for the dataloader. Defaults to 4.
+        shuffle (bool, optional): Whether to shuffle the data. Defaults to True.
+        random_state (np.random.RandomState, optional): Random state for shuffling.
+            Defaults to None.
+        **dataloader_kwargs: Additional keyword arguments to pass to DataLoader.
+
+    Returns:
+        DataLoader: The created DataLoader.
+    """
+
+    sampler = StratifiedSampler(
+        domains=dataset.data["domains"].tolist(),
+        shuffle=shuffle,
+        generator=random_state,
+    )
+
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        sampler=sampler,
+        collate_fn=collate_padded,
+        **dataloader_kwargs,
+    )
+
+
+def train_test_split_dataloaders(
+    data: pd.DataFrame,
     batch_size: int = 4,
     val_ratio: float = 0.1,
     test_ratio: float = 0.2,
-    random_state: int = 42,
-    **dataloader_kwargs,
+    random_seed: int | None = None,
+    dataloader_kwargs: dict[str, Any] | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Create dataloaders for training, validation, and testing.
 
     Args:
-        dataset (DrSadDataset): The full dataset to split and load.
-        batch_size (int, optional): Batch size for the dataloaders. Defaults to 4.
+        data (pd.DataFrame): The full dataset to split and load.
+            This must contain "waveforms", "annotations", and "domains" columns.
+        batch_size (int, optional): Batch size for the dataloaders.
+            Defaults to 4.
         val_ratio (float, optional): Proportion of data to use for validation.
-        Defaults to 0.1
+            Defaults to 0.1
         test_ratio (float, optional): Proportion of data to use for testing.
-        Defaults to 0.2
+            Defaults to 0.2
         random_state (int, optional): Random seed for reproducibility.
-        Defaults to 42
-        **dataloader_kwargs: Additional keyword arguments for DataLoader.
+            Defaults to None (no seed).
+        dataloader_kwargs (dict, optional): Additional keyword arguments to pass
+            to the DataLoader constructor. Defaults to {}.
 
     Returns:
-        tuple[DataLoader, DataLoader, DataLoader]: Train, validation, and test
-        dataloaders.
+        train_loader (DataLoader): DataLoader for the training set.
+        val_loader (DataLoader): DataLoader for the validation set.
+        test_loader (DataLoader): DataLoader for the test set.
     """
+    if dataloader_kwargs is None:
+        dataloader_kwargs = {}
 
-    train, val, test = dataset.train_test_split(
-        val_ratio=val_ratio, test_ratio=test_ratio, random_state=random_state
+    train, val, test = DrSadDataset.train_test_split(
+        data, val_ratio=val_ratio, test_ratio=test_ratio, random_seed=random_seed
     )
 
-    # get samplers
-    train_domains = train.data["domains"].tolist()
-    train_sampler = StratifiedSampler(
-        domains=train_domains,
-        shuffle=True,
+    # Create dataloaders
+    train_loader = make_dataloader(
+        train, batch_size=batch_size, shuffle=True, **dataloader_kwargs
     )
-    val_domains = val.data["domains"].tolist()
-    val_sampler = StratifiedSampler(
-        domains=val_domains,
-        shuffle=True,
+    val_loader = make_dataloader(
+        val, batch_size=batch_size, shuffle=False, **dataloader_kwargs
     )
-    test_domains = test.data["domains"].tolist()
-    test_sampler = StratifiedSampler(
-        domains=test_domains,
-        shuffle=True,
-    )
-    # create dataloaders
-    train_loader = DataLoader(
-        train,
-        batch_size=batch_size,
-        sampler=train_sampler,
-        collate_fn=collate_padded,
-        **dataloader_kwargs,
-    )
-    val_loader = DataLoader(
-        val,
-        batch_size=batch_size,
-        sampler=val_sampler,
-        collate_fn=collate_padded,
-        **dataloader_kwargs,
-    )
-    test_loader = DataLoader(
-        test,
-        batch_size=batch_size,
-        sampler=test_sampler,
-        collate_fn=collate_padded,
-        **dataloader_kwargs,
+    test_loader = make_dataloader(
+        test, batch_size=batch_size, shuffle=False, **dataloader_kwargs
     )
 
     return train_loader, val_loader, test_loader
