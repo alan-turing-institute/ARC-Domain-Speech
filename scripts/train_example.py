@@ -8,23 +8,35 @@ import argparse
 from pathlib import Path
 
 import torch
+import yaml
 from lightning.pytorch import Trainer
 
 from dr_sad.data.data_fetching import load_data
-from dr_sad.data.dataloaders import train_test_split_dataloaders
+from dr_sad.data.dataloaders import from_keys_dataloaders
 from dr_sad.pyannet.pyannet import PyanNet
+
+main_dir = Path(__file__).resolve().parent.parent
 
 
 def main(args) -> None:
     data = load_data(args.dataset)
-    train_loader, val_loader, test_loader = train_test_split_dataloaders(
-        data, batch_size=4, val_ratio=0.1, test_ratio=0.1, random_seed=42
+    with open(main_dir / "data" / str(args.dataset) / "datasplit.yaml") as file:
+        data_split = yaml.safe_load(file)
+
+    train_loader, val_loader, test_loader = from_keys_dataloaders(
+        data,
+        train_keys=data_split["train"],
+        val_keys=data_split["val"],
+        test_keys=data_split["test"],
+        batch_size=4,
     )
 
     model = PyanNet()
 
     trainer = Trainer(
-        max_epochs=25,
+        max_epochs=20,
+        default_root_dir=main_dir / "outputs" / "example",
+        check_val_every_n_epoch=1,
     )
     trainer.fit(model, train_loader, val_loader)
     trainer.test(model, test_loader)
