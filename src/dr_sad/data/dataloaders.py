@@ -61,8 +61,18 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             val (DrSadDataset): Validation dataset excluding the specified domain.
             test (DrSadDataset): Test dataset excluding the specified domain.
             domain_data (DrSadDataset): Dataset containing only the specified domain.
+
+        Raises:
+            ValueError: If the domain index has no associated data.
         """
         domain_keys = data[data["domains"] == domain].index.to_list()
+        if len(domain_keys) == 0:
+            available_domains = sorted(data["domains"].unique().tolist())
+            msg = (
+                f"Domain {domain} has no associated data. "
+                f"Available domains: {available_domains}"
+            )
+            raise ValueError(msg)
         train_data = data.loc[list(set(train_keys) - set(domain_keys))]
         val_data = data.loc[list(set(val_keys) - set(domain_keys))]
         test_data = data.loc[list(set(test_keys) - set(domain_keys))]
