@@ -49,6 +49,8 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         sample_rate: int = 16000,
         # task: Task | None = None,
         num_classes: int = 1,
+        scheduler_config: dict[str, Any] | None = None,
+        learning_rate: float = 1e-3,
     ):
         super().__init__()
 
@@ -65,7 +67,14 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         sincnet["sample_rate"] = sample_rate
         lstm = {**LSTM_DEFAULTS, **(lstm or {})}
         linear = {**LINEAR_DEFAULTS, **(linear or {})}
-        self.save_hyperparameters("sincnet", "lstm", "linear")
+
+        # Store optimizer and scheduler configuration
+        self.learning_rate = learning_rate
+        self.scheduler_config = scheduler_config
+
+        self.save_hyperparameters(
+            "sincnet", "lstm", "linear", "scheduler_config", "learning_rate"
+        )
 
         self.sincnet = SincNet(**self.hparams.sincnet)
 
@@ -141,7 +150,37 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         return self.final_activation(outputs)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)
+        """Configure optimizer and optionally a learning rate scheduler.
+
+        Returns:
+            Optimizer or dictionary with optimizer and scheduler configuration.
+        """
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+
+        # If scheduler config is provided, add ReduceLROnPlateau scheduler
+        if self.scheduler_config is not None:
+            # Separate PyTorch scheduler params from Lightning config params
+            scheduler_params = {
+                k: v for k, v in self.scheduler_config.items()
+                if k != "monitor"
+            }
+            monitor_metric = self.scheduler_config.get("monitor", "val_loss")
+
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer, **scheduler_params
+            )
+
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    "monitor": monitor_metric,
+                    "interval": "epoch",
+                    "frequency": 1,
+                },
+            }
+
+        return optimizer
 
     def frame_centers_start_step(self) -> tuple[float, float]:
         """Compute the start and step of the receptive field samples.
