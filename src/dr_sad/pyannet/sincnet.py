@@ -6,7 +6,10 @@
 # Hervé Bredin - http://herve.niderb.fr
 # Updated by ARC
 
-__all__ = ("SincNet",)
+__all__ = (
+    "Abs",
+    "SincNet",
+)
 
 import math
 from functools import cached_property

@@ -37,6 +37,7 @@ dependencies = [
   "einops>=0.8.1",
   "pandas>=2.3.3",
   "soundfile>=0.12.1",
+  "datasets>=4.2.0",
 ]
 
 [project.urls]
