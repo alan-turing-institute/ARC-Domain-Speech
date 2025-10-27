@@ -61,9 +61,6 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             val (DrSadDataset): Validation dataset excluding the specified domain.
             test (DrSadDataset): Test dataset excluding the specified domain.
             domain_data (DrSadDataset): Dataset containing only the specified domain.
-
-        Raises:
-            ValueError: If the domain index has no associated data.
         """
         domain_keys = data[data["domains"] == domain].index.to_list()
         if len(domain_keys) == 0:
