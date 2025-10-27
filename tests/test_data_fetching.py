@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 from dr_sad.data import data_fetching
@@ -72,6 +73,21 @@ class TestLoadData:
         # First segment: 0.5-1.0, Second segment: 1.5-2.0
         assert first_annotations[0] == (0.5, 1.0)
         assert first_annotations[1] == (1.5, 2.0)
+
+    def test_loaded_data_includes_file_ids(self, test_dataset):
+        """Test that loaded data includes file IDs."""
+        df = data_fetching.load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Check that 'file_id' column exists and has correct values
+        sources = pd.read_csv(test_dataset / "sources.tbl", index_col=0, sep="\t")
+        expected_file_ids = sorted(sources.index.tolist())
+        loaded_file_ids = sorted(df.index.tolist())
+        assert loaded_file_ids == expected_file_ids
 
     def test_missing_data_set_path_raises(self):
         """If data_choice is None and data_set_path is not provided."""
