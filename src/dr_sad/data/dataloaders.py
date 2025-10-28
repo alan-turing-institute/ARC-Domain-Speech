@@ -63,6 +63,13 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             domain_data (DrSadDataset): Dataset containing only the specified domain.
         """
         domain_keys = data[data["domains"] == domain].index.to_list()
+        if len(domain_keys) == 0:
+            available_domains = sorted(data["domains"].unique().tolist())
+            msg = (
+                f"Domain {domain} has no associated data. "
+                f"Available domains: {available_domains}"
+            )
+            raise ValueError(msg)
         train_data = data.loc[list(set(train_keys) - set(domain_keys))]
         val_data = data.loc[list(set(val_keys) - set(domain_keys))]
         test_data = data.loc[list(set(test_keys) - set(domain_keys))]

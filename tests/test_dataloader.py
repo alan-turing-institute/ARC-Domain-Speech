@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 from torch.utils.data import DataLoader
 
 from dr_sad.data.data_fetching import load_data
@@ -184,6 +185,29 @@ class TestDrSadDataset:
             | domain_indices
         )
         assert all_returned == set(data.index)
+
+    def test_from_split_domain_raises_error_for_invalid_domain(self, test_dataset):
+        """Test that from_split_domain raises ValueError for domain with no data."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        # Use a domain that doesn't exist in the data
+        invalid_domain = 99
+
+        # Should raise ValueError
+        with pytest.raises(ValueError, match=r"Domain 99 has no associated data"):
+            DrSadDataset.from_split_domain(
+                data, train_keys, val_keys, test_keys, invalid_domain
+            )
 
 
 class TestDataloader:
@@ -522,3 +546,34 @@ class TestDomainSplitDataloaders:
         assert all(d != domain for d in val_batch["domains"])
         assert all(d != domain for d in test_batch["domains"])
         assert all(d == domain for d in domain_batch["domains"])
+
+    def test_domain_split_dataloaders_raises_error_for_invalid_domain(
+        self, test_dataset
+    ):
+        """Test that domain_split_dataloaders raises ValueError for invalid domain."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        # Use a domain that doesn't exist
+        invalid_domain = 999
+
+        # Should raise ValueError
+        with pytest.raises(ValueError, match=r"Domain 999 has no associated data"):
+            domain_split_dataloaders(
+                data,
+                train_keys,
+                val_keys,
+                test_keys,
+                invalid_domain,
+                batch_size=2,
+                random_seed=42,
+            )
