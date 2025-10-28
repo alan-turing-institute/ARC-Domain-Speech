@@ -133,7 +133,7 @@ def load_data(
     for sample_index, audio_file in tqdm(
         enumerate(sorted(audio_files)),
         total=len(audio_files),
-        desc="Loading CallHome data:",
+        desc="Loading CallHome data",
     ):
         file_id = Path(audio_file).stem
         rttm_file = rttm_dir / f"{file_id}.rttm"

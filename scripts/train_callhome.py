@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 import torch
+import yaml
 
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import (
@@ -13,13 +14,22 @@ from dr_sad.training import TrainerSetup
 
 
 def main(args) -> None:
+    # Load configs from provided paths
+    with open(args.trainer_config) as f:
+        trainer_cfg = yaml.safe_load(f)["trainer"]
+    with open(args.dataset_config) as f:
+        dataset_cfg = yaml.safe_load(f)["dataset"]
     """Train PyanNet model with configurable early stopping and LR scheduling."""
-    data = load_data(args.dataset)
+    data = load_data(dataset_cfg["name"])
 
     if args.exclude_domain is not None:
         # First, get initial train/val/test split to generate keys
         temp_train, temp_val, temp_test = train_test_split_dataloaders(
-            data, batch_size=1, val_ratio=0.1, test_ratio=0.1, random_seed=42
+            data,
+            batch_size=1,
+            val_ratio=0.1,
+            test_ratio=0.1,
+            random_seed=42,
         )
 
         # Extract keys from the temporary datasets
@@ -33,8 +43,8 @@ def main(args) -> None:
             train_keys=train_keys,
             val_keys=val_keys,
             test_keys=test_keys,
-            domain=args.exclude_domain,
-            batch_size=args.batch_size,
+            domain=dataset_cfg.get("exclude_domain"),
+            batch_size=trainer_cfg["batch_size"],
             random_seed=42,
         )
 
@@ -42,7 +52,7 @@ def main(args) -> None:
         # Use standard random splitting
         train_loader, val_loader, test_loader = train_test_split_dataloaders(
             data,
-            batch_size=args.batch_size,
+            batch_size=trainer_cfg["batch_size"],
             val_ratio=0.1,
             test_ratio=0.1,
             random_seed=42,
@@ -50,20 +60,22 @@ def main(args) -> None:
         domain_loader = None
 
     # Create model with optional scheduler
-    if args.use_scheduler:
+    if trainer_cfg.get("scheduler", {}).get("type"):
         model = TrainerSetup.create_model_with_scheduler(
             PyanNet,
-            scheduler_patience=args.scheduler_patience,
-            scheduler_factor=args.scheduler_factor,
-            learning_rate=args.learning_rate,
+            scheduler_patience=trainer_cfg["scheduler"].get("patience", 3),
+            scheduler_factor=trainer_cfg["scheduler"].get("factor", 0.5),
+            learning_rate=trainer_cfg.get("learning_rate", 0.01),
         )
     else:
-        model = PyanNet(learning_rate=args.learning_rate)
+        model = PyanNet(learning_rate=trainer_cfg.get("learning_rate", 0.01))
 
     # Create trainer with early stopping
     trainer = TrainerSetup.create_trainer(
-        max_epochs=args.max_epochs,
-        early_stopping_patience=args.early_stopping_patience,
+        max_epochs=trainer_cfg.get("max_epochs", 25),
+        early_stopping_patience=trainer_cfg.get("early_stopping", {}).get(
+            "patience", 10
+        ),
     )
 
     # Train the model
@@ -81,36 +93,23 @@ def main(args) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", default="callhome", help="Dataset name")
+    parser.add_argument(
+        "--trainer-config",
+        type=str,
+        default="configs/training/trainer_config.yaml",
+        help="Path to trainer config YAML file",
+    )
+    parser.add_argument(
+        "--dataset-config",
+        type=str,
+        default="configs/training/dataset_config.yaml",
+        help="Path to dataset config YAML file",
+    )
     parser.add_argument(
         "--exclude-domain",
         type=int,
         default=None,
         help="Domain to exclude from training/validation/test (for domain adaptation)",
-    )
-    parser.add_argument(
-        "--batch-size", type=int, default=4, help="Batch size for dataloaders"
-    )
-    parser.add_argument(
-        "--max-epochs", type=int, default=25, help="Maximum training epochs"
-    )
-    parser.add_argument(
-        "--early-stopping-patience",
-        type=int,
-        default=10,
-        help="Early stopping patience",
-    )
-    parser.add_argument(
-        "--learning-rate", type=float, default=0.01, help="Learning rate"
-    )
-    parser.add_argument(
-        "--use-scheduler", action="store_true", help="Use ReduceLROnPlateau scheduler"
-    )
-    parser.add_argument(
-        "--scheduler-patience", type=int, default=5, help="Scheduler patience"
-    )
-    parser.add_argument(
-        "--scheduler-factor", type=float, default=0.5, help="Scheduler factor"
     )
     args = parser.parse_args()
     main(args)

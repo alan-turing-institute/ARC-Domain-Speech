@@ -33,11 +33,15 @@ data_row_idx = 1
 for lang in DOMAIN_LANGUAGES:
     dataset = load_dataset("talkbank/callhome", lang)
     for item in tqdm(dataset["data"], desc=f"Processing {lang}"):
-        audio_samples = item["audio"].get_all_samples()
-        audio_data = audio_samples.data  # This is the actual tensor
+        # get filename
         file_loc = flac_dir / f"CH_{data_row_idx:04d}.flac"
-        with soundfile.SoundFile(file_loc, "w", 16000, 1) as f:
-            f.write(audio_data.numpy().T)
+        # check rttm is valid
+        valid_sample = generate_rttm(item, rttm_dir, file_loc.stem)
+        if not valid_sample:
+            continue
+
+        # if sample valid write the data
+        # metadata
         row_data = {
             "file_id": file_loc.stem,
             "lang": lang,
@@ -45,7 +49,14 @@ for lang in DOMAIN_LANGUAGES:
             "source": source,
         }
         sources_df.loc[data_row_idx] = row_data
-        generate_rttm(item, rttm_dir, file_loc.stem)
+        # audio data
+        file_loc = flac_dir / f"CH_{data_row_idx:04d}.flac"
+        audio_samples = item["audio"].get_all_samples()
+        audio_data = audio_samples.data  # This is the actual tensor
+        with soundfile.SoundFile(file_loc, "w", 16000, 1) as f:
+            f.write(audio_data.numpy().T)
+
+        # increment index
         data_row_idx += 1
 
 
