@@ -63,6 +63,13 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             domain_data (DrSadDataset): Dataset containing only the specified domain.
         """
         domain_keys = data[data["domains"] == domain].index.to_list()
+        if len(domain_keys) == 0:
+            available_domains = sorted(data["domains"].unique().tolist())
+            msg = (
+                f"Domain {domain} has no associated data. "
+                f"Available domains: {available_domains}"
+            )
+            raise ValueError(msg)
         train_data = data.loc[list(set(train_keys) - set(domain_keys))]
         val_data = data.loc[list(set(val_keys) - set(domain_keys))]
         test_data = data.loc[list(set(test_keys) - set(domain_keys))]
@@ -126,7 +133,6 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         if random_seed is None:
             random_seed = np.random.randint(0, 1_000_000)
         domains_series = data["domains"]
-        key_list = list(data.index)
         domains_series.index = domains_series.index.astype(str)
 
         train_keys, val_keys, test_keys = stratified_splitter(
@@ -136,16 +142,11 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             random_seed=random_seed,
         )
 
-        # Get the indices in the dataset for these keys
-        train_indices = [key_list.index(int(k)) for k in train_keys]
-        val_indices = [key_list.index(int(k)) for k in val_keys]
-        test_indices = [key_list.index(int(k)) for k in test_keys]
-
         # Create DrSadDataset objects
         return (
-            cls(data.iloc[train_indices]),
-            cls(data.iloc[val_indices]),
-            cls(data.iloc[test_indices]),
+            cls(data.loc[train_keys]),
+            cls(data.loc[val_keys]),
+            cls(data.loc[test_keys]),
         )
 
     def __len__(self):
@@ -231,8 +232,6 @@ def train_test_split_dataloaders(
     if random_seed is None:
         random_seed = np.random.randint(0, 1_000_000)
     train_rng = np.random.default_rng(random_seed)
-    val_rng = np.random.default_rng(random_seed + 1)
-    test_rng = np.random.default_rng(random_seed + 2)
 
     # Create dataloaders
     train_loader = make_dataloader(
@@ -246,14 +245,12 @@ def train_test_split_dataloaders(
         val,
         batch_size=batch_size,
         shuffle=False,
-        random_state=val_rng,
         **dataloader_kwargs,
     )
     test_loader = make_dataloader(
         test,
         batch_size=batch_size,
         shuffle=False,
-        random_state=test_rng,
         **dataloader_kwargs,
     )
 
@@ -298,8 +295,7 @@ def from_keys_dataloaders(
     if random_seed is None:
         random_seed = np.random.randint(0, 1_000_000)
     train_rng = np.random.default_rng(random_seed)
-    val_rng = np.random.default_rng(random_seed + 1)
-    test_rng = np.random.default_rng(random_seed + 2)
+
     # Create dataloaders
     train_loader = make_dataloader(
         train,
@@ -312,14 +308,12 @@ def from_keys_dataloaders(
         val,
         batch_size=batch_size,
         shuffle=False,
-        random_state=val_rng,
         **dataloader_kwargs,
     )
     test_loader = make_dataloader(
         test,
         batch_size=batch_size,
         shuffle=False,
-        random_state=test_rng,
         **dataloader_kwargs,
     )
 
@@ -367,9 +361,6 @@ def domain_split_dataloaders(
     if random_seed is None:
         random_seed = np.random.randint(0, 1_000_000)
     train_rng = np.random.default_rng(random_seed)
-    val_rng = np.random.default_rng(random_seed + 1)
-    test_rng = np.random.default_rng(random_seed + 2)
-    domain_rng = np.random.default_rng(random_seed + 3)
 
     # Create dataloaders
     train_loader = make_dataloader(
@@ -383,21 +374,18 @@ def domain_split_dataloaders(
         val,
         batch_size=batch_size,
         shuffle=False,
-        random_state=val_rng,
         **dataloader_kwargs,
     )
     test_loader = make_dataloader(
         test,
         batch_size=batch_size,
         shuffle=False,
-        random_state=test_rng,
         **dataloader_kwargs,
     )
     domain_loader = make_dataloader(
         domain_data,
         batch_size=batch_size,
         shuffle=False,
-        random_state=domain_rng,
         **dataloader_kwargs,
     )
 

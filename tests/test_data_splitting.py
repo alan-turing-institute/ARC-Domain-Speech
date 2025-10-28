@@ -76,3 +76,16 @@ class TestStratifiedSplitter:
 
         # exact same partitions for same seed
         assert a == b
+
+    def test_keys_are_returned_sorted(self):
+        indices = [f"p{j}" for j in range(1, 21)]
+        labels = ["X"] * 10 + ["Y"] * 5 + ["Z"] * 5
+        domains = pd.Series(labels, index=indices)
+
+        train_keys, val_keys, test_keys = splitting.stratified_splitter(
+            domains, 0.2, 0.3, random_seed=42
+        )
+
+        assert train_keys == sorted(train_keys)
+        assert val_keys == sorted(val_keys)
+        assert test_keys == sorted(test_keys)

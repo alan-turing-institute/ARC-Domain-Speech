@@ -4,7 +4,7 @@ from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
 
 
-class DrSadTrainer(Trainer):
+class DrSadTrainer(Trainer):  # type: ignore[misc]
     """
     PyTorch Lightning Trainer factory implementing early stopping and LR scheduling.
 
