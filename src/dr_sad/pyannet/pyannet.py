@@ -165,9 +165,14 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
             }
             monitor_metric = self.scheduler_config.get("monitor", "val_loss")
 
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer, **scheduler_params
-            )
+            scheduler_type = scheduler_params.pop("type")
+            if scheduler_type == "ReduceLROnPlateau":
+                scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    optimizer, **scheduler_params
+                )
+            else:
+                err_msg = f"Unknown scheduler type: {scheduler_type}"
+                raise ValueError(err_msg)
 
             return {
                 "optimizer": optimizer,

@@ -1,7 +1,4 @@
 # Dataset configuration
 name: callhome
-data_dir: data/callhome
-train_split: train
-val_split: val
-test_split: test
-shuffle: true
+split_name: datasplit.yaml
+domain_type: all

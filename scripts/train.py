@@ -6,8 +6,7 @@ import yaml
 
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import domain_split_dataloaders, from_keys_dataloaders
-from dr_sad.pyannet.pyannet import PyanNet
-from dr_sad.training import DrSadTrainer
+from dr_sad.training import DrSadTrainer, create_model
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
@@ -15,24 +14,29 @@ CONFIG_DIR = MAIN_DIR / "configs"
 
 def main(args) -> None:
     # Load configs from provided paths
-    with open(Path(CONFIG_DIR) / "experiment" / f"{args.experiment_name}.yaml") as f:
+    with open(Path(CONFIG_DIR) / "experiment" / args.experiment_name) as f:
         exp_config = yaml.safe_load(f)
     """Train PyanNet model with configurable early stopping and LR scheduling."""
-    trainer_cfg_pth = (
-        Path(CONFIG_DIR) / "training" / f"{exp_config['training_config']}.yaml"
-    )
-    data_cfg_pth = Path(CONFIG_DIR) / "data" / f"{exp_config['data_config']}.yaml"
+    trainer_cfg_pth = Path(CONFIG_DIR) / "training" / exp_config["training_config"]
+    data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
+    model_cfg_pth = Path(CONFIG_DIR) / "model" / exp_config["model_config"]
 
     with open(trainer_cfg_pth) as f:
         trainer_cfg = yaml.safe_load(f)
     with open(data_cfg_pth) as f:
         data_cfg = yaml.safe_load(f)
+    with open(model_cfg_pth) as f:
+        model_cfg = yaml.safe_load(f)
 
     data = load_data(data_cfg["name"])
-    with open(MAIN_DIR / "data" / data_cfg["name"] / "datasplit.yaml") as file:
+    with open(MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]) as file:
         data_split = yaml.safe_load(file)
 
-    if args.exclude_domain is None:
+    if data_cfg["domain_type"] == "all":
+        if args.exclude_domain is not None:
+            err_msg = "Cannot exclude domain when domain_type is set to 'all'."
+            raise ValueError(err_msg)
+
         train_loader, val_loader, test_loader = from_keys_dataloaders(
             data,
             train_keys=data_split["train"],
@@ -40,7 +44,10 @@ def main(args) -> None:
             test_keys=data_split["test"],
             batch_size=4,
         )
-    else:
+    elif data_cfg["domain_type"] == "exclude_one":
+        if args.exclude_domain is None:
+            err_msg = "Must specify --exclude_domain when domain_type is 'exclude_one'."
+            raise ValueError(err_msg)
         # Use domain_split_dataloaders to exclude the specified domain
         train_loader, val_loader, test_loader, domain_loader = domain_split_dataloaders(
             data,
@@ -52,24 +59,20 @@ def main(args) -> None:
             random_seed=42,
         )
 
-    # Create model with optional scheduler
-    if trainer_cfg.get("scheduler", {}).get("type"):
-        model = DrSadTrainer.create_model_with_scheduler(
-            PyanNet,
-            scheduler_patience=trainer_cfg["scheduler"].get("patience", 3),
-            scheduler_factor=trainer_cfg["scheduler"].get("factor", 0.5),
-            learning_rate=trainer_cfg.get("learning_rate", 0.01),
-        )
     else:
-        model = PyanNet(learning_rate=trainer_cfg.get("learning_rate", 0.01))
+        err_msg = f"Unknown domain_type option: {data_cfg['domain_type']}"
+        raise ValueError(err_msg)
 
     # Create trainer with early stopping
     trainer = DrSadTrainer.create_trainer(
         default_root_dir=MAIN_DIR / "outputs" / args.experiment_name,
-        max_epochs=trainer_cfg.get("max_epochs", 25),
-        early_stopping_patience=trainer_cfg.get("early_stopping", {}).get(
-            "patience", 10
-        ),
+        max_epochs=trainer_cfg["max_epochs"],
+        early_stopping_cfg=trainer_cfg["early_stopping"],
+    )
+
+    model = create_model(
+        model_cfg=model_cfg,
+        trainer_cfg=trainer_cfg,
     )
 
     # Train the model
