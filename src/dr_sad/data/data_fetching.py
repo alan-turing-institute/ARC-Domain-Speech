@@ -130,10 +130,10 @@ def load_data(
     sources_df = pd.read_csv(data_dir / "sources.tbl", sep="\t", header=0, index_col=0)
     audio_files = list(audio_dir.glob("*.flac"))
 
-    for sample_index, audio_file in tqdm(
-        enumerate(sorted(audio_files)),
+    for audio_file in tqdm(
+        sorted(audio_files),
         total=len(audio_files),
-        desc="Loading CallHome data:",
+        desc="Loading Audio data",
     ):
         file_id = Path(audio_file).stem
         rttm_file = rttm_dir / f"{file_id}.rttm"
@@ -171,7 +171,7 @@ def load_data(
         )
 
         # Store in DataFrame
-        data.loc[sample_index] = {
+        data.loc[file_id] = {
             "waveforms": waveform,
             "annotations": annotations,
             "domains": d_idx[domain],
