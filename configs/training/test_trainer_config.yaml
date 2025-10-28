@@ -1,22 +1,21 @@
 # Trainer configuration
-trainer:
-  max_epochs: 50
-  batch_size: 4
-  num_workers: 4
-  early_stopping:
-    enabled: true
-    monitor: val_loss
-    patience: 5
-    mode: min
-  scheduler:
-    type: ReduceLROnPlateau
-    monitor: val_loss
-    factor: 0.1
-    patience: 3
-    min_lr: 1e-6
-    verbose: true
-  checkpoint:
-    enabled: true
-    monitor: val_loss
-    save_top_k: 1
-    mode: min
+max_epochs: 50
+batch_size: 4
+num_workers: 4
+early_stopping:
+  enabled: true
+  monitor: val_loss
+  patience: 5
+  mode: min
+scheduler:
+  type: ReduceLROnPlateau
+  monitor: val_loss
+  factor: 0.1
+  patience: 3
+  min_lr: 1e-6
+  verbose: true
+checkpoint:
+  enabled: true
+  monitor: val_loss
+  save_top_k: 1
+  mode: min

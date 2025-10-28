@@ -1,0 +1,135 @@
+diff --git a/configs/data/test_dataset_config.yaml b/configs/data/test_dataset_config.yaml
+index 24354cb..e5fe3d2 100644
+--- a/configs/data/test_dataset_config.yaml
++++ b/configs/data/test_dataset_config.yaml
+@@ -1,9 +1,7 @@
+ # Dataset configuration
+-dataset:
+-  name: callhome
+-  data_dir: data/callhome
+-  train_split: train
+-  val_split: val
+-  test_split: test
+-  shuffle: true
+-  exclude_domain: 1
++name: callhome
++data_dir: data/callhome
++train_split: train
++val_split: val
++test_split: test
++shuffle: true
+diff --git a/configs/training/test_trainer_config.yaml b/configs/training/test_trainer_config.yaml
+index aee45db..c50611b 100644
+--- a/configs/training/test_trainer_config.yaml
++++ b/configs/training/test_trainer_config.yaml
+@@ -1,22 +1,21 @@
+ # Trainer configuration
+-trainer:
+-  max_epochs: 50
+-  batch_size: 4
+-  num_workers: 4
+-  early_stopping:
+-    enabled: true
+-    monitor: val_loss
+-    patience: 5
+-    mode: min
+-  scheduler:
+-    type: ReduceLROnPlateau
+-    monitor: val_loss
+-    factor: 0.1
+-    patience: 3
+-    min_lr: 1e-6
+-    verbose: true
+-  checkpoint:
+-    enabled: true
+-    monitor: val_loss
+-    save_top_k: 1
+-    mode: min
++max_epochs: 50
++batch_size: 4
++num_workers: 4
++early_stopping:
++  enabled: true
++  monitor: val_loss
++  patience: 5
++  mode: min
++scheduler:
++  type: ReduceLROnPlateau
++  monitor: val_loss
++  factor: 0.1
++  patience: 3
++  min_lr: 1e-6
++  verbose: true
++checkpoint:
++  enabled: true
++  monitor: val_loss
++  save_top_k: 1
++  mode: min
+diff --git a/src/dr_sad/training/README.md b/src/dr_sad/training/README.md
+index a8f68d0..d4aaed3 100644
+--- a/src/dr_sad/training/README.md
++++ b/src/dr_sad/training/README.md
+@@ -2,23 +2,7 @@
+ 
+ Utility class for creating PyTorch Lightning trainers with configurable early stopping and learning rate scheduling.
+ 
+-## Quick Start
+-
+-```python
+-from dr_sad.training import TrainerSetup
+-from dr_sad.pyannet.pyannet import PyanNet
+-
+-# Basic trainer with early stopping
+-trainer = TrainerSetup.create_trainer(max_epochs=50)
+-model = PyanNet()
+-trainer.fit(model, train_loader, val_loader)
+-```
+-
+-# TrainerSetup
+-
+-Utility class for creating PyTorch Lightning trainers with configurable early stopping and learning rate scheduling.
+-
+-## Quick Start
++## Usage
+ 
+ ```python
+ from dr_sad.training import TrainerSetup
+@@ -42,9 +26,12 @@ scheduler_config = {
+ }
+ model = PyanNet(scheduler_config=scheduler_config, learning_rate=0.001)
+ 
+-# Or use helper method
++# Or use helper method with all arguments
+ model = TrainerSetup.create_model_with_scheduler(
+-    PyanNet, scheduler_patience=5, learning_rate=0.001
++    PyanNet,
++    scheduler_patience=5,
++    scheduler_factor=0.1,
++    learning_rate=0.001,
+ )
+ 
+ trainer = TrainerSetup.create_trainer(max_epochs=100)
+@@ -55,7 +42,7 @@ trainer.fit(model, train_loader, val_loader)
+ ### `create_trainer(max_epochs=100, early_stopping_patience=10, **trainer_kwargs)`
+ Creates a trainer with early stopping and LR monitoring.
+ 
+-### `create_model_with_scheduler(model_class, scheduler_patience=5, learning_rate=1e-3, **kwargs)`
++### `create_model_with_scheduler(model_class, scheduler_patience=5, scheduler_factor=0.1, learning_rate=1e-3, **model_kwargs)`
+ Helper to create a model instance with scheduler configuration.
+ 
+ ## Parameters
+@@ -65,8 +52,9 @@ Helper to create a model instance with scheduler configuration.
+ - `early_stopping_patience` (int): Early stopping patience (default: 10)
+ - `**trainer_kwargs`: Additional PyTorch Lightning Trainer arguments
+ 
+-### `get_scheduler_config()`
+-- `patience` (int): LR reduction patience (default: 5)
+-- `factor` (float): LR reduction factor (default: 0.1)
+-- `monitor` (str): Metric to monitor (default: "val_loss")
+-- `mode` (str): "min" or "max" (default: "min")
++### `create_model_with_scheduler()`
++- `model_class` (PyanNet): Model class to instantiate
++- `scheduler_patience` (int): Number of epochs with no improvement after which learning rate will be reduced (default: 5)
++- `scheduler_factor` (float): Factor by which the learning rate will be reduced (default: 0.1)
++- `learning_rate` (float): Initial learning rate (default: 1e-3)
++- `**model_kwargs`: Additional keyword arguments to pass to the model

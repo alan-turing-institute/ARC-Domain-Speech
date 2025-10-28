@@ -1,9 +1,7 @@
 # Dataset configuration
-dataset:
-  name: callhome
-  data_dir: data/callhome
-  train_split: train
-  val_split: val
-  test_split: test
-  shuffle: true
-  exclude_domain: 1
+name: callhome
+data_dir: data/callhome
+train_split: train
+val_split: val
+test_split: test
+shuffle: true

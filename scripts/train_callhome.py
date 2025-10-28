@@ -16,9 +16,9 @@ from dr_sad.training import TrainerSetup
 def main(args) -> None:
     # Load configs from provided paths
     with open(args.trainer_config) as f:
-        trainer_cfg = yaml.safe_load(f)["trainer"]
+        trainer_cfg = yaml.safe_load(f)
     with open(args.dataset_config) as f:
-        dataset_cfg = yaml.safe_load(f)["dataset"]
+        dataset_cfg = yaml.safe_load(f)
     """Train PyanNet model with configurable early stopping and LR scheduling."""
     data = load_data(dataset_cfg["name"])
 
