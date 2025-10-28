@@ -50,4 +50,8 @@ def stratified_splitter(
     train_keys = list(remaining.drop(index=val_keys).index)
     train_keys = [str(k) for k in train_keys]
 
+    train_keys.sort()
+    val_keys.sort()
+    test_keys.sort()
+
     return train_keys, val_keys, test_keys
