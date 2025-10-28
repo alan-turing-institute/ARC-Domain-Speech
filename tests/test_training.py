@@ -1,3 +1,5 @@
+from typing import Any
+
 from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
 
 from dr_sad import training
@@ -52,7 +54,7 @@ class TestCreateModel:
     def test_create_model_without_scheduler(self, monkeypatch):
         monkeypatch.setattr(training, "PyanNet", DummyModel)
         model_cfg = {"model_name": "default_pyannet"}
-        trainer_cfg = {}
+        trainer_cfg: dict[str, Any] = {}
         model = training.create_model(model_cfg, trainer_cfg)
         assert isinstance(model, DummyModel)
         assert model.scheduler_config is None

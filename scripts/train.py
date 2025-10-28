@@ -33,6 +33,7 @@ def main(args) -> None:
         data_split = yaml.safe_load(file)
 
     if data_cfg["domain_type"] == "all":
+        domain_identifier = "all"
         if args.exclude_domain is not None:
             err_msg = "Cannot exclude domain when domain_type is set to 'all'."
             raise ValueError(err_msg)
@@ -43,8 +44,11 @@ def main(args) -> None:
             val_keys=data_split["val"],
             test_keys=data_split["test"],
             batch_size=4,
+            # REMOVE THIS
+            random_seed=42,
         )
     elif data_cfg["domain_type"] == "exclude_one":
+        domain_identifier = f"domain_{args.exclude_domain}"
         if args.exclude_domain is None:
             err_msg = "Must specify --exclude_domain when domain_type is 'exclude_one'."
             raise ValueError(err_msg)
@@ -56,7 +60,6 @@ def main(args) -> None:
             test_keys=data_split["test"],
             domain=args.exclude_domain,
             batch_size=trainer_cfg["batch_size"],
-            random_seed=42,
         )
 
     else:
@@ -64,8 +67,15 @@ def main(args) -> None:
         raise ValueError(err_msg)
 
     # Create trainer with early stopping
+    save_dir = (
+        MAIN_DIR
+        / "outputs"
+        / f"{args.experiment_name.rstrip('.yaml')}"
+        / domain_identifier
+    )
+    save_dir.mkdir(parents=True, exist_ok=True)
     trainer = DrSadTrainer.create_trainer(
-        default_root_dir=MAIN_DIR / "outputs" / args.experiment_name,
+        default_root_dir=save_dir,
         max_epochs=trainer_cfg["max_epochs"],
         early_stopping_cfg=trainer_cfg["early_stopping"],
     )
@@ -84,8 +94,8 @@ def main(args) -> None:
         trainer.test(model, domain_loader)
 
     # Save model
-    trainer.save_checkpoint(Path(trainer.log_dir) / "final_checkpoint.ckpt")
-    torch.save(model.state_dict(), Path(trainer.log_dir) / "trained_model_weights.pth")
+    trainer.save_checkpoint(Path(save_dir) / "final_checkpoint.ckpt")
+    torch.save(model.state_dict(), Path(save_dir) / "trained_model_weights.pth")
 
 
 if __name__ == "__main__":

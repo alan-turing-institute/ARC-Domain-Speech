@@ -16,7 +16,7 @@ class DrSadTrainer(Trainer):  # type: ignore[misc]
 
     @classmethod
     def create_trainer(
-        cls, max_epochs: int, early_stopping_cfg: dict, **trainer_kwargs: Any
+        cls, max_epochs: int, early_stopping_cfg: dict[str, Any], **trainer_kwargs: Any
     ) -> "DrSadTrainer":
         """
         Create a PyTorch Lightning Trainer with early stopping and LR monitoring.
@@ -49,8 +49,8 @@ class DrSadTrainer(Trainer):  # type: ignore[misc]
 
 
 def create_model(
-    model_cfg: dict,
-    trainer_cfg: dict,
+    model_cfg: dict[str, Any],
+    trainer_cfg: dict[str, Any],
     **model_kwargs: Any,
 ) -> LightningModule:
     """
