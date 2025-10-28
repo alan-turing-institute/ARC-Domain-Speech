@@ -1,15 +1,15 @@
-# TrainerSetup
+# DrSadTrainer
 
 Utility class for creating PyTorch Lightning trainers with configurable early stopping and learning rate scheduling.
 
 ## Usage
 
 ```python
-from dr_sad.training import TrainerSetup
+from dr_sad.training import DrSadTrainer
 from dr_sad.pyannet.pyannet import PyanNet
 
 # Basic trainer with early stopping
-trainer = TrainerSetup.create_trainer(max_epochs=50)
+trainer = DrSadTrainer.create_trainer(max_epochs=50)
 model = PyanNet()
 trainer.fit(model, train_loader, val_loader)
 ```
@@ -27,14 +27,14 @@ scheduler_config = {
 model = PyanNet(scheduler_config=scheduler_config, learning_rate=0.001)
 
 # Or use helper method with all arguments
-model = TrainerSetup.create_model_with_scheduler(
+model = DrSadTrainer.create_model_with_scheduler(
     PyanNet,
     scheduler_patience=5,
     scheduler_factor=0.1,
     learning_rate=0.001,
 )
 
-trainer = TrainerSetup.create_trainer(max_epochs=100)
+trainer = DrSadTrainer.create_trainer(max_epochs=100)
 trainer.fit(model, train_loader, val_loader)
 ```
 ## Methods

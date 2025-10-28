@@ -5,63 +5,56 @@ import torch
 import yaml
 
 from dr_sad.data.data_fetching import load_data
-from dr_sad.data.dataloaders import (
-    domain_split_dataloaders,
-    train_test_split_dataloaders,
-)
+from dr_sad.data.dataloaders import domain_split_dataloaders, from_keys_dataloaders
 from dr_sad.pyannet.pyannet import PyanNet
-from dr_sad.training import TrainerSetup
+from dr_sad.training import DrSadTrainer
+
+MAIN_DIR = Path(__file__).resolve().parent.parent
+CONFIG_DIR = MAIN_DIR / "configs"
 
 
 def main(args) -> None:
     # Load configs from provided paths
-    with open(args.trainer_config) as f:
-        trainer_cfg = yaml.safe_load(f)
-    with open(args.dataset_config) as f:
-        dataset_cfg = yaml.safe_load(f)
+    with open(Path(CONFIG_DIR) / "experiment" / f"{args.experiment_name}.yaml") as f:
+        exp_config = yaml.safe_load(f)
     """Train PyanNet model with configurable early stopping and LR scheduling."""
-    data = load_data(dataset_cfg["name"])
+    trainer_cfg_pth = (
+        Path(CONFIG_DIR) / "training" / f"{exp_config['training_config']}.yaml"
+    )
+    data_cfg_pth = Path(CONFIG_DIR) / "data" / f"{exp_config['data_config']}.yaml"
 
-    if args.exclude_domain is not None:
-        # First, get initial train/val/test split to generate keys
-        temp_train, temp_val, temp_test = train_test_split_dataloaders(
+    with open(trainer_cfg_pth) as f:
+        trainer_cfg = yaml.safe_load(f)
+    with open(data_cfg_pth) as f:
+        data_cfg = yaml.safe_load(f)
+
+    data = load_data(data_cfg["name"])
+    with open(MAIN_DIR / "data" / data_cfg["name"] / "datasplit.yaml") as file:
+        data_split = yaml.safe_load(file)
+
+    if args.exclude_domain is None:
+        train_loader, val_loader, test_loader = from_keys_dataloaders(
             data,
-            batch_size=1,
-            val_ratio=0.1,
-            test_ratio=0.1,
-            random_seed=42,
+            train_keys=data_split["train"],
+            val_keys=data_split["val"],
+            test_keys=data_split["test"],
+            batch_size=4,
         )
-
-        # Extract keys from the temporary datasets
-        train_keys = [str(idx) for idx in temp_train.dataset.data.index]
-        val_keys = [str(idx) for idx in temp_val.dataset.data.index]
-        test_keys = [str(idx) for idx in temp_test.dataset.data.index]
-
+    else:
         # Use domain_split_dataloaders to exclude the specified domain
         train_loader, val_loader, test_loader, domain_loader = domain_split_dataloaders(
             data,
-            train_keys=train_keys,
-            val_keys=val_keys,
-            test_keys=test_keys,
-            domain=dataset_cfg.get("exclude_domain"),
+            train_keys=data_split["train"],
+            val_keys=data_split["val"],
+            test_keys=data_split["test"],
+            domain=args.exclude_domain,
             batch_size=trainer_cfg["batch_size"],
             random_seed=42,
         )
-
-    else:
-        # Use standard random splitting
-        train_loader, val_loader, test_loader = train_test_split_dataloaders(
-            data,
-            batch_size=trainer_cfg["batch_size"],
-            val_ratio=0.1,
-            test_ratio=0.1,
-            random_seed=42,
-        )
-        domain_loader = None
 
     # Create model with optional scheduler
     if trainer_cfg.get("scheduler", {}).get("type"):
-        model = TrainerSetup.create_model_with_scheduler(
+        model = DrSadTrainer.create_model_with_scheduler(
             PyanNet,
             scheduler_patience=trainer_cfg["scheduler"].get("patience", 3),
             scheduler_factor=trainer_cfg["scheduler"].get("factor", 0.5),
@@ -71,7 +64,8 @@ def main(args) -> None:
         model = PyanNet(learning_rate=trainer_cfg.get("learning_rate", 0.01))
 
     # Create trainer with early stopping
-    trainer = TrainerSetup.create_trainer(
+    trainer = DrSadTrainer.create_trainer(
+        default_root_dir=MAIN_DIR / "outputs" / args.experiment_name,
         max_epochs=trainer_cfg.get("max_epochs", 25),
         early_stopping_patience=trainer_cfg.get("early_stopping", {}).get(
             "patience", 10
@@ -82,8 +76,8 @@ def main(args) -> None:
     trainer.fit(model, train_loader, val_loader)
     trainer.test(model, test_loader)
 
-    # If we excluded a domain, also test on that domain for domain adaptation analysis
-    if domain_loader is not None:
+    if args.exclude_domain is not None:
+        print("Evaluating on excluded domain data...")
         trainer.test(model, domain_loader)
 
     # Save model
@@ -94,19 +88,13 @@ def main(args) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--trainer-config",
+        "experiment_name",
         type=str,
-        default="configs/training/trainer_config.yaml",
-        help="Path to trainer config YAML file",
+        default="test",
+        help="Name of the experiment config YAML file (without .yaml extension)",
     )
     parser.add_argument(
-        "--dataset-config",
-        type=str,
-        default="configs/training/dataset_config.yaml",
-        help="Path to dataset config YAML file",
-    )
-    parser.add_argument(
-        "--exclude-domain",
+        "--exclude_domain",
         type=int,
         default=None,
         help="Domain to exclude from training/validation/test (for domain adaptation)",

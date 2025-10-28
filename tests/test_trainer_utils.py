@@ -1,7 +1,7 @@
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
 
-from dr_sad.training.trainer_utils import TrainerSetup
+from dr_sad.training.trainer_utils import DrSadTrainer
 
 
 class DummyModel:
@@ -12,7 +12,7 @@ class DummyModel:
 
 
 def test_create_trainer_callbacks():
-    trainer = TrainerSetup.create_trainer(max_epochs=5, early_stopping_patience=2)
+    trainer = DrSadTrainer.create_trainer(max_epochs=5, early_stopping_patience=2)
     # Check Trainer type
     assert isinstance(trainer, Trainer)
     # Check callbacks
@@ -28,7 +28,7 @@ def test_create_trainer_callbacks():
 
 
 def test_create_model_with_scheduler():
-    model = TrainerSetup.create_model_with_scheduler(
+    model = DrSadTrainer.create_model_with_scheduler(
         DummyModel,
         scheduler_patience=3,
         scheduler_factor=0.5,

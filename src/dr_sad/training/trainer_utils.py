@@ -1,10 +1,10 @@
 from typing import Any
 
-from lightning.pytorch import Trainer
+from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
 
 
-class TrainerSetup:
+class DrSadTrainer(Trainer):
     """
     PyTorch Lightning Trainer factory implementing early stopping and LR scheduling.
 
@@ -18,7 +18,7 @@ class TrainerSetup:
         max_epochs: int = 100,
         early_stopping_patience: int = 10,
         **trainer_kwargs: Any,
-    ) -> Trainer:
+    ) -> "DrSadTrainer":
         """
         Create a PyTorch Lightning Trainer with early stopping and LR monitoring.
 
@@ -29,7 +29,7 @@ class TrainerSetup:
             **trainer_kwargs: Additional keyword arguments to pass to the Trainer.
 
         Returns:
-            Configured Trainer instance with early stopping and LR monitoring.
+            Configured TrainerSetup instance with early stopping and LR monitoring.
         """
         callbacks = [
             EarlyStopping(
@@ -39,11 +39,9 @@ class TrainerSetup:
                 min_delta=0.0,
                 verbose=True,
             ),
-            # for logging learning rate changes
             LearningRateMonitor(logging_interval="epoch"),
         ]
-
-        return Trainer(
+        return cls(
             max_epochs=max_epochs,
             callbacks=callbacks,
             **trainer_kwargs,
@@ -52,12 +50,12 @@ class TrainerSetup:
     @classmethod
     def create_model_with_scheduler(
         cls,
-        model_class,
+        model_class: LightningModule,
         scheduler_patience: int = 5,
         scheduler_factor: float = 0.1,
         learning_rate: float = 1e-3,
         **model_kwargs: Any,
-    ):
+    ) -> LightningModule:
         """
         Create a model instance with scheduler configuration.
 
