@@ -93,7 +93,7 @@ def generate_rttm(
     rttm_dir: Path,
     file_id: str,
     channel_id: int = 1,
-) -> None:
+) -> bool:
     beginnings = data["timestamps_start"]
     ends = data["timestamps_end"]
     speakers = data["speakers"]

@@ -7,4 +7,3 @@ dataset:
   test_split: test
   shuffle: true
   exclude_domain: 1
-

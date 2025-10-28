@@ -161,8 +161,7 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         if self.scheduler_config is not None:
             # Separate PyTorch scheduler params from Lightning config params
             scheduler_params = {
-                k: v for k, v in self.scheduler_config.items()
-                if k != "monitor"
+                k: v for k, v in self.scheduler_config.items() if k != "monitor"
             }
             monitor_metric = self.scheduler_config.get("monitor", "val_loss")
 
