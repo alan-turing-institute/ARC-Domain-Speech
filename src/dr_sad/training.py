@@ -66,6 +66,13 @@ def create_model(
         Model instance with scheduler configuration.
     """
 
+    if trainer_cfg == {} or trainer_cfg is None:
+        err_msg = "trainer_cfg cannot be empty"
+        raise ValueError(err_msg)
+    if "scheduler" not in trainer_cfg:
+        err_msg = "trainer_cfg must contain a 'scheduler' key"
+        raise KeyError(err_msg)
+
     if model_cfg.get("model_name") == "default_pyannet":
         ModelClass = PyanNet
 

@@ -1,5 +1,6 @@
 from typing import Any
 
+import pytest
 from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
 
 from dr_sad import training
@@ -42,7 +43,12 @@ class TestCreateModel:
         monkeypatch.setattr(training, "PyanNet", DummyModel)
         model_cfg = {"model_name": "default_pyannet"}
         trainer_cfg = {
-            "scheduler": {"type": "reduce_on_plateau", "patience": 3, "factor": 0.5},
+            "scheduler": {
+                "enabled": True,
+                "type": "ReduceLROnPlateau",
+                "patience": 3,
+                "factor": 0.5,
+            },
             "learning_rate": 1e-4,
         }
         model = training.create_model(model_cfg, trainer_cfg, foo="bar")
@@ -54,8 +60,34 @@ class TestCreateModel:
     def test_create_model_without_scheduler(self, monkeypatch):
         monkeypatch.setattr(training, "PyanNet", DummyModel)
         model_cfg = {"model_name": "default_pyannet"}
-        trainer_cfg: dict[str, Any] = {}
-        model = training.create_model(model_cfg, trainer_cfg)
+        trainer_cfg: dict[str, Any] = {
+            "scheduler": {"enabled": False},
+            "learning_rate": 1e-4,
+        }
+        model = training.create_model(model_cfg, trainer_cfg, foo="bar")
         assert isinstance(model, DummyModel)
         assert model.scheduler_config is None
-        assert model.learning_rate is None
+        assert model.learning_rate == 1e-4
+
+    def test_create_model_with_bad_config(self, monkeypatch):
+        monkeypatch.setattr(training, "PyanNet", DummyModel)
+        model_cfg = {"model_name": "default_pyannet"}
+        trainer_cfg: dict[str, Any] = {}
+        with pytest.raises(ValueError, match="trainer_cfg cannot be empty"):
+            training.create_model(model_cfg, trainer_cfg, foo="bar")
+
+    def test_create_model_missing_scheduler_key(self, monkeypatch):
+        monkeypatch.setattr(training, "PyanNet", DummyModel)
+        model_cfg = {"model_name": "default_pyannet"}
+        trainer_cfg: dict[str, Any] = {"learning_rate": 1e-4}
+        with pytest.raises(KeyError):
+            training.create_model(model_cfg, trainer_cfg, foo="bar")
+
+    def test_unknown_model_name(self):
+        model_cfg = {"model_name": "unknown_model"}
+        trainer_cfg: dict[str, Any] = {
+            "scheduler": {"enabled": False},
+            "learning_rate": 1e-4,
+        }
+        with pytest.raises(ValueError, match="Unknown model name: unknown_model"):
+            training.create_model(model_cfg, trainer_cfg, foo="bar")
