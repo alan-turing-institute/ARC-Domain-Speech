@@ -35,6 +35,17 @@ for lang in DOMAIN_LANGUAGES:
     for item in tqdm(dataset["data"], desc=f"Processing {lang}"):
         # get filename
         file_loc = flac_dir / f"CH_{data_row_idx:04d}.flac"
+        # audio data
+        audio_samples = item["audio"].get_all_samples()
+        audio_data = audio_samples.data  # This is the actual tensor
+        max_timestamp = max(item["timestamps_start"])
+        audio_length = audio_data.shape[1] / 16000  # Convert to seconds
+        if audio_length < max_timestamp:
+            print(
+                f"Warning: Skipping {file_loc.stem} as audio length {audio_length:.2f}s"
+                f" is less than max timestamp {max_timestamp:.2f}s"
+            )
+            continue
         # check rttm is valid
         valid_sample = generate_rttm(item, rttm_dir, file_loc.stem)
         if not valid_sample:
@@ -49,10 +60,6 @@ for lang in DOMAIN_LANGUAGES:
             "source": source,
         }
         sources_df.loc[data_row_idx] = row_data
-        # audio data
-        file_loc = flac_dir / f"CH_{data_row_idx:04d}.flac"
-        audio_samples = item["audio"].get_all_samples()
-        audio_data = audio_samples.data  # This is the actual tensor
         with soundfile.SoundFile(file_loc, "w", 16000, 1) as f:
             f.write(audio_data.numpy().T)
 
