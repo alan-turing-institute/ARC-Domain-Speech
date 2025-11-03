@@ -37,9 +37,9 @@ data_row_idx = 1
 for lang in DOMAIN_LANGUAGES:
     dataset = load_dataset("talkbank/callhome", lang)
     for item in tqdm(dataset["data"], desc=f"Processing {lang}"):
-        # get filename
+        # Get filename
         file_loc = flac_dir / f"CH_{data_row_idx:04d}.flac"
-        # audio data
+        # Audio data
         audio_samples = item["audio"].get_all_samples()
         audio_data = audio_samples.data  # This is the actual tensor
         max_timestamp = max(item["timestamps_start"])
@@ -57,8 +57,8 @@ for lang in DOMAIN_LANGUAGES:
         if not valid_sample:
             continue
 
-        # if sample valid write the data
-        # metadata
+        # If sample is valid, write the data
+        # Metadata
         row_data = {
             "file_id": file_loc.stem,
             "lang": lang,
@@ -69,7 +69,7 @@ for lang in DOMAIN_LANGUAGES:
         with soundfile.SoundFile(file_loc, "w", 16000, 1) as f:
             f.write(audio_data.numpy().T)
 
-        # increment index
+        # Increment index
         data_row_idx += 1
 
 

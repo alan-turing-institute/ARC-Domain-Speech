@@ -45,7 +45,7 @@ class DrSadTrainer(Trainer):  # type: ignore[misc]
             **trainer_kwargs: Additional keyword arguments to pass to the Trainer.
 
         Returns:
-            Configured TrainerSetup instance with early stopping and LR monitoring.
+            Configured DrSadTrainer instance with early stopping and LR monitoring.
         """
         if early_stopping_cfg["enabled"]:
             es_cfg = early_stopping_cfg.copy()
