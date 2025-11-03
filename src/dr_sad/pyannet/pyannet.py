@@ -298,6 +298,11 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         total = torch.numel(speaker_truth)
         return float((correct / total).item())
 
+    def predict_step(self, batch: Any, _batch_idx: int) -> torch.Tensor:
+        """Override LightningModule predict step"""
+        # (batch, time, channels) -> (batch, channels, time)
+        return self(batch["waveforms"]).swapaxes(1, 2)
+
     def training_step(self, batch: Any, _batch_idx: int) -> torch.Tensor:
         """Override LightningModule training step
 

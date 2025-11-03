@@ -1,8 +1,8 @@
 import argparse
 from pathlib import Path
 
-import torch
 import yaml
+from safetensors.torch import save_model
 
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import domain_split_dataloaders, from_keys_dataloaders
@@ -33,7 +33,8 @@ def main(args) -> None:
         data_split = yaml.safe_load(file)
 
     if data_cfg["domain_type"] == "all":
-        domain_identifier = "all"
+        save_dir = MAIN_DIR / "outputs" / f"{args.experiment_name.rstrip('.yaml')}"
+        save_dir.mkdir(parents=True, exist_ok=True)
         if args.exclude_domain is not None:
             err_msg = "Cannot exclude domain when domain_type is set to 'all'."
             raise ValueError(err_msg)
@@ -44,11 +45,15 @@ def main(args) -> None:
             val_keys=data_split["val"],
             test_keys=data_split["test"],
             batch_size=4,
-            # REMOVE THIS
-            random_seed=42,
         )
     elif data_cfg["domain_type"] == "exclude_one":
-        domain_identifier = f"domain_{args.exclude_domain}"
+        save_dir = (
+            MAIN_DIR
+            / "outputs"
+            / f"{args.experiment_name.rstrip('.yaml')}"
+            / f"domain_{args.exclude_domain}"
+        )
+        save_dir.mkdir(parents=True, exist_ok=True)
         if args.exclude_domain is None:
             err_msg = "Must specify --exclude_domain when domain_type is 'exclude_one'."
             raise ValueError(err_msg)
@@ -60,6 +65,7 @@ def main(args) -> None:
             test_keys=data_split["test"],
             domain=args.exclude_domain,
             batch_size=trainer_cfg["batch_size"],
+            random_seed=exp_config["random_seed"],
         )
 
     else:
@@ -67,13 +73,6 @@ def main(args) -> None:
         raise ValueError(err_msg)
 
     # Create trainer with early stopping
-    save_dir = (
-        MAIN_DIR
-        / "outputs"
-        / f"{args.experiment_name.rstrip('.yaml')}"
-        / domain_identifier
-    )
-    save_dir.mkdir(parents=True, exist_ok=True)
     trainer = DrSadTrainer.create_trainer(
         default_root_dir=save_dir,
         max_epochs=trainer_cfg["max_epochs"],
@@ -92,10 +91,9 @@ def main(args) -> None:
     if args.exclude_domain is not None:
         print("Evaluating on excluded domain data...")
         trainer.test(model, domain_loader)
-
     # Save model
     trainer.save_checkpoint(Path(save_dir) / "final_checkpoint.ckpt")
-    torch.save(model.state_dict(), Path(save_dir) / "trained_model_weights.pth")
+    save_model(model, Path(save_dir) / "trained_model_weights.safetensors")
 
 
 if __name__ == "__main__":
@@ -107,7 +105,7 @@ if __name__ == "__main__":
         help="Name of the experiment config YAML file (without .yaml extension)",
     )
     parser.add_argument(
-        "--exclude_domain",
+        "--exclude-domain",
         type=int,
         default=None,
         help="Domain to exclude from training/validation/test (for domain adaptation)",

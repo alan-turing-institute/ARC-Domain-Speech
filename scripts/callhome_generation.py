@@ -7,6 +7,7 @@ The generated files are stored in the `data/callhome` directory.
 This script takes no arguments.
 """
 
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -15,6 +16,9 @@ from datasets import load_dataset
 from tqdm import tqdm
 
 from dr_sad.data.utils import generate_rttm
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 DOMAIN_LANGUAGES = {"eng": 0, "deu": 1, "spa": 2, "jpn": 3, "zho": 4}
 
@@ -41,10 +45,12 @@ for lang in DOMAIN_LANGUAGES:
         max_timestamp = max(item["timestamps_start"])
         audio_length = audio_data.shape[1] / 16000  # Convert to seconds
         if audio_length < max_timestamp:
-            print(
-                f"Warning: Skipping {file_loc.stem} as audio length {audio_length:.2f}s"
+            log_msg = (
+                f"Warning: Skipping {file_loc.stem} as audio length"
+                f" {audio_length:.2f}s"
                 f" is less than max timestamp {max_timestamp:.2f}s"
             )
+            logger.warning(log_msg)
             continue
         # check rttm is valid
         valid_sample = generate_rttm(item, rttm_dir, file_loc.stem)

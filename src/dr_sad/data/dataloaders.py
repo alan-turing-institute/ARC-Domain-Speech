@@ -6,7 +6,7 @@ __all__ = (
     "train_test_split_dataloaders",
 )
 
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -155,7 +155,9 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
 
     def __getitem__(self, idx: int) -> dict[str, Any]:
         """Get a sample from the dataset by index."""
-        return cast(dict[str, Any], self.data.iloc[idx].to_dict())
+        file_id = self.data.index[idx]
+        row: dict[str, Any] = self.data.iloc[idx].to_dict()
+        return row | {"file_id": str(file_id)}
 
 
 def make_dataloader(

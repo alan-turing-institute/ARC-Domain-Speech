@@ -27,7 +27,7 @@ def test_dataset():
         rttm_dir.mkdir()
 
         # Generate 20 test files
-        file_ids = [f"TEST_{i:04d}" for i in range(20)]
+        file_ids = [f"TEST_{i:04d}" for i in range(1, 21)]
         domains = ["AAA", "BBB", "CCC"]
 
         sources_data = []

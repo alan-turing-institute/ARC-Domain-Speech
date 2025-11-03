@@ -1,9 +1,26 @@
 from typing import Any
 
+import torch
 from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
+from safetensors.torch import save_file
+from tqdm import tqdm
 
 from dr_sad.pyannet import PyanNet
+
+
+def save_predictions(model, dataloader, save_path):
+    # Save test predictions
+    outputs = {}
+    for b_i, batch in tqdm(
+        enumerate(dataloader), total=len(dataloader), desc="Predicting outputs"
+    ):
+        file_ids = batch["file_id"]
+        prediction: torch.Tensor = model.predict_step(batch, b_i)
+        for index, file_id in enumerate(file_ids):
+            outputs[file_id] = prediction[index].cpu()
+
+    save_file(outputs, save_path)
 
 
 class DrSadTrainer(Trainer):  # type: ignore[misc]

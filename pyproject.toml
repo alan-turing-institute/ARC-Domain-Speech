@@ -40,6 +40,7 @@ dependencies = [
   "datasets>=4.2.0",
   "pyaml>=25.7.0",
   "tensorboard>=2.20.0",
+  "safetensors>=0.6.2",
 ]
 
 [project.urls]
