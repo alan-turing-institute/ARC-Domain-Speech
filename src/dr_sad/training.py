@@ -4,12 +4,25 @@ import torch
 from lightning.pytorch import LightningModule, Trainer
 from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
 from safetensors.torch import save_file
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dr_sad.pyannet import PyanNet
 
 
-def save_predictions(model, dataloader, save_path):
+def save_predictions(
+    model: LightningModule,
+    dataloader: DataLoader,
+    save_path: str,
+) -> None:
+    """
+    Iterates over the dataloader, runs predictions using the model's predict_step,
+    collects outputs indexed by file_id, and saves them using safetensors.
+    Args:
+        model (LightningModule): The trained model used for prediction.
+        dataloader (Any): An iterable of batches containing input data.
+        save_path (str): Path to save the predictions file.
+    """
     # Save test predictions
     outputs = {}
     for b_i, batch in tqdm(
@@ -39,9 +52,11 @@ class DrSadTrainer(Trainer):  # type: ignore[misc]
         Create a PyTorch Lightning Trainer with early stopping and LR monitoring.
 
         Args:
-            max_epochs: Maximum number of training epochs. Default: 100
-            early_stopping_patience: Number of epochs with no improvement after
-                which training will be stopped. Default: 10
+            max_epochs: Maximum number of training epochs.
+            early_stopping_cfg: Dictionary containing early stopping configuration.
+                Must include an 'enabled' key (bool). If enabled, other keys are passed
+                    to EarlyStopping, e.g.
+                    {'enabled': True, 'patience': 10, 'monitor': 'val_loss', ...}.
             **trainer_kwargs: Additional keyword arguments to pass to the Trainer.
 
         Returns:
@@ -75,8 +90,8 @@ def create_model(
 
     Args:
         model_cfg: Model configuration dictionary.
-        trainer_cfg: Trainer configuration dictionary.
-        learning_rate: Initial learning rate. Default: 1e-3
+        trainer_cfg: Trainer configuration dictionary. Must contain a 'learning_rate'
+            key (initial learning rate, default: 1e-3).
         **model_kwargs: Additional keyword arguments to pass to the model.
 
     Returns:

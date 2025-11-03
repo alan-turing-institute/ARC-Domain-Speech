@@ -14,8 +14,16 @@ CONFIG_DIR = MAIN_DIR / "configs"
 
 def main(args) -> None:
     # Load configs from provided paths
-    with open(Path(CONFIG_DIR) / "experiment" / args.experiment_name) as f:
-        exp_config = yaml.safe_load(f)
+    if Path(args.experiment_name).exists():
+        with open(args.experiment_name) as f:
+            exp_config = yaml.safe_load(f)
+    elif Path(CONFIG_DIR / "experiment" / args.experiment_name).exists():
+        with open(Path(CONFIG_DIR / "experiment" / args.experiment_name)) as f:
+            exp_config = yaml.safe_load(f)
+    else:
+        err_msg = f"Experiment config not found: {args.experiment_name}"
+        raise FileNotFoundError(err_msg)
+
     """Train PyanNet model with configurable early stopping and LR scheduling."""
     trainer_cfg_pth = Path(CONFIG_DIR) / "training" / exp_config["training_config"]
     data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]

@@ -105,8 +105,9 @@ def generate_rttm(
         length = end - start
         if length < 0:
             logging_msg = (
-                f"Negative segment length detected: file_id={file_id}, index={idx}, start={start}, end={end} "
-                f"(end < start). This segment will be skipped.\n"
+                f"Negative segment length detected: file_id={file_id}, index={idx}, "
+                f"start={start}, end={end} (end < start). "
+                "This segment will be skipped.\n"
             )
             logger.warning(logging_msg)
             has_negative_length = True
