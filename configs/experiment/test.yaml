@@ -1,0 +1,3 @@
+data_config: test_dataset_config.yaml
+training_config: test_trainer_config.yaml
+model_config: default_pyannet.yaml

@@ -1,9 +1,13 @@
 __all__ = ("audio_collation", "collate_padded", "generate_rttm")
 
+import logging
 from pathlib import Path
 from typing import Any
 
 import torch
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def audio_collation(batch: list[dict[str, Any]]) -> dict[str, Any]:
@@ -89,15 +93,35 @@ def generate_rttm(
     rttm_dir: Path,
     file_id: str,
     channel_id: int = 1,
-) -> None:
+) -> bool:
     beginnings = data["timestamps_start"]
     ends = data["timestamps_end"]
-    lengths = [end - start for start, end in zip(beginnings, ends, strict=True)]
     speakers = data["speakers"]
+    filtered = []
+    has_negative_length = False
+    for idx, (start, end, speaker) in enumerate(
+        zip(beginnings, ends, speakers, strict=True)
+    ):
+        length = end - start
+        if length < 0:
+            logging_msg = (
+                f"Negative segment length detected: file_id={file_id}, index={idx}, "
+                f"start={start}, end={end} (end < start). "
+                "This segment will be skipped.\n"
+            )
+            logger.warning(logging_msg)
+            has_negative_length = True
+        else:
+            filtered.append((start, length, speaker))
+    if has_negative_length:
+        log_msg = f"Skipped RTTM file for {file_id} due to problematic segments."
+        logger.warning(log_msg)
+        return False
     with open(rttm_dir / f"{file_id}.rttm", "w") as f:
-        for begin, length, speaker in zip(beginnings, lengths, speakers, strict=True):
+        for begin, length, speaker in filtered:
             if speaker != "None":
                 f.write(
                     f"SPEAKER {file_id} {channel_id} {begin:.3f} {length:.3f} <NA> "
                     f"<NA> {speaker} <NA> <NA>\n"
                 )
+    return True

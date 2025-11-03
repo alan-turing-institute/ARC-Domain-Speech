@@ -57,6 +57,8 @@ class TestDrSadDataset:
             assert isinstance(item["annotations"], list)
             assert "domains" in item
             assert isinstance(item["domains"], int)
+            assert "file_id" in item
+            assert isinstance(item["file_id"], str)
 
     def test_load_example_dataset(self, test_dataset):
         """Test loading the test dataset using DrSadDataset."""
@@ -77,6 +79,9 @@ class TestDrSadDataset:
         assert "waveforms" in first_item
         assert "annotations" in first_item
         assert "domains" in first_item
+        assert "file_id" in first_item
+
+        assert first_item["file_id"] == "TEST_0001"
 
         # Check that annotations are correct for the first file
         first_annotations = first_item["annotations"]

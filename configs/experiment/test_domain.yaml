@@ -1,0 +1,4 @@
+data_config: callhome_domain.yaml
+training_config: test_trainer_config.yaml
+model_config: default_pyannet.yaml
+random_seed: 42
