@@ -20,4 +20,4 @@ scheduler:
   mode: min
   factor: 0.1
   patience: 3
-  min_lr: 1e-6
+  min_lr: 1.0e-6
