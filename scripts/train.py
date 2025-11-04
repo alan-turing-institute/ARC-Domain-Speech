@@ -24,6 +24,9 @@ def main(args) -> None:
         err_msg = f"Experiment config not found: {args.experiment_name}"
         raise FileNotFoundError(err_msg)
 
+    # for saving we only want the final name without path or extension
+    exp_config_name = Path(args.experiment_name).stem
+
     """Train PyanNet model with configurable early stopping and LR scheduling."""
     trainer_cfg_pth = Path(CONFIG_DIR) / "training" / exp_config["training_config"]
     data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
@@ -41,7 +44,7 @@ def main(args) -> None:
         data_split = yaml.safe_load(file)
 
     if data_cfg["domain_type"] == "all":
-        save_dir = MAIN_DIR / "outputs" / f"{args.experiment_name.rstrip('.yaml')}"
+        save_dir = MAIN_DIR / "outputs" / f"{exp_config_name}"
         save_dir.mkdir(parents=True, exist_ok=True)
         if args.exclude_domain is not None:
             err_msg = "Cannot exclude domain when domain_type is set to 'all'."
@@ -58,7 +61,7 @@ def main(args) -> None:
         save_dir = (
             MAIN_DIR
             / "outputs"
-            / f"{args.experiment_name.rstrip('.yaml')}"
+            / f"{exp_config_name}"
             / f"domain_{args.exclude_domain}"
         )
         save_dir.mkdir(parents=True, exist_ok=True)
