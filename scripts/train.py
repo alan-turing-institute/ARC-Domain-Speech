@@ -11,6 +11,7 @@ from dr_sad.training import DrSadTrainer, create_model
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
+EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
 
 
 def get_experiment_name(exp_name_arg: str) -> tuple[str, Path]:
@@ -18,19 +19,19 @@ def get_experiment_name(exp_name_arg: str) -> tuple[str, Path]:
     p = Path(exp_name_arg)
     if p.exists():
         experiment_path = p
-    elif (CONFIG_DIR / p).exists():
-        experiment_path = CONFIG_DIR / p
+    elif (EXP_CONFIG_DIR / p).exists():
+        experiment_path = EXP_CONFIG_DIR / p
     else:
         msg = f"Experiment config not found: {exp_name_arg}"
         raise FileNotFoundError(msg)
     # Determine experiment_name string
     try:
-        # If experiment_path is inside CONFIG_DIR
-        rel = experiment_path.relative_to(CONFIG_DIR)
+        # If experiment_path is inside EXP_CONFIG_DIR
+        rel = experiment_path.relative_to(EXP_CONFIG_DIR)
         # Remove suffix (.yaml/.yml) and return the parent path + stem
         experiment_name = str(rel.with_suffix("")).replace("\\", "/")
     except ValueError:
-        # Not inside CONFIG_DIR → just use the filename without suffix
+        # Not inside EXP_CONFIG_DIR → just use the filename without suffix
         experiment_name = experiment_path.stem
 
     return experiment_name, experiment_path
@@ -38,6 +39,8 @@ def get_experiment_name(exp_name_arg: str) -> tuple[str, Path]:
 
 def main(args) -> None:
     experiment_name, experiment_path = get_experiment_name(args.experiment_name)
+    print(f"Running experiment: {experiment_name}")
+
     with open(experiment_path) as f:
         exp_config = yaml.safe_load(f)
 
