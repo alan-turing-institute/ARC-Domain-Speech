@@ -22,6 +22,34 @@ from asteroid_filterbanks import Encoder, ParamSincFB
 import dr_sad.pyannet.receptive_field as r_f
 
 
+def map_sincnet_weights(state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    """Map old state dict keys to new architecture.
+
+    Maps:
+    - sincnet.block0.* -> sincnet.features.0.*
+    - sincnet.block1.* -> sincnet.features.1.*
+    - sincnet.block2.* -> sincnet.features.2.*
+    """
+    new_state_dict = {}
+    for key, value in state_dict.items():
+        if key.startswith("sincnet.block0"):
+            # Map sincnet.block0.X.Y -> sincnet.features.0.X.Y
+            new_key = key.replace("sincnet.block0.", "sincnet.features.0.")
+            new_state_dict[new_key] = value
+        elif key.startswith("sincnet.block1"):
+            # Map sincnet.block1.X.Y -> sincnet.features.1.X.Y
+            new_key = key.replace("sincnet.block1.", "sincnet.features.1.")
+            new_state_dict[new_key] = value
+        elif key.startswith("sincnet.block2"):
+            # Map sincnet.block2.X.Y -> sincnet.features.2.X.Y
+            new_key = key.replace("sincnet.block2.", "sincnet.features.2.")
+            new_state_dict[new_key] = value
+        else:
+            # Keep all other keys unchanged (lstm, linear, classifier, etc.)
+            new_state_dict[key] = value
+    return new_state_dict
+
+
 def _pool_stride(m: nn.MaxPool1d) -> int:
     # PyTorch allows stride=None -> defaults to kernel_size
     return int(m.stride if m.stride is not None else m.kernel_size)
@@ -151,43 +179,46 @@ class SincNet(nn.Module):  # type: ignore[misc]
 
         self.out_features = 60
 
-        # block 0: waveform norm → sinc encoder → |·| → pool → norm → lrelu
-        self.block0 = nn.Sequential(
-            nn.InstanceNorm1d(1, affine=True),
-            Encoder(
-                ParamSincFB(
-                    80,
-                    251,
-                    stride=stride,
-                    sample_rate=sample_rate,
-                    min_low_hz=50,
-                    min_band_hz=50,
-                )
+        # Define all blocks in one Sequential container to avoid duplication
+        self.features = nn.Sequential(
+            # block 0: waveform norm → sinc encoder → |·| → pool → norm → lrelu
+            nn.Sequential(
+                nn.InstanceNorm1d(1, affine=True),
+                Encoder(
+                    ParamSincFB(
+                        80,
+                        251,
+                        stride=stride,
+                        sample_rate=sample_rate,
+                        min_low_hz=50,
+                        min_band_hz=50,
+                    )
+                ),
+                Abs(),
+                nn.MaxPool1d(3, stride=3),
+                nn.InstanceNorm1d(80, affine=True),
+                nn.LeakyReLU(inplace=True),
             ),
-            Abs(),
-            nn.MaxPool1d(3, stride=3),
-            nn.InstanceNorm1d(80, affine=True),
-            nn.LeakyReLU(inplace=True),
+            # block 1: conv → pool → norm → lrelu
+            nn.Sequential(
+                nn.Conv1d(80, 60, kernel_size=5, stride=1),
+                nn.MaxPool1d(3, stride=3),
+                nn.InstanceNorm1d(60, affine=True),
+                nn.LeakyReLU(inplace=True),
+            ),
+            # block 2: conv → pool → norm → lrelu
+            nn.Sequential(
+                nn.Conv1d(60, self.out_features, kernel_size=5, stride=1),
+                nn.MaxPool1d(3, stride=3),
+                nn.InstanceNorm1d(self.out_features, affine=True),
+                nn.LeakyReLU(inplace=True),
+            ),
         )
 
-        # block 1: conv → pool → norm → lrelu
-        self.block1 = nn.Sequential(
-            nn.Conv1d(80, 60, kernel_size=5, stride=1),
-            nn.MaxPool1d(3, stride=3),
-            nn.InstanceNorm1d(60, affine=True),
-            nn.LeakyReLU(inplace=True),
-        )
-
-        # block 2: conv → pool → norm → lrelu
-        self.block2 = nn.Sequential(
-            nn.Conv1d(60, self.out_features, kernel_size=5, stride=1),
-            nn.MaxPool1d(3, stride=3),
-            nn.InstanceNorm1d(self.out_features, affine=True),
-            nn.LeakyReLU(inplace=True),
-        )
-
-        # or, if you prefer one container:
-        self.features = nn.Sequential(self.block0, self.block1, self.block2)
+        # For backwards compatibility, expose individual blocks
+        # self.block0 = self.features[0]
+        # self.block1 = self.features[1]
+        # self.block2 = self.features[2]
 
         self._K, self._S, self._P, self._D = _extract_time_spec(self.features)
 
