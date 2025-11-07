@@ -1,18 +1,95 @@
 from pathlib import Path
 
+import torch
 import yaml
 from safetensors.torch import load_file, save_file
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import domain_split_dataloaders, from_keys_dataloaders
 from dr_sad.pyannet.sincnet import map_sincnet_weights
-from dr_sad.training import create_model, save_predictions
+from dr_sad.training import create_model
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
 
 
-def load_model_eval(model_path, model_cfg, trainer_cfg):
+def save_predictions_chunked(
+    model: torch.nn.Module,
+    dataloader: DataLoader,
+    output_path: Path,
+    chunk_size: int = 50,
+) -> None:
+    """Save predictions in chunks using safetensors format to avoid memory issues."""
+    model.eval()
+
+    chunk_predictions = {}
+    chunk_count = 0
+
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches")):
+            # Get predictions for this batch
+            file_ids = batch["file_id"]
+            prediction = model.predict_step(batch, batch_idx)
+
+            # Store predictions for current batch
+            for index, file_id in enumerate(file_ids):
+                chunk_predictions[file_id] = prediction[index].cpu()
+
+            # Save chunk when we reach chunk_size batches or at the end
+            if len(chunk_predictions) >= chunk_size or batch_idx == len(dataloader) - 1:
+                _save_chunk_safetensors(chunk_predictions, output_path, chunk_count)
+                chunk_predictions.clear()  # Clear to free memory
+                chunk_count += 1
+
+                # Force garbage collection
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+    # Combine all chunks into final file
+    _combine_chunks_safetensors(output_path, chunk_count)
+
+
+def _save_chunk_safetensors(
+    chunk_predictions: dict[str, torch.Tensor], output_path: Path, chunk_idx: int
+) -> None:
+    """Save a chunk of predictions to a temporary safetensors file."""
+    # Save chunk to temporary file
+    chunk_path = output_path.with_suffix(f".chunk_{chunk_idx}.safetensors")
+    save_file(chunk_predictions, chunk_path)
+
+
+def _combine_chunks_safetensors(output_path: Path, num_chunks: int) -> None:
+    """Combine all chunk files into a single safetensors file."""
+    if num_chunks == 0:
+        return
+
+    if num_chunks == 1:
+        # If only one chunk, just rename it
+        chunk_path = output_path.with_suffix(".chunk_0.safetensors")
+        chunk_path.rename(output_path)
+        return
+
+    # Load and combine all chunks
+    combined_predictions = {}
+
+    for chunk_idx in range(num_chunks):
+        chunk_path = output_path.with_suffix(f".chunk_{chunk_idx}.safetensors")
+        chunk_predictions = load_file(chunk_path)
+
+        combined_predictions.update(chunk_predictions)
+
+        # Delete chunk file after loading
+        chunk_path.unlink()
+
+    # Save final combined file
+    save_file(combined_predictions, output_path)
+
+
+def load_model_eval(
+    model_path: Path | str, model_cfg: dict, trainer_cfg: dict
+) -> torch.nn.Module:
     weightless_model = create_model(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
@@ -40,7 +117,13 @@ def load_model_eval(model_path, model_cfg, trainer_cfg):
     return weightless_model.eval()
 
 
-def load_data_eval(data_cfg, data_split, trainer_cfg, exp_config, exclude_domain):
+def load_data_eval(
+    data_cfg: dict,
+    data_split: dict | None,
+    trainer_cfg: dict,
+    exp_config: dict,
+    exclude_domain: int | None = None,
+) -> tuple[DataLoader, DataLoader | None]:
     # load data
     data = load_data(data_cfg["name"])
     with open(MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]) as file:
@@ -82,7 +165,12 @@ def load_data_eval(data_cfg, data_split, trainer_cfg, exp_config, exclude_domain
     raise ValueError(err_msg)
 
 
-def main(model_path, experiment_config, data_config, exclude_domain=None):
+def main(
+    model_path: str,
+    experiment_config: str,
+    data_config: str,
+    exclude_domain: int | None = None,
+) -> None:
     # Load experiment config
     exp_config_path = Path(CONFIG_DIR) / "experiment" / experiment_config
     with open(exp_config_path) as f:
@@ -117,13 +205,21 @@ def main(model_path, experiment_config, data_config, exclude_domain=None):
     prediction_dir = Path(model_path).parent / "saved_predictions"
     prediction_dir.mkdir(parents=True, exist_ok=True)
 
-    save_predictions(model, test_loader, prediction_dir / "test_predictions.csv")
+    print("Saving test predictions...")
+    save_predictions_chunked(
+        model,
+        test_loader,
+        prediction_dir / "test_predictions.safetensors",
+        chunk_size=50,
+    )
 
     if domain_loader is not None:
-        save_predictions(
+        print("Saving excluded domain predictions...")
+        save_predictions_chunked(
             model,
             domain_loader,
-            prediction_dir / "excluded_domain_predictions.csv",
+            prediction_dir / "excluded_domain_predictions.safetensors",
+            chunk_size=50,
         )
 
 
