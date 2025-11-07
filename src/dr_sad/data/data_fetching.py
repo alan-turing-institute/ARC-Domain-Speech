@@ -69,6 +69,63 @@ def remove_overlap(segments: list[tuple[float, float]]) -> list[tuple[float, flo
     return merged_segments
 
 
+def full_file_pull(file_id: str, d_idx: int, data_dir_loc: str):
+    """This is intended to be a mapping function that takes a set of parameters
+    and returns a dictionary with the audio data, annotations, and domain index.
+
+    It is written this way to facilitate parallel processing.
+    Args:
+        file_id (str): The ID of the file to process.
+        d_idx (int): The domain index.
+        data_dir_loc (str): The location of the data directory.
+
+    Returns:
+        data (dict): A dictionary with the following structure:
+            file_id: {
+                "waveforms": waveform (np.ndarray),
+                "annotations": annotations (list of tuples),
+                "domains": d_idx (int),
+            }
+    """
+
+    audio_file = Path(data_dir_loc) / "flac" / f"{file_id}.flac"
+    rttm_file = Path(data_dir_loc) / "rttm" / f"{file_id}.rttm"
+
+    # Load audio
+    waveform = soundfile.read(audio_file)[0]
+    total_duration = len(waveform) / 16000.0
+
+    # Load RTTM
+    timestamps_start = []
+    timestamps_end = []
+    speakers = []
+    with open(rttm_file) as f:
+        reader = csv.reader(f, delimiter=" ")
+        for row in reader:
+            if row[0] == "SPEAKER":
+                start_time = float(row[3])
+                duration = float(row[4])
+                end_time = start_time + duration
+                speaker_id = row[7]
+
+                timestamps_start.append(start_time)
+                # times may be longer due to floating point issues
+                timestamps_end.append(min(end_time, total_duration))
+                speakers.append(speaker_id)
+
+    annotations = remove_overlap(
+        list(zip(timestamps_start, timestamps_end, strict=True))
+    )
+
+    return {
+        file_id: {
+            "waveforms": waveform,
+            "annotations": annotations,
+            "domains": d_idx,
+        }
+    }
+
+
 def load_data(
     data_choice: str | None,
     data_set_path: str | Path | None = None,
@@ -109,7 +166,7 @@ def load_data(
         if domains_idx is None:
             msg = "domains_idx must be provided if data_choice is None."
             raise ValueError(msg)
-        d_idx: dict[str, int] = domains_idx
+        d_idx_map: dict[str, int] = domains_idx
 
     else:
         if data_choice not in DOMAIN_SETTINGS:
@@ -118,63 +175,32 @@ def load_data(
         settings = DOMAIN_SETTINGS[data_choice]
         data_dir = DATA_DIR / str(settings["file_name"])
         d_column = str(settings["domain_column"])
-        d_idx = settings["domains_idx"]  # type: ignore[assignment]
+        d_idx_map = settings["domains_idx"]  # type: ignore[assignment]
 
     if not data_dir.exists():
         msg = f"Data directory {data_dir} does not exist."
         raise ValueError(msg)
 
-    data = pd.DataFrame(columns=["waveforms", "annotations", "domains"])
-    audio_dir = data_dir / "flac"
-    rttm_dir = data_dir / "rttm"
     sources_df = pd.read_csv(data_dir / "sources.tbl", sep="\t", header=0, index_col=0)
-    audio_files = list(audio_dir.glob("*.flac"))
+    file_ids = sorted([af.stem for af in (data_dir / "flac").glob("*.flac")])
 
-    for audio_file in tqdm(
-        sorted(audio_files),
-        total=len(audio_files),
-        desc="Loading Audio data",
-    ):
-        file_id = Path(audio_file).stem
-        rttm_file = rttm_dir / f"{file_id}.rttm"
-
-        # Get domain
+    domain_indexes = []
+    for file_id in file_ids:
         domain = sources_df.loc[file_id, d_column]
-        if domain not in d_idx:
+        if domain not in d_idx_map:
             msg = f"Unknown domain '{domain}' for file '{file_id}'."
             raise ValueError(msg)
+        domain_indexes.append(d_idx_map[domain])
 
-        # Load audio
-        waveform = soundfile.read(audio_file)[0]
-        total_duration = len(waveform) / 16000.0
+    dataset_list = []
+    for file_id, d_idx in tqdm(
+        zip(file_ids, domain_indexes, strict=True),
+        total=len(file_ids),
+        desc="Loading Audio data",
+    ):
+        dataset_list.append(full_file_pull(file_id, d_idx, str(data_dir.resolve())))
 
-        # Load RTTM
-        timestamps_start = []
-        timestamps_end = []
-        speakers = []
-        with open(rttm_file) as f:
-            reader = csv.reader(f, delimiter=" ")
-            for row in reader:
-                if row[0] == "SPEAKER":
-                    start_time = float(row[3])
-                    duration = float(row[4])
-                    end_time = start_time + duration
-                    speaker_id = row[7]
-
-                    timestamps_start.append(start_time)
-                    # times may be longer due to floating point issues
-                    timestamps_end.append(min(end_time, total_duration))
-                    speakers.append(speaker_id)
-
-        annotations = remove_overlap(
-            list(zip(timestamps_start, timestamps_end, strict=True))
-        )
-
-        # Store in DataFrame
-        data.loc[file_id] = {
-            "waveforms": waveform,
-            "annotations": annotations,
-            "domains": d_idx[domain],
-        }
-
-    return data
+    dataset = {k: v for d in dataset_list for k, v in d.items()}
+    data = pd.DataFrame.from_dict(dataset, orient="index")
+    print(dataset)
+    return data.sort_index()

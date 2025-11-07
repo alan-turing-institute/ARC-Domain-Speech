@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -39,6 +40,33 @@ class TestRemoveOverlap:
         segments = [(0.0, 1.0)]
         merged = data_fetching.remove_overlap(segments)
         assert merged == [(0.0, 1.0)]
+
+
+class TestFullFilePull:
+    def test_full_file_pull(self, test_dataset):
+        file_id = "TEST_0001"
+        d_idx = 0
+        data_dir_loc = str(test_dataset)
+
+        result = data_fetching.full_file_pull(file_id, d_idx, data_dir_loc)
+
+        # Check that the result is a dictionary with the expected structure
+        assert isinstance(result, dict)
+        assert file_id in result
+        assert "waveforms" in result[file_id]
+        assert "annotations" in result[file_id]
+        assert "domains" in result[file_id]
+
+        # Check that waveforms is a numpy array
+        assert isinstance(result[file_id]["waveforms"], np.ndarray)
+
+        # Check that annotations is a list of tuples
+        assert isinstance(result[file_id]["annotations"], list)
+        assert all(isinstance(seg, tuple) for seg in result[file_id]["annotations"])
+
+        # Check that domains is an integer
+        assert isinstance(result[file_id]["domains"], int)
+        assert result[file_id]["domains"] == d_idx
 
 
 class TestLoadData:
