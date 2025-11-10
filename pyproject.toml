@@ -70,7 +70,7 @@ port.exclude_lines = [
 ]
 
 [tool.mypy]
-pythonpath = ["src"]
+mypy_path = "src"
 files = ["src", "tests"]
 python_version = "3.12"
 show_error_codes = true
