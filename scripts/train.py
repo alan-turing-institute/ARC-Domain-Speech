@@ -38,13 +38,14 @@ def get_experiment_name(exp_name_arg: str) -> tuple[str, Path]:
 
 
 def main(args) -> None:
+    """Train PyanNet model with configurable early stopping and LR scheduling."""
+
     experiment_name, experiment_path = get_experiment_name(args.experiment_name)
     print(f"Running experiment: {experiment_name}")
 
     with open(experiment_path) as f:
         exp_config = yaml.safe_load(f)
 
-    """Train PyanNet model with configurable early stopping and LR scheduling."""
     trainer_cfg_pth = Path(CONFIG_DIR) / "training" / exp_config["training_config"]
     data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
     model_cfg_pth = Path(CONFIG_DIR) / "model" / exp_config["model_config"]

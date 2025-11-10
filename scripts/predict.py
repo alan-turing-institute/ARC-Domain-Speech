@@ -88,7 +88,9 @@ def _combine_chunks_safetensors(output_path: Path, num_chunks: int) -> None:
 
 
 def load_model_eval(
-    model_path: Path | str, model_cfg: dict, trainer_cfg: dict
+    model_path: Path | str,
+    model_cfg: dict[str, str | int | float],
+    trainer_cfg: dict[str, str | int | float],
 ) -> torch.nn.Module:
     weightless_model = create_model(
         model_cfg=model_cfg,
@@ -112,22 +114,27 @@ def load_model_eval(
             mapped_state_dict = map_sincnet_weights(state_dict)
             weightless_model.load_state_dict(mapped_state_dict)
             print("Successfully loaded model with weight mapping.")
+        else:
+            # Re-raise the original error if it's a different issue
+            raise e
 
     # Set model to evaluation mode
     return weightless_model.eval()
 
 
 def load_data_eval(
-    data_cfg: dict,
-    data_split: dict | None,
-    trainer_cfg: dict,
-    exp_config: dict,
+    data_cfg: dict[str, str],
+    data_split: dict[str, list[str]] | None,
+    trainer_cfg: dict[str, str | int | float],
+    exp_config: dict[str, str | int | float],
     exclude_domain: int | None = None,
 ) -> tuple[DataLoader, DataLoader | None]:
     # load data
-    data = load_data(data_cfg["name"], num_workers=trainer_cfg["num_workers"])
+    data = load_data(data_cfg["name"], num_workers=int(trainer_cfg["num_workers"]))
     with open(MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]) as file:
         data_split = yaml.safe_load(file)
+
+    assert data_split is not None, "data_split must not be None"
 
     if data_cfg["domain_type"] == "all":
         if exclude_domain is not None:
@@ -139,8 +146,8 @@ def load_data_eval(
             train_keys=data_split["train"],
             val_keys=data_split["val"],
             test_keys=data_split["test"],
-            batch_size=trainer_cfg["batch_size"],
-            random_seed=exp_config["random_seed"],
+            batch_size=int(trainer_cfg["batch_size"]),
+            random_seed=int(exp_config["random_seed"]),
         )
         return test_loader, None
 
@@ -155,8 +162,8 @@ def load_data_eval(
             val_keys=data_split["val"],
             test_keys=data_split["test"],
             domain=exclude_domain,
-            batch_size=trainer_cfg["batch_size"],
-            random_seed=exp_config["random_seed"],
+            batch_size=int(trainer_cfg["batch_size"]),
+            random_seed=int(exp_config["random_seed"]),
         )
 
         return test_loader, domain_loader
