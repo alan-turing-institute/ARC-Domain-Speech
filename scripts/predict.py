@@ -125,7 +125,7 @@ def load_data_eval(
     exclude_domain: int | None = None,
 ) -> tuple[DataLoader, DataLoader | None]:
     # load data
-    data = load_data(data_cfg["name"])
+    data = load_data(data_cfg["name"], num_workers=trainer_cfg["num_workers"])
     with open(MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]) as file:
         data_split = yaml.safe_load(file)
 
