@@ -21,7 +21,19 @@ def save_predictions_chunked(
     output_path: Path,
     chunk_size: int = 50,
 ) -> None:
-    """Save predictions in chunks using safetensors format to avoid memory issues."""
+    """
+    Save predictions in chunks using safetensors format to avoid memory issues.
+
+    Args:
+        model (torch.nn.Module): The model used to generate predictions.
+        dataloader (torch.utils.data.DataLoader): DataLoader providing input batches.
+        output_path (Path): Path to the output file (without chunk suffix).
+        chunk_size (int, optional): Number of predictions per chunk. Defaults to 50.
+
+    Returns:
+        None
+    """
+
     model.eval()
 
     chunk_predictions = {}
@@ -54,14 +66,33 @@ def save_predictions_chunked(
 def _save_chunk_safetensors(
     chunk_predictions: dict[str, torch.Tensor], output_path: Path, chunk_idx: int
 ) -> None:
-    """Save a chunk of predictions to a temporary safetensors file."""
+    """
+    Save a chunk of predictions to a temporary safetensors file.
+
+    Args:
+        chunk_predictions (dict[str, torch.Tensor]): The predictions for the current
+        chunk, mapping keys to tensors.
+        output_path (Path): The base path for the output file. The chunk index will be
+        appended to this path.
+        chunk_idx (int): The index of the current chunk, used to differentiate chunk
+        files.
+    """
+
     # Save chunk to temporary file
     chunk_path = output_path.with_suffix(f".chunk_{chunk_idx}.safetensors")
     save_file(chunk_predictions, chunk_path)
 
 
 def _combine_chunks_safetensors(output_path: Path, num_chunks: int) -> None:
-    """Combine all chunk files into a single safetensors file."""
+    """
+    Combine all chunk files into a single safetensors file.
+
+    Args:
+        output_path (Path): The path where the final combined safetensors file will be
+            saved.
+        num_chunks (int): The number of chunk files to combine.
+    """
+
     if num_chunks == 0:
         return
 
@@ -92,6 +123,18 @@ def load_model_eval(
     model_cfg: dict[str, str | int | float],
     trainer_cfg: dict[str, str | int | float],
 ) -> torch.nn.Module:
+    """
+    Loads a model from a safetensors file and prepares it for evaluation.
+
+    Args:
+        model_path (Path or str): Path to the safetensors file containing the model
+         weights.
+        model_cfg (dict): Configuration dictionary for the model architecture.
+        trainer_cfg (dict): Configuration dictionary for the trainer settings.
+
+    Returns:
+        torch.nn.Module: The model loaded with weights and set to evaluation mode.
+    """
     weightless_model = create_model(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
@@ -116,7 +159,7 @@ def load_model_eval(
             print("Successfully loaded model with weight mapping.")
         else:
             # Re-raise the original error if it's a different issue
-            raise e
+            raise
 
     # Set model to evaluation mode
     return weightless_model.eval()
@@ -129,10 +172,36 @@ def load_data_eval(
     exp_config: dict[str, str | int | float],
     exclude_domain: int | None = None,
 ) -> tuple[DataLoader, DataLoader | None]:
+    """
+    Load evaluation DataLoaders based on the provided configuration and data split.
+
+    Args:
+        data_cfg (dict[str, str]): Configuration dictionary for the dataset,
+            must include 'name', 'split_name', and 'domain_type' keys.
+        data_split (dict[str, list[str]] | None): Optional pre-loaded data split
+            dictionary. If None, the split will be loaded from file.
+        trainer_cfg (dict[str, str | int | float]): Trainer configuration dictionary,
+            must include 'num_workers' and 'batch_size' keys.
+        exp_config (dict[str, str | int | float]): Experiment configuration dictionary,
+            must include 'random_seed' key.
+        exclude_domain (int | None, optional): Domain index to exclude from evaluation.
+            Only used if 'domain_type' is 'exclude_one'. Defaults to None.
+
+    Returns:
+        tuple[DataLoader, DataLoader | None]: A tuple containing:
+            - test_loader (DataLoader): DataLoader for the test set or the included
+                domain.
+            - excluded_loader (DataLoader | None): DataLoader for the excluded domain if
+                applicable,
+              otherwise None.
+    """
     # load data
     data = load_data(data_cfg["name"], num_workers=int(trainer_cfg["num_workers"]))
-    with open(MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]) as file:
-        data_split = yaml.safe_load(file)
+    if data_split is None:
+        with open(
+            MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]
+        ) as file:
+            data_split = yaml.safe_load(file)
 
     assert data_split is not None, "data_split must not be None"
 

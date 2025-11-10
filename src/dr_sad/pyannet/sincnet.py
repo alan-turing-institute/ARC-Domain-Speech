@@ -23,12 +23,20 @@ import dr_sad.pyannet.receptive_field as r_f
 
 
 def map_sincnet_weights(state_dict: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-    """Map old state dict keys to new architecture.
+    """Map old SincNet state dict keys to new architecture.
 
     Maps:
-    - sincnet.block0.* -> sincnet.features.0.*
-    - sincnet.block1.* -> sincnet.features.1.*
-    - sincnet.block2.* -> sincnet.features.2.*
+        - sincnet.block0.* -> sincnet.features.0.*
+        - sincnet.block1.* -> sincnet.features.1.*
+        - sincnet.block2.* -> sincnet.features.2.*
+
+    Args:
+        state_dict (dict[str, torch.Tensor]): State dictionary from an older SincNet
+            model, where keys may use the 'sincnet.blockX' naming convention.
+
+    Returns:
+        dict[str, torch.Tensor]: A new state dictionary with keys mapped to the new
+            architecture's naming convention (e.g., 'sincnet.features.X').
     """
     new_state_dict = {}
     for key, value in state_dict.items():

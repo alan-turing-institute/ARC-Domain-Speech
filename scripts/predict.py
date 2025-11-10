@@ -2,6 +2,7 @@ from pathlib import Path
 
 import yaml
 
+from dr_sad.data.data_fetching import load_data
 from dr_sad.predicting import load_data_eval, load_model_eval, save_predictions_chunked
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
@@ -14,6 +15,18 @@ def main(
     data_config: str,
     exclude_domain: int | None = None,
 ) -> None:
+    """
+    Runs prediction using a trained model on a specified dataset, with optional domain
+    exclusion.
+
+    Args:
+        model_path (str): Path to the trained model file (safetensors format).
+        experiment_config (str): Name of the experiment configuration file located in
+        configs/experiment/.
+        data_config (str): Name of the data configuration file located in configs/data/.
+        exclude_domain (int | None, optional): Domain to exclude when domain_type is
+        'exclude_one'. Defaults to None.
+    """
     # Load experiment config
     exp_config_path = Path(CONFIG_DIR) / "experiment" / experiment_config
     with open(exp_config_path) as f:
@@ -37,9 +50,15 @@ def main(
         trainer_cfg=trainer_cfg,
     )
 
+    # load data
+    data = load_data(data_cfg["name"], num_workers=int(trainer_cfg["num_workers"]))
+    with open(MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]) as file:
+        data_split = yaml.safe_load(file)
+
     test_loader, domain_loader = load_data_eval(
+        data=data,
         data_cfg=data_cfg,
-        data_split=None,
+        data_split=data_split,
         trainer_cfg=trainer_cfg,
         exp_config=exp_config,
         exclude_domain=exclude_domain,

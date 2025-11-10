@@ -38,7 +38,16 @@ def get_experiment_name(exp_name_arg: str) -> tuple[str, Path]:
 
 
 def main(args) -> None:
-    """Train PyanNet model with configurable early stopping and LR scheduling."""
+    """
+    Train PyanNet model with configurable early stopping and LR scheduling.
+
+    Args:
+        args: An object (typically argparse.Namespace) with the following attributes:
+            experiment_name (str): The name or path of the experiment configuration
+            file.
+            exclude_domain (str or None): The domain to exclude when domain_type is
+            'exclude_one'.
+    """
 
     experiment_name, experiment_path = get_experiment_name(args.experiment_name)
     print(f"Running experiment: {experiment_name}")
