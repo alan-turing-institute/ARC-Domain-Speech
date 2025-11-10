@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -39,6 +40,33 @@ class TestRemoveOverlap:
         segments = [(0.0, 1.0)]
         merged = data_fetching.remove_overlap(segments)
         assert merged == [(0.0, 1.0)]
+
+
+class TestFullFilePull:
+    def test_full_file_pull(self, test_dataset):
+        file_id = "TEST_0001"
+        d_idx = 0
+        data_dir_loc = str(test_dataset)
+
+        result = data_fetching.full_file_pull(file_id, d_idx, data_dir_loc)
+
+        # Check that the result is a dictionary with the expected structure
+        assert isinstance(result, dict)
+        assert file_id in result
+        assert "waveforms" in result[file_id]
+        assert "annotations" in result[file_id]
+        assert "domains" in result[file_id]
+
+        # Check that waveforms is a numpy array
+        assert isinstance(result[file_id]["waveforms"], np.ndarray)
+
+        # Check that annotations is a list of tuples
+        assert isinstance(result[file_id]["annotations"], list)
+        assert all(isinstance(seg, tuple) for seg in result[file_id]["annotations"])
+
+        # Check that domains is an integer
+        assert isinstance(result[file_id]["domains"], int)
+        assert result[file_id]["domains"] == d_idx
 
 
 class TestLoadData:
@@ -88,6 +116,28 @@ class TestLoadData:
         expected_file_ids = sorted(sources.index.tolist())
         loaded_file_ids = sorted(df.index.tolist())
         assert loaded_file_ids == expected_file_ids
+
+    def test_load_data_with_num_workers(self, test_dataset):
+        """Test loading data with multiple workers."""
+        df = data_fetching.load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+            num_workers=4,
+        )
+
+        # Check basic structure
+        assert len(df) == 20
+        assert list(df.columns) == ["waveforms", "annotations", "domains"]
+
+        indexes = sorted(
+            pd.read_csv(
+                test_dataset / "sources.tbl", index_col=0, sep="\t"
+            ).index.tolist()
+        )
+
+        assert df.index.to_list() == indexes
 
     def test_missing_data_set_path_raises(self):
         """If data_choice is None and data_set_path is not provided."""

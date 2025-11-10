@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 import yaml
+from pytorch_lightning.loggers import CSVLogger
 from safetensors.torch import save_model
 
 from dr_sad.data.data_fetching import load_data
@@ -10,22 +11,38 @@ from dr_sad.training import DrSadTrainer, create_model
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
+EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
+
+
+def get_experiment_name(exp_name_arg: str) -> tuple[str, Path]:
+    """Get experiment name and path from argument."""
+    p = Path(exp_name_arg)
+    if p.exists():
+        experiment_path = p
+    elif (EXP_CONFIG_DIR / p).exists():
+        experiment_path = EXP_CONFIG_DIR / p
+    else:
+        msg = f"Experiment config not found: {exp_name_arg}"
+        raise FileNotFoundError(msg)
+    # Determine experiment_name string
+    try:
+        # If experiment_path is inside EXP_CONFIG_DIR
+        rel = experiment_path.relative_to(EXP_CONFIG_DIR)
+        # Remove suffix (.yaml/.yml) and return the parent path + stem
+        experiment_name = str(rel.with_suffix("")).replace("\\", "/")
+    except ValueError:
+        # Not inside EXP_CONFIG_DIR → just use the filename without suffix
+        experiment_name = experiment_path.stem
+
+    return experiment_name, experiment_path
 
 
 def main(args) -> None:
-    # Load configs from provided paths
-    if Path(args.experiment_name).exists():
-        with open(args.experiment_name) as f:
-            exp_config = yaml.safe_load(f)
-    elif Path(CONFIG_DIR / "experiment" / args.experiment_name).exists():
-        with open(Path(CONFIG_DIR / "experiment" / args.experiment_name)) as f:
-            exp_config = yaml.safe_load(f)
-    else:
-        err_msg = f"Experiment config not found: {args.experiment_name}"
-        raise FileNotFoundError(err_msg)
+    experiment_name, experiment_path = get_experiment_name(args.experiment_name)
+    print(f"Running experiment: {experiment_name}")
 
-    # for saving we only want the final name without path or extension
-    exp_config_name = Path(args.experiment_name).stem
+    with open(experiment_path) as f:
+        exp_config = yaml.safe_load(f)
 
     """Train PyanNet model with configurable early stopping and LR scheduling."""
     trainer_cfg_pth = Path(CONFIG_DIR) / "training" / exp_config["training_config"]
@@ -39,12 +56,12 @@ def main(args) -> None:
     with open(model_cfg_pth) as f:
         model_cfg = yaml.safe_load(f)
 
-    data = load_data(data_cfg["name"])
+    data = load_data(data_cfg["name"], num_workers=trainer_cfg["num_workers"])
     with open(MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]) as file:
         data_split = yaml.safe_load(file)
 
     if data_cfg["domain_type"] == "all":
-        save_dir = MAIN_DIR / "outputs" / f"{exp_config_name}"
+        save_dir = MAIN_DIR / "outputs" / experiment_name
         save_dir.mkdir(parents=True, exist_ok=True)
         if args.exclude_domain is not None:
             err_msg = "Cannot exclude domain when domain_type is set to 'all'."
@@ -55,14 +72,11 @@ def main(args) -> None:
             train_keys=data_split["train"],
             val_keys=data_split["val"],
             test_keys=data_split["test"],
-            batch_size=4,
+            batch_size=trainer_cfg["batch_size"],
         )
     elif data_cfg["domain_type"] == "exclude_one":
         save_dir = (
-            MAIN_DIR
-            / "outputs"
-            / f"{exp_config_name}"
-            / f"domain_{args.exclude_domain}"
+            MAIN_DIR / "outputs" / experiment_name / f"domain_{args.exclude_domain}"
         )
         save_dir.mkdir(parents=True, exist_ok=True)
         if args.exclude_domain is None:
@@ -83,9 +97,23 @@ def main(args) -> None:
         err_msg = f"Unknown domain_type option: {data_cfg['domain_type']}"
         raise ValueError(err_msg)
 
+    # Set up logging
+    logger = CSVLogger(save_dir=save_dir, name=None)
+    log_per_batch = trainer_cfg.get("log_per_batch", 10)
+    if log_per_batch < 1:
+        msg = f"log_per_batch must be greater than 1, got {log_per_batch}"
+        raise ValueError(msg)
+    if log_per_batch > len(train_loader):
+        # Log every batch if log_per_batch exceeds number of batches
+        log_steps = 1
+    else:
+        log_steps = int(len(train_loader) / log_per_batch)
+
     # Create trainer with early stopping
     trainer = DrSadTrainer.create_trainer(
         default_root_dir=save_dir,
+        logger=logger,
+        log_every_n_steps=log_steps,
         max_epochs=trainer_cfg["max_epochs"],
         early_stopping_cfg=trainer_cfg["early_stopping"],
     )
@@ -97,11 +125,28 @@ def main(args) -> None:
 
     # Train the model
     trainer.fit(model, train_loader, val_loader)
-    trainer.test(model, test_loader)
+
+    # Evaluate and collect results
+    print("Evaluating on Validation data:")
+    result_validation = trainer.test(model, val_loader)[0]
+
+    print("Evaluating on In-Domain Test data:")
+    result_in_domain = trainer.test(model, test_loader)[0]
 
     if args.exclude_domain is not None:
-        print("Evaluating on excluded domain data...")
-        trainer.test(model, domain_loader)
+        print("Evaluating on Out-of-Domain data:")
+        result_out_domain = trainer.test(model, domain_loader)[0]
+    else:
+        result_out_domain = None
+
+    results = {
+        "validation": result_validation,
+        "in_domain_test": result_in_domain,
+        "out_of_domain_test": result_out_domain,
+    }
+    with (Path(save_dir) / "test_results.yaml").open("w") as f:
+        yaml.safe_dump(results, f)
+
     # Save model
     trainer.save_checkpoint(Path(save_dir) / "final_checkpoint.ckpt")
     save_model(model, Path(save_dir) / "trained_model_weights.safetensors")

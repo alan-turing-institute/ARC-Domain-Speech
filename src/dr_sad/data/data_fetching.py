@@ -1,14 +1,14 @@
+__all__ = ("load_data", "remove_overlap")
+
 import csv
+from multiprocessing.pool import ThreadPool
 from pathlib import Path
 
 import pandas as pd
 import soundfile
 from tqdm import tqdm
 
-__all__ = ("load_data", "remove_overlap")
-
 DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
-
 DOMAIN_SETTINGS = {
     "callhome": {
         "file_name": "callhome",
@@ -29,7 +29,6 @@ DOMAIN_SETTINGS = {
             "socio_lab": 7,
             "webvideo": 8,
             "broadcast_interview": 9,
-            "dinner": 10,
         },
     },
     "test": {
@@ -69,11 +68,73 @@ def remove_overlap(segments: list[tuple[float, float]]) -> list[tuple[float, flo
     return merged_segments
 
 
+def full_file_pull(file_id: str, d_idx: int, data_dir_loc: str) -> dict[str, dict]:  # type: ignore[type-arg]
+    """This is intended to be a mapping function that takes a set of parameters
+    and returns a dictionary with the audio data, annotations, and domain index.
+
+    It is written this way to facilitate parallel processing.
+    Args:
+        file_id (str): The ID of the file to process.
+        d_idx (int): The domain index.
+        data_dir_loc (str): The location of the data directory.
+
+    Returns:
+        data (dict): A dictionary with the following structure:
+            file_id: {
+                "waveforms": waveform (np.ndarray),
+                "annotations": annotations (list of tuples),
+                "domains": d_idx (int),
+            }
+    """
+
+    audio_file = Path(data_dir_loc) / "flac" / f"{file_id}.flac"
+    rttm_file = Path(data_dir_loc) / "rttm" / f"{file_id}.rttm"
+
+    # Load audio
+    waveform = soundfile.read(audio_file)[0]
+    total_duration = len(waveform) / 16000.0
+
+    # Load RTTM
+    timestamps_start = []
+    timestamps_end = []
+    # speakers = []  # Not used currently, needed for diarisation
+    with open(rttm_file) as f:
+        reader = csv.reader(f, delimiter=" ")
+        for row in reader:
+            if row[0] == "SPEAKER":
+                start_time = float(row[3])
+                duration = float(row[4])
+                end_time = start_time + duration
+                # speaker_id = row[7]
+
+                timestamps_start.append(start_time)
+                # times may be longer due to floating point issues
+                timestamps_end.append(min(end_time, total_duration))
+                # speakers.append(speaker_id)
+
+    annotations = remove_overlap(
+        list(zip(timestamps_start, timestamps_end, strict=True))
+    )
+
+    return {
+        file_id: {
+            "waveforms": waveform,
+            "annotations": annotations,
+            "domains": d_idx,
+        }
+    }
+
+
+def _wrapped_full_file_pull(args: tuple) -> dict[str, dict]:  # type: ignore[type-arg]
+    return full_file_pull(*args)
+
+
 def load_data(
     data_choice: str | None,
     data_set_path: str | Path | None = None,
     domain_column: str | None = None,
     domains_idx: dict[str, int] | None = None,
+    num_workers: int = 1,
 ) -> pd.DataFrame:
     """
     Load a dataset from the specified source. Supports predefined datasets
@@ -90,6 +151,8 @@ def load_data(
             information. Required if data_choice is None.
         domains_idx (dict[str, int], optional): Mapping from domain names to integer
             indices. Required if data_choice is None.
+        num_workers (int): Number of parallel workers to use for loading data.
+            Defaults to 1 which means no parallelism.
 
     Returns:
         pd.DataFrame: The loaded dataset. This will contain the columns
@@ -109,7 +172,7 @@ def load_data(
         if domains_idx is None:
             msg = "domains_idx must be provided if data_choice is None."
             raise ValueError(msg)
-        d_idx: dict[str, int] = domains_idx
+        d_idx_map: dict[str, int] = domains_idx
 
     else:
         if data_choice not in DOMAIN_SETTINGS:
@@ -118,63 +181,50 @@ def load_data(
         settings = DOMAIN_SETTINGS[data_choice]
         data_dir = DATA_DIR / str(settings["file_name"])
         d_column = str(settings["domain_column"])
-        d_idx = settings["domains_idx"]  # type: ignore[assignment]
+        d_idx_map = settings["domains_idx"]  # type: ignore[assignment]
 
     if not data_dir.exists():
         msg = f"Data directory {data_dir} does not exist."
         raise ValueError(msg)
 
-    data = pd.DataFrame(columns=["waveforms", "annotations", "domains"])
-    audio_dir = data_dir / "flac"
-    rttm_dir = data_dir / "rttm"
     sources_df = pd.read_csv(data_dir / "sources.tbl", sep="\t", header=0, index_col=0)
-    audio_files = list(audio_dir.glob("*.flac"))
+    file_ids = sorted([af.stem for af in (data_dir / "flac").glob("*.flac")])
 
-    for audio_file in tqdm(
-        sorted(audio_files),
-        total=len(audio_files),
-        desc="Loading Audio data",
-    ):
-        file_id = Path(audio_file).stem
-        rttm_file = rttm_dir / f"{file_id}.rttm"
-
-        # Get domain
+    domain_indexes = []
+    for file_id in file_ids:
         domain = sources_df.loc[file_id, d_column]
-        if domain not in d_idx:
+        if domain not in d_idx_map:
             msg = f"Unknown domain '{domain}' for file '{file_id}'."
             raise ValueError(msg)
+        domain_indexes.append(d_idx_map[domain])
 
-        # Load audio
-        waveform = soundfile.read(audio_file)[0]
-        total_duration = len(waveform) / 16000.0
+    args_list = [
+        (file_id, d_idx, str(data_dir))
+        for file_id, d_idx in zip(file_ids, domain_indexes, strict=True)
+    ]
 
-        # Load RTTM
-        timestamps_start = []
-        timestamps_end = []
-        speakers = []
-        with open(rttm_file) as f:
-            reader = csv.reader(f, delimiter=" ")
-            for row in reader:
-                if row[0] == "SPEAKER":
-                    start_time = float(row[3])
-                    duration = float(row[4])
-                    end_time = start_time + duration
-                    speaker_id = row[7]
+    dataset_list = []
+    if num_workers < 1:
+        msg = f"num_workers must be at least 1, was {num_workers}"
+        raise ValueError(msg)
+    if num_workers == 1:
+        print("Loading data without parallel workers.")
+        for args in tqdm(
+            args_list,
+            total=len(file_ids),
+            desc="Loading Audio data",
+        ):
+            dataset_list.append(full_file_pull(*args))
+    else:
+        print(f"Loading data with {num_workers} workers.")
+        with ThreadPool(num_workers) as pool:
+            for result in tqdm(
+                pool.imap_unordered(_wrapped_full_file_pull, args_list),
+                total=len(args_list),
+                desc="Loading Audio data",
+            ):
+                dataset_list.append(result)
 
-                    timestamps_start.append(start_time)
-                    # times may be longer due to floating point issues
-                    timestamps_end.append(min(end_time, total_duration))
-                    speakers.append(speaker_id)
-
-        annotations = remove_overlap(
-            list(zip(timestamps_start, timestamps_end, strict=True))
-        )
-
-        # Store in DataFrame
-        data.loc[file_id] = {
-            "waveforms": waveform,
-            "annotations": annotations,
-            "domains": d_idx[domain],
-        }
-
-    return data
+    dataset = {k: v for d in dataset_list for k, v in d.items()}
+    data = pd.DataFrame.from_dict(dataset, orient="index")
+    return data.sort_index()
