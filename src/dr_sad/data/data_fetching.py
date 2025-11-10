@@ -1,14 +1,14 @@
+__all__ = ("load_data", "remove_overlap")
+
 import csv
+from multiprocessing.pool import ThreadPool
 from pathlib import Path
 
 import pandas as pd
 import soundfile
 from tqdm import tqdm
 
-__all__ = ("load_data", "remove_overlap")
-
 DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
-
 DOMAIN_SETTINGS = {
     "callhome": {
         "file_name": "callhome",
@@ -69,7 +69,7 @@ def remove_overlap(segments: list[tuple[float, float]]) -> list[tuple[float, flo
     return merged_segments
 
 
-def full_file_pull(file_id: str, d_idx: int, data_dir_loc: str):
+def full_file_pull(file_id: str, d_idx: int, data_dir_loc: str) -> dict[str, dict]:  # type: ignore[type-arg]
     """This is intended to be a mapping function that takes a set of parameters
     and returns a dictionary with the audio data, annotations, and domain index.
 
@@ -98,7 +98,7 @@ def full_file_pull(file_id: str, d_idx: int, data_dir_loc: str):
     # Load RTTM
     timestamps_start = []
     timestamps_end = []
-    speakers = []
+    # speakers = []  # Not used currently, needed for diarisation
     with open(rttm_file) as f:
         reader = csv.reader(f, delimiter=" ")
         for row in reader:
@@ -106,12 +106,12 @@ def full_file_pull(file_id: str, d_idx: int, data_dir_loc: str):
                 start_time = float(row[3])
                 duration = float(row[4])
                 end_time = start_time + duration
-                speaker_id = row[7]
+                # speaker_id = row[7]
 
                 timestamps_start.append(start_time)
                 # times may be longer due to floating point issues
                 timestamps_end.append(min(end_time, total_duration))
-                speakers.append(speaker_id)
+                # speakers.append(speaker_id)
 
     annotations = remove_overlap(
         list(zip(timestamps_start, timestamps_end, strict=True))
@@ -126,11 +126,16 @@ def full_file_pull(file_id: str, d_idx: int, data_dir_loc: str):
     }
 
 
+def _wrapped_full_file_pull(args: tuple) -> dict[str, dict]:  # type: ignore[type-arg]
+    return full_file_pull(*args)
+
+
 def load_data(
     data_choice: str | None,
     data_set_path: str | Path | None = None,
     domain_column: str | None = None,
     domains_idx: dict[str, int] | None = None,
+    num_workers: int = 1,
 ) -> pd.DataFrame:
     """
     Load a dataset from the specified source. Supports predefined datasets
@@ -147,6 +152,8 @@ def load_data(
             information. Required if data_choice is None.
         domains_idx (dict[str, int], optional): Mapping from domain names to integer
             indices. Required if data_choice is None.
+        num_workers (int): Number of parallel workers to use for loading data.
+            Defaults to 1 which means no parallelism.
 
     Returns:
         pd.DataFrame: The loaded dataset. This will contain the columns
@@ -192,15 +199,33 @@ def load_data(
             raise ValueError(msg)
         domain_indexes.append(d_idx_map[domain])
 
+    args_list = [
+        (file_id, d_idx, str(data_dir))
+        for file_id, d_idx in zip(file_ids, domain_indexes, strict=True)
+    ]
+
     dataset_list = []
-    for file_id, d_idx in tqdm(
-        zip(file_ids, domain_indexes, strict=True),
-        total=len(file_ids),
-        desc="Loading Audio data",
-    ):
-        dataset_list.append(full_file_pull(file_id, d_idx, str(data_dir.resolve())))
+    if num_workers < 1:
+        msg = f"num_workers must be at least 1, was {num_workers}"
+        raise ValueError(msg)
+    if num_workers == 1:
+        print("Loading data without parallel workers.")
+        for args in tqdm(
+            args_list,
+            total=len(file_ids),
+            desc="Loading Audio data",
+        ):
+            dataset_list.append(full_file_pull(*args))
+    else:
+        print(f"Loading data with {num_workers} workers.")
+        with ThreadPool(num_workers) as pool:
+            for result in tqdm(
+                pool.imap_unordered(_wrapped_full_file_pull, args_list),
+                total=len(args_list),
+                desc="Loading Audio data",
+            ):
+                dataset_list.append(result)
 
     dataset = {k: v for d in dataset_list for k, v in d.items()}
     data = pd.DataFrame.from_dict(dataset, orient="index")
-    print(dataset)
     return data.sort_index()

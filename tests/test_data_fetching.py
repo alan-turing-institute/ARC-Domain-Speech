@@ -117,6 +117,28 @@ class TestLoadData:
         loaded_file_ids = sorted(df.index.tolist())
         assert loaded_file_ids == expected_file_ids
 
+    def test_load_data_with_num_workers(self, test_dataset):
+        """Test loading data with multiple workers."""
+        df = data_fetching.load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+            num_workers=4,
+        )
+
+        # Check basic structure
+        assert len(df) == 20
+        assert list(df.columns) == ["waveforms", "annotations", "domains"]
+
+        indexes = sorted(
+            pd.read_csv(
+                test_dataset / "sources.tbl", index_col=0, sep="\t"
+            ).index.tolist()
+        )
+
+        assert df.index.to_list() == indexes
+
     def test_missing_data_set_path_raises(self):
         """If data_choice is None and data_set_path is not provided."""
 
