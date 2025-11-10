@@ -29,7 +29,6 @@ DOMAIN_SETTINGS = {
             "socio_lab": 7,
             "webvideo": 8,
             "broadcast_interview": 9,
-            "dinner": 10,
         },
     },
     "test": {
