@@ -152,7 +152,7 @@ class SincNet(nn.Module):  # type: ignore[misc]
         self.out_features = 60
 
         # block 0: waveform norm → sinc encoder → |·| → pool → norm → lrelu
-        self.block0 = nn.Sequential(
+        block0 = nn.Sequential(
             nn.InstanceNorm1d(1, affine=True),
             Encoder(
                 ParamSincFB(
@@ -169,9 +169,8 @@ class SincNet(nn.Module):  # type: ignore[misc]
             nn.InstanceNorm1d(80, affine=True),
             nn.LeakyReLU(inplace=True),
         )
-
         # block 1: conv → pool → norm → lrelu
-        self.block1 = nn.Sequential(
+        block2 = nn.Sequential(
             nn.Conv1d(80, 60, kernel_size=5, stride=1),
             nn.MaxPool1d(3, stride=3),
             nn.InstanceNorm1d(60, affine=True),
@@ -179,15 +178,17 @@ class SincNet(nn.Module):  # type: ignore[misc]
         )
 
         # block 2: conv → pool → norm → lrelu
-        self.block2 = nn.Sequential(
+        block1 = nn.Sequential(
             nn.Conv1d(60, self.out_features, kernel_size=5, stride=1),
             nn.MaxPool1d(3, stride=3),
             nn.InstanceNorm1d(self.out_features, affine=True),
             nn.LeakyReLU(inplace=True),
         )
-
-        # or, if you prefer one container:
-        self.features = nn.Sequential(self.block0, self.block1, self.block2)
+        self.features = nn.Sequential(
+            block0,
+            block2,
+            block1,
+        )
 
         self._K, self._S, self._P, self._D = _extract_time_spec(self.features)
 

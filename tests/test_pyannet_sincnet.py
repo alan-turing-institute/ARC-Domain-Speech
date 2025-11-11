@@ -42,15 +42,15 @@ class TestSincNet:
         assert sincnet.stride == 10
 
         # Check that all blocks are properly initialized
-        assert isinstance(sincnet.block0, torch.nn.Sequential)
-        assert isinstance(sincnet.block1, torch.nn.Sequential)
-        assert isinstance(sincnet.block2, torch.nn.Sequential)
         assert isinstance(sincnet.features, torch.nn.Sequential)
+        assert isinstance(sincnet.features[0], torch.nn.Sequential)
+        assert isinstance(sincnet.features[1], torch.nn.Sequential)
+        assert isinstance(sincnet.features[2], torch.nn.Sequential)
 
         # Check block lengths
-        assert len(sincnet.block0) == 6  # norm, encoder, abs, pool, norm, lrelu
-        assert len(sincnet.block1) == 4  # conv, pool, norm, lrelu
-        assert len(sincnet.block2) == 4  # conv, pool, norm, lrelu
+        assert len(sincnet.features[0]) == 6  # norm, encoder, abs, pool, norm, lrelu
+        assert len(sincnet.features[1]) == 4  # conv, pool, norm, lrelu
+        assert len(sincnet.features[2]) == 4  # conv, pool, norm, lrelu
         assert len(sincnet.features) == 3  # block0, block1, block2
 
     def test_init_custom_params(self):
