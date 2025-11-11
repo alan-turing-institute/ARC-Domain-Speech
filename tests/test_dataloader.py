@@ -9,6 +9,7 @@ from dr_sad.data.dataloaders import (
     domain_split_dataloaders,
     from_keys_dataloaders,
     make_dataloader,
+    one_test_dataloader,
     train_test_split_dataloaders,
 )
 from dr_sad.data.sampler import StratifiedSampler
@@ -87,6 +88,92 @@ class TestDrSadDataset:
         first_annotations = first_item["annotations"]
         assert len(first_annotations) == 2
         assert first_annotations[0] == (0.5, 1.0)
+
+    def test_time_slice_functionality(self):
+        """Test that time_slice correctly splits waveforms and adjusts annotations."""
+        # Create a test DataFrame
+        sample_rate = 16_000  # 16 kHz
+        test_df = pd.DataFrame(
+            {
+                "file_ids": [
+                    "file_01",
+                    "file_02",
+                    "file_03",
+                ],
+                "waveforms": [
+                    0.3 * np.ones(round(1.6 * sample_rate)),  # 1.6 seconds
+                    0.4 * np.ones(round(2.6 * sample_rate)),  # 2.6 seconds
+                    0.5 * np.ones(round(0.6 * sample_rate)),  # 0.6 seconds
+                ],
+                "annotations": [
+                    [(0.1, 1.1)],
+                    [(0.4, 1.4), (1.6, 1.8)],
+                    [(0.3, 0.4)],
+                ],
+                "domains": [0, 1, 0],
+            }
+        )
+        test_df = test_df.set_index("file_ids")
+
+        # Test with a time_slice of 1 second
+        time_slice = 1.0  # seconds
+        dataset = DrSadDataset(test_df, time_slice=time_slice)
+        # Verify the number of segments created
+        assert len(dataset) == 4  # 1 + 2 + 1 = 4 segments
+
+        # Verify the first segment of the first file
+        first_segment = dataset[0]
+        assert first_segment["file_id"] == "file_01-00"
+        assert len(first_segment["waveforms"]) == round(time_slice * sample_rate)
+        np.testing.assert_array_almost_equal(first_segment["annotations"], [(0.0, 0.8)])
+        assert first_segment["domains"] == 0
+
+        # Verify the first segment of the second file
+        second_segment = dataset[1]
+        assert second_segment["file_id"] == "file_02-00"
+        assert len(second_segment["waveforms"]) == round(time_slice * sample_rate)
+        np.testing.assert_array_almost_equal(
+            second_segment["annotations"], [(0.1, 1.0)]
+        )
+        assert second_segment["domains"] == 1
+
+        # Verify the second segment of the second file
+        third_segment = dataset[2]
+        assert third_segment["file_id"] == "file_02-01"
+        assert len(third_segment["waveforms"]) == round(time_slice * sample_rate)
+        np.testing.assert_array_almost_equal(
+            third_segment["annotations"], [(0.0, 0.1), (0.3, 0.5)]
+        )
+        assert third_segment["domains"] == 1
+
+        # Verify the only segment of the third file
+        fourth_segment = dataset[3]
+        assert fourth_segment["file_id"] == "file_03-00"
+        assert len(fourth_segment["waveforms"]) < round(time_slice * sample_rate)
+        np.testing.assert_array_almost_equal(
+            fourth_segment["annotations"], [(0.3, 0.4)]
+        )
+        assert fourth_segment["domains"] == 0
+
+    def test_time_slice_bigger_dataset(self, test_dataset):
+        """Test that time_slice works on a bigger dataset."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        time_slice = 1.0  # seconds
+        dataset = DrSadDataset(data, time_slice=time_slice)
+
+        # Check that the dataset length is greater than the original data length
+        assert len(dataset) > len(data)
+
+        # Check that all segments are of correct length
+        for item in dataset:
+            waveform_length = len(item["waveforms"])
+            assert waveform_length <= int(time_slice * 16000)
 
     def test_from_dataset_split(self, test_dataset):
         """Test that DrSadDataset.train_test_split correctly splits the dataset."""
@@ -213,6 +300,19 @@ class TestDrSadDataset:
             DrSadDataset.from_split_domain(
                 data, train_keys, val_keys, test_keys, invalid_domain
             )
+
+    def test_time_slice_invalid_value(self):
+        """Test that an invalid time_slice value raises a ValueError."""
+        test_df = pd.DataFrame(
+            {
+                "waveforms": [np.arange(32000)],
+                "annotations": [[(0.5, 1.5)]],
+                "domains": [0],
+            }
+        )
+
+        with pytest.raises(ValueError, match="time_slice must be a positive"):
+            DrSadDataset(test_df, time_slice=-1.0)
 
 
 class TestDataloader:
@@ -356,6 +456,44 @@ class TestTrainTestSplitDataloaders:
             assert "domains" in batch
             assert len(batch["waveforms"]) == 2
 
+    def test_train_test_split_dataloaders_time_slice(self, test_dataset):
+        """Test train_test_split_dataloaders with time_slice parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        time_slice = 1.0  # seconds
+
+        train_loader, val_loader, test_loader = train_test_split_dataloaders(
+            data,
+            batch_size=2,
+            val_ratio=0.2,
+            test_ratio=0.2,
+            random_seed=42,
+            time_slice=time_slice,
+        )
+
+        # Test that we can get batches from each loader
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch]:
+            assert "file_id" in batch
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+            assert len(batch["waveforms"]) == 2
+            assert batch["waveforms"].shape[1] <= int(time_slice * 16000)
+            for anno in batch["annotations"]:
+                for start, end in anno:
+                    assert start >= 0.0
+                    assert end <= time_slice
+
 
 class TestFromKeysDataloaders:
     def test_from_keys_dataloaders_basic(self, test_dataset):
@@ -424,6 +562,50 @@ class TestFromKeysDataloaders:
             assert "waveforms" in batch
             assert "annotations" in batch
             assert "domains" in batch
+
+    def test_from_keys_dataloaders_time_slice(self, test_dataset):
+        """Test from_keys_dataloaders with time_slice parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        time_slice = 1.0  # seconds
+
+        train_loader, val_loader, test_loader = from_keys_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            batch_size=2,
+            random_seed=42,
+            time_slice=time_slice,
+        )
+
+        # Test that we can get batches from each loader
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch]:
+            assert "file_id" in batch
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+            assert len(batch["waveforms"]) == 2
+            assert batch["waveforms"].shape[1] <= int(time_slice * 16000)
+            for anno in batch["annotations"]:
+                for start, end in anno:
+                    assert start >= 0.0
+                    assert end <= time_slice
 
 
 class TestDomainSplitDataloaders:
@@ -582,3 +764,116 @@ class TestDomainSplitDataloaders:
                 batch_size=2,
                 random_seed=42,
             )
+
+    def test_domain_split_dataloaders_time_slice(self, test_dataset):
+        """Test domain_split_dataloaders with time_slice parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        domain = 1
+
+        time_slice = 1.0  # seconds
+
+        train_loader, val_loader, test_loader, domain_loader = domain_split_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            domain,
+            batch_size=2,
+            random_seed=42,
+            time_slice=time_slice,
+        )
+
+        # Test that we can get batches from each loader
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+        domain_batch = next(iter(domain_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch, domain_batch]:
+            assert "file_id" in batch
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+            assert len(batch["waveforms"]) == 2
+            assert batch["waveforms"].shape[1] <= int(time_slice * 16000)
+            for anno in batch["annotations"]:
+                for start, end in anno:
+                    assert start >= 0.0
+                    assert end <= time_slice
+
+
+class TestOneTestDataloader:
+    def test_one_test_dataloader_basic(self, test_dataset):
+        """Test basic functionality of one_test_dataloader."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        test_loader = one_test_dataloader(
+            data,
+            data_keys=data.index.tolist()[:6],
+            batch_size=2,
+        )
+
+        # Check that returned object is DataLoader
+        assert isinstance(test_loader, DataLoader)
+
+        # Check batch size
+        assert test_loader.batch_size == 2
+
+        assert len(test_loader) == 3
+
+        for batch in test_loader:
+            assert "file_id" in batch
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+
+    def test_one_test_dataloader_time_slice(self, test_dataset):
+        """Test one_test_dataloader with time_slice parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        time_slice = 1.0  # seconds
+
+        test_loader = one_test_dataloader(
+            data,
+            data_keys=data.index.tolist()[:6],
+            batch_size=2,
+            time_slice=time_slice,
+        )
+
+        # Test that we can get batches from the loader
+        test_batch = next(iter(test_loader))
+
+        assert len(test_loader) == 3 * int(2.5 / time_slice)
+
+        # Check batch structure
+        assert "file_id" in test_batch
+        assert "waveforms" in test_batch
+        assert "annotations" in test_batch
+        assert "domains" in test_batch
+        assert len(test_batch["waveforms"]) == 2
+        assert test_batch["waveforms"].shape[1] <= int(time_slice * 16000)
+        for anno in test_batch["annotations"]:
+            for start, end in anno:
+                assert start >= 0.0
+                assert end <= time_slice
