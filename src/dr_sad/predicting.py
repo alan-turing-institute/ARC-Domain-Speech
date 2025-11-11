@@ -8,59 +8,10 @@ from tqdm import tqdm
 
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import domain_split_dataloaders, from_keys_dataloaders
-from dr_sad.pyannet.sincnet import map_sincnet_weights
 from dr_sad.training import create_model
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
-
-
-def save_predictions_chunked(
-    model: torch.nn.Module,
-    dataloader: DataLoader,
-    output_path: Path,
-    chunk_size: int = 50,
-) -> None:
-    """
-    Save predictions in chunks using safetensors format to avoid memory issues.
-
-    Args:
-        model (torch.nn.Module): The model used to generate predictions.
-        dataloader (torch.utils.data.DataLoader): DataLoader providing input batches.
-        output_path (Path): Path to the output file (without chunk suffix).
-        chunk_size (int, optional): Number of predictions per chunk. Defaults to 50.
-
-    Returns:
-        None
-    """
-
-    model.eval()
-
-    chunk_predictions = {}
-    chunk_count = 0
-
-    with torch.no_grad():
-        for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches")):
-            # Get predictions for this batch
-            file_ids = batch["file_id"]
-            prediction = model.predict_step(batch, batch_idx)
-
-            # Store predictions for current batch
-            for index, file_id in enumerate(file_ids):
-                chunk_predictions[file_id] = prediction[index].cpu()
-
-            # Save chunk when we reach chunk_size batches or at the end
-            if len(chunk_predictions) >= chunk_size or batch_idx == len(dataloader) - 1:
-                _save_chunk_safetensors(chunk_predictions, output_path, chunk_count)
-                chunk_predictions.clear()  # Clear to free memory
-                chunk_count += 1
-
-                # Force garbage collection
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-
-    # Combine all chunks into final file
-    _combine_chunks_safetensors(output_path, chunk_count)
 
 
 def _save_chunk_safetensors(
@@ -118,6 +69,53 @@ def _combine_chunks_safetensors(output_path: Path, num_chunks: int) -> None:
     save_file(combined_predictions, output_path)
 
 
+def save_predictions_chunked(
+    model: torch.nn.Module,
+    dataloader: DataLoader,
+    output_path: Path,
+    chunk_size: int = 50,
+) -> None:
+    """
+    Save predictions in chunks using safetensors format to avoid memory issues.
+
+    Args:
+        model (torch.nn.Module): The model used to generate predictions.
+        dataloader (torch.utils.data.DataLoader): DataLoader providing input batches.
+        output_path (Path): Path to the output file (without chunk suffix).
+        chunk_size (int, optional): Number of predictions per chunk. Defaults to 50.
+
+    Returns:
+        None
+    """
+
+    model.eval()
+
+    chunk_predictions = {}
+    chunk_count = 0
+
+    for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches")):
+        # Get predictions for this batch
+        file_ids = batch["file_id"]
+        prediction = model.predict_step(batch, batch_idx)
+
+        # Store predictions for current batch
+        for index, file_id in enumerate(file_ids):
+            chunk_predictions[file_id] = prediction[index].cpu()
+
+        # Save chunk when we reach chunk_size batches or at the end
+        if len(chunk_predictions) >= chunk_size or batch_idx == len(dataloader) - 1:
+            _save_chunk_safetensors(chunk_predictions, output_path, chunk_count)
+            chunk_predictions.clear()  # Clear to free memory
+            chunk_count += 1
+
+            # Force garbage collection
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    # Combine all chunks into final file
+    _combine_chunks_safetensors(output_path, chunk_count)
+
+
 def load_model_eval(
     model_path: Path | str,
     model_cfg: dict[str, str | int | float],
@@ -142,24 +140,7 @@ def load_model_eval(
 
     # Load the model state dict from the safetensors file
     state_dict = load_file(model_path)
-    try:
-        # Try to load the state dict normally first
-        weightless_model.load_state_dict(state_dict)
-    except RuntimeError as e:
-        # Check if the error is specifically about missing sincnet.features keys
-        error_msg = str(e)
-        if (
-            "Missing key(s) in state_dict" in error_msg
-            and "sincnet.features." in error_msg
-        ):
-            print("Detected old model format, mapping weights to new architecture...")
-            # Apply the mapping for old models
-            mapped_state_dict = map_sincnet_weights(state_dict)
-            weightless_model.load_state_dict(mapped_state_dict)
-            print("Successfully loaded model with weight mapping.")
-        else:
-            # Re-raise the original error if it's a different issue
-            raise
+    weightless_model.load_state_dict(state_dict)
 
     # Set model to evaluation mode
     return weightless_model.eval()

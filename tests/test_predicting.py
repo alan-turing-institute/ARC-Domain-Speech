@@ -1,7 +1,5 @@
 import shutil
-import tempfile
 from collections.abc import Iterator
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,13 +15,6 @@ from dr_sad.predicting import (
     load_model_eval,
     save_predictions_chunked,
 )
-
-
-@pytest.fixture()
-def temp_output_dir():
-    """Create a temporary directory for test outputs."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        yield Path(temp_dir)
 
 
 @pytest.fixture()
@@ -68,19 +59,17 @@ def mock_dataloader():
 class TestSaveChunkSafetensors:
     """Tests for _save_chunk_safetensors function."""
 
-    def test_save_chunk_creates_file(self, temp_output_dir):
+    def test_save_chunk_creates_file(self, tmp_path):
         """Test that saving a chunk creates a file with correct naming."""
-        output_path = temp_output_dir / "predictions.safetensors"
+        output_path = tmp_path / "predictions.safetensors"
         chunk_predictions = {
             "file_001": torch.randn(10, 3),
             "file_002": torch.randn(10, 3),
         }
 
         _save_chunk_safetensors(chunk_predictions, output_path, chunk_idx=0)
-
-        chunk_path = temp_output_dir / "predictions.chunk_0.safetensors"
+        chunk_path = tmp_path / "predictions.chunk_0.safetensors"
         assert chunk_path.exists()
-
         # Verify contents
         loaded = load_file(chunk_path)
         assert "file_001" in loaded
@@ -90,15 +79,15 @@ class TestSaveChunkSafetensors:
 class TestCombineChunksSafetensors:
     """Tests for _combine_chunks_safetensors function."""
 
-    def test_combine_zero_chunks(self, temp_output_dir):
+    def test_combine_zero_chunks(self, tmp_path):
         """Test that combining zero chunks does nothing."""
-        output_path = temp_output_dir / "predictions.safetensors"
+        output_path = tmp_path / "predictions.safetensors"
         _combine_chunks_safetensors(output_path, num_chunks=0)
         assert not output_path.exists()
 
-    def test_combine_multiple_chunks(self, temp_output_dir):
+    def test_combine_multiple_chunks(self, tmp_path):
         """Test combining multiple chunks into a single file."""
-        output_path = temp_output_dir / "predictions.safetensors"
+        output_path = tmp_path / "predictions.safetensors"
 
         # Create multiple chunks
         for i in range(3):
@@ -114,7 +103,7 @@ class TestCombineChunksSafetensors:
         # Verify combined file exists and chunks are deleted
         assert output_path.exists()
         for i in range(3):
-            chunk_path = temp_output_dir / f"predictions.chunk_{i}.safetensors"
+            chunk_path = tmp_path / f"predictions.chunk_{i}.safetensors"
             assert not chunk_path.exists()
 
         # Verify all predictions are in the combined file
@@ -127,9 +116,9 @@ class TestCombineChunksSafetensors:
 class TestSavePredictionsChunked:
     """Tests for save_predictions_chunked function."""
 
-    def test_save_predictions_basic(self, mock_model, mock_dataloader, temp_output_dir):
+    def test_save_predictions_basic(self, mock_model, mock_dataloader, tmp_path):
         """Test basic functionality of saving predictions."""
-        output_path = temp_output_dir / "predictions.safetensors"
+        output_path = tmp_path / "predictions.safetensors"
 
         save_predictions_chunked(
             mock_model, mock_dataloader, output_path, chunk_size=10
@@ -146,9 +135,9 @@ class TestSavePredictionsChunked:
             # Check shape is preserved
             assert loaded[f"file_{i:03d}"].shape == (10, 3)
 
-    def test_model_eval_called(self, mock_model, mock_dataloader, temp_output_dir):
+    def test_model_eval_called(self, mock_model, mock_dataloader, tmp_path):
         """Test that model.eval() is called."""
-        output_path = temp_output_dir / "predictions.safetensors"
+        output_path = tmp_path / "predictions.safetensors"
 
         save_predictions_chunked(
             mock_model, mock_dataloader, output_path, chunk_size=10
@@ -179,11 +168,11 @@ class TestLoadModelEval:
         }
 
     def test_load_model_with_valid_weights(
-        self, temp_output_dir, mock_model_config, mock_trainer_config
+        self, tmp_path, mock_model_config, mock_trainer_config
     ):
         """Test loading a model with valid weights."""
         # This test requires mocking create_model and the safetensors loading
-        model_path = temp_output_dir / "model.safetensors"
+        model_path = tmp_path / "model.safetensors"
 
         with (
             patch("dr_sad.predicting.create_model") as mock_create_model,
@@ -199,7 +188,9 @@ class TestLoadModelEval:
             mock_load_file.return_value = mock_state_dict
 
             # Load the model
-            load_model_eval(model_path, mock_model_config, mock_trainer_config)
+            result_model = load_model_eval(
+                model_path, mock_model_config, mock_trainer_config
+            )
 
             # Verify create_model was called with correct args
             mock_create_model.assert_called_once_with(
@@ -207,56 +198,67 @@ class TestLoadModelEval:
                 trainer_cfg=mock_trainer_config,
             )
 
+            # Verify load_file was called with the model path
+            mock_load_file.assert_called_once_with(model_path)
+
             # Verify load_state_dict was called
             mock_model.load_state_dict.assert_called_once_with(mock_state_dict)
 
             # Verify eval was called
             mock_model.eval.assert_called_once()
 
-    def test_load_model_with_old_format(
-        self, temp_output_dir, mock_model_config, mock_trainer_config
+            # Verify the returned model is the mocked model
+            assert result_model is mock_model
+
+    def test_load_model_with_incorrect_format(
+        self, tmp_path, mock_model_config, mock_trainer_config
     ):
-        """Test loading a model with old sincnet format."""
-        model_path = temp_output_dir / "model.safetensors"
+        """Test that loading a model with mismatched state dict raises an error."""
+        model_path = tmp_path / "model.safetensors"
 
         with (
             patch("dr_sad.predicting.create_model") as mock_create_model,
             patch("dr_sad.predicting.load_file") as mock_load_file,
-            patch("dr_sad.predicting.map_sincnet_weights") as mock_map_weights,
         ):
-            # Create a mock model
+            # Create a mock model with expected keys
             mock_model = MagicMock(spec=torch.nn.Module)
             mock_model.eval.return_value = mock_model
-
-            # Make load_state_dict fail first time, succeed second time
-            mock_model.load_state_dict.side_effect = [
-                RuntimeError("Missing key(s) in state_dict: sincnet.features.0.weight"),
-                None,
-            ]
-
+            # Mock state_dict to return expected keys
+            mock_model.state_dict.return_value = {
+                "expected_layer1.weight": torch.randn(10, 10),
+                "expected_layer2.bias": torch.randn(10),
+            }
             mock_create_model.return_value = mock_model
 
-            # Mock the state dict
-            old_state_dict = {"old.weight": torch.randn(10, 10)}
-            mapped_state_dict = {"sincnet.features.0.weight": torch.randn(10, 10)}
-            mock_load_file.return_value = old_state_dict
-            mock_map_weights.return_value = mapped_state_dict
+            # Mock the state dict with wrong keys (missing some, extra others)
+            mock_state_dict = {
+                "wrong_key.weight": torch.randn(10, 10),
+                "another_wrong_key.bias": torch.randn(10),
+            }
+            mock_load_file.return_value = mock_state_dict
 
-            # Load the model
-            load_model_eval(model_path, mock_model_config, mock_trainer_config)
+            # Configure load_state_dict to raise error for mismatched keys
+            def raise_on_load(_state_dict, strict=True):
+                if strict:
+                    msg = (
+                        "Error(s) in loading state_dict for Model:\n"
+                        "Missing key(s): expected_layer1.weight, expected_layer2.bias\n"
+                        "Unexpected key(s): wrong_key.weight, another_wrong_key.bias"
+                    )
+                    raise RuntimeError(msg)
 
-            # Verify weight mapping was called
-            mock_map_weights.assert_called_once_with(old_state_dict)
+            mock_model.load_state_dict.side_effect = raise_on_load
 
-            # Verify load_state_dict was called twice (once failed, once succeeded)
-            assert mock_model.load_state_dict.call_count == 2
+            # Verify that loading raises the RuntimeError
+            with pytest.raises(RuntimeError, match=r"Error.*in loading state_dict"):
+                load_model_eval(model_path, mock_model_config, mock_trainer_config)
 
 
 class TestLoadDataEval:
     """Tests for load_data_eval function."""
 
     @pytest.fixture()
-    def mock_data_split(self, temp_output_dir):
+    def mock_data_split(self, tmp_path):
         """Create a mock data split file."""
         split_data = {
             "train": ["file_001", "file_002", "file_003"],
@@ -265,13 +267,11 @@ class TestLoadDataEval:
         }
 
         # Create temporary dataset directory structure
-        dataset_dir = temp_output_dir / "test_dataset"
+        dataset_dir = tmp_path / "test_dataset"
         dataset_dir.mkdir()
-
         split_path = dataset_dir / "datasplit.yaml"
         with open(split_path, "w") as f:
             yaml.dump(split_data, f)
-
         return split_data, split_path
 
     @pytest.fixture()
@@ -291,15 +291,13 @@ class TestLoadDataEval:
         }
         return data_cfg, trainer_cfg, exp_config
 
-    def test_load_data_all_domains(
-        self, mock_data_split, mock_configs, temp_output_dir
-    ):
+    def test_load_data_all_domains(self, mock_data_split, mock_configs, tmp_path):
         """Test loading data with domain_type='all'."""
         split_data, split_path = mock_data_split
         data_cfg, trainer_cfg, exp_config = mock_configs
 
         # Create the data directory structure
-        data_dir = temp_output_dir / "data" / data_cfg["name"]
+        data_dir = tmp_path / "data" / data_cfg["name"]
         data_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy the split file to the expected location
@@ -309,7 +307,7 @@ class TestLoadDataEval:
         with (
             patch("dr_sad.predicting.load_data") as mock_load_data,
             patch("dr_sad.predicting.from_keys_dataloaders") as mock_from_keys,
-            patch("dr_sad.predicting.MAIN_DIR", temp_output_dir),
+            patch("dr_sad.predicting.MAIN_DIR", tmp_path),
         ):
             # Mock the data loading
             mock_dataset = MagicMock()
@@ -346,7 +344,7 @@ class TestLoadDataEval:
             assert domain_loader is None
 
     def test_load_data_exclude_one_domain(
-        self, mock_data_split, mock_configs, temp_output_dir
+        self, mock_data_split, mock_configs, tmp_path
     ):
         """Test loading data with domain_type='exclude_one'."""
         split_data, split_path = mock_data_split
@@ -354,7 +352,7 @@ class TestLoadDataEval:
         data_cfg["domain_type"] = "exclude_one"
 
         # Create the data directory structure
-        data_dir = temp_output_dir / "data" / data_cfg["name"]
+        data_dir = tmp_path / "data" / data_cfg["name"]
         data_dir.mkdir(parents=True, exist_ok=True)
         dest_split_path = data_dir / data_cfg["split_name"]
         shutil.copy(split_path, dest_split_path)
@@ -362,7 +360,7 @@ class TestLoadDataEval:
         with (
             patch("dr_sad.predicting.load_data") as mock_load_data,
             patch("dr_sad.predicting.domain_split_dataloaders") as mock_domain_split,
-            patch("dr_sad.predicting.MAIN_DIR", temp_output_dir),
+            patch("dr_sad.predicting.MAIN_DIR", tmp_path),
         ):
             # Mock the data loading
             mock_dataset = MagicMock()

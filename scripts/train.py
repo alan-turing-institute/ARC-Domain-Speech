@@ -8,33 +8,11 @@ from safetensors.torch import save_model
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import domain_split_dataloaders, from_keys_dataloaders
 from dr_sad.training import DrSadTrainer, create_model
+from dr_sad.utils import get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
 EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
-
-
-def get_experiment_name(exp_name_arg: str) -> tuple[str, Path]:
-    """Get experiment name and path from argument."""
-    p = Path(exp_name_arg)
-    if p.exists():
-        experiment_path = p
-    elif (EXP_CONFIG_DIR / p).exists():
-        experiment_path = EXP_CONFIG_DIR / p
-    else:
-        msg = f"Experiment config not found: {exp_name_arg}"
-        raise FileNotFoundError(msg)
-    # Determine experiment_name string
-    try:
-        # If experiment_path is inside EXP_CONFIG_DIR
-        rel = experiment_path.relative_to(EXP_CONFIG_DIR)
-        # Remove suffix (.yaml/.yml) and return the parent path + stem
-        experiment_name = str(rel.with_suffix("")).replace("\\", "/")
-    except ValueError:
-        # Not inside EXP_CONFIG_DIR → just use the filename without suffix
-        experiment_name = experiment_path.stem
-
-    return experiment_name, experiment_path
 
 
 def main(args) -> None:
@@ -49,7 +27,9 @@ def main(args) -> None:
             'exclude_one'.
     """
 
-    experiment_name, experiment_path = get_experiment_name(args.experiment_name)
+    experiment_name, experiment_path = get_experiment_name(
+        args.experiment_name, EXP_CONFIG_DIR
+    )
     print(f"Running experiment: {experiment_name}")
 
     with open(experiment_path) as f:
