@@ -9,6 +9,7 @@ from dr_sad.data.dataloaders import (
     domain_split_dataloaders,
     from_keys_dataloaders,
     make_dataloader,
+    one_test_dataloader,
     train_test_split_dataloaders,
 )
 from dr_sad.data.sampler import StratifiedSampler
@@ -455,6 +456,44 @@ class TestTrainTestSplitDataloaders:
             assert "domains" in batch
             assert len(batch["waveforms"]) == 2
 
+    def test_train_test_split_dataloaders_time_slice(self, test_dataset):
+        """Test train_test_split_dataloaders with time_slice parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        time_slice = 1.0  # seconds
+
+        train_loader, val_loader, test_loader = train_test_split_dataloaders(
+            data,
+            batch_size=2,
+            val_ratio=0.2,
+            test_ratio=0.2,
+            random_seed=42,
+            time_slice=time_slice,
+        )
+
+        # Test that we can get batches from each loader
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch]:
+            assert "file_id" in batch
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+            assert len(batch["waveforms"]) == 2
+            assert batch["waveforms"].shape[1] <= int(time_slice * 16000)
+            for anno in batch["annotations"]:
+                for start, end in anno:
+                    assert start >= 0.0
+                    assert end <= time_slice
+
 
 class TestFromKeysDataloaders:
     def test_from_keys_dataloaders_basic(self, test_dataset):
@@ -523,6 +562,50 @@ class TestFromKeysDataloaders:
             assert "waveforms" in batch
             assert "annotations" in batch
             assert "domains" in batch
+
+    def test_from_keys_dataloaders_time_slice(self, test_dataset):
+        """Test from_keys_dataloaders with time_slice parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        time_slice = 1.0  # seconds
+
+        train_loader, val_loader, test_loader = from_keys_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            batch_size=2,
+            random_seed=42,
+            time_slice=time_slice,
+        )
+
+        # Test that we can get batches from each loader
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch]:
+            assert "file_id" in batch
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+            assert len(batch["waveforms"]) == 2
+            assert batch["waveforms"].shape[1] <= int(time_slice * 16000)
+            for anno in batch["annotations"]:
+                for start, end in anno:
+                    assert start >= 0.0
+                    assert end <= time_slice
 
 
 class TestDomainSplitDataloaders:
@@ -681,3 +764,116 @@ class TestDomainSplitDataloaders:
                 batch_size=2,
                 random_seed=42,
             )
+
+    def test_domain_split_dataloaders_time_slice(self, test_dataset):
+        """Test domain_split_dataloaders with time_slice parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        domain = 1
+
+        time_slice = 1.0  # seconds
+
+        train_loader, val_loader, test_loader, domain_loader = domain_split_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            domain,
+            batch_size=2,
+            random_seed=42,
+            time_slice=time_slice,
+        )
+
+        # Test that we can get batches from each loader
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+        domain_batch = next(iter(domain_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch, domain_batch]:
+            assert "file_id" in batch
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+            assert len(batch["waveforms"]) == 2
+            assert batch["waveforms"].shape[1] <= int(time_slice * 16000)
+            for anno in batch["annotations"]:
+                for start, end in anno:
+                    assert start >= 0.0
+                    assert end <= time_slice
+
+
+class TestOneTestDataloader:
+    def test_one_test_dataloader_basic(self, test_dataset):
+        """Test basic functionality of one_test_dataloader."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        test_loader = one_test_dataloader(
+            data,
+            data_keys=data.index.tolist()[:6],
+            batch_size=2,
+        )
+
+        # Check that returned object is DataLoader
+        assert isinstance(test_loader, DataLoader)
+
+        # Check batch size
+        assert test_loader.batch_size == 2
+
+        assert len(test_loader) == 3
+
+        for batch in test_loader:
+            assert "file_id" in batch
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+
+    def test_one_test_dataloader_time_slice(self, test_dataset):
+        """Test one_test_dataloader with time_slice parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        time_slice = 1.0  # seconds
+
+        test_loader = one_test_dataloader(
+            data,
+            data_keys=data.index.tolist()[:6],
+            batch_size=2,
+            time_slice=time_slice,
+        )
+
+        # Test that we can get batches from the loader
+        test_batch = next(iter(test_loader))
+
+        assert len(test_loader) == 3 * int(2.5 / time_slice)
+
+        # Check batch structure
+        assert "file_id" in test_batch
+        assert "waveforms" in test_batch
+        assert "annotations" in test_batch
+        assert "domains" in test_batch
+        assert len(test_batch["waveforms"]) == 2
+        assert test_batch["waveforms"].shape[1] <= int(time_slice * 16000)
+        for anno in test_batch["annotations"]:
+            for start, end in anno:
+                assert start >= 0.0
+                assert end <= time_slice
