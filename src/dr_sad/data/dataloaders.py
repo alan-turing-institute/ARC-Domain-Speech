@@ -39,8 +39,8 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         When this is done the new file ids are created by appending
         "-XX" to the original file id, where XX is a zero-padded index in hexadecimal.
         The waveforms that are shorter than the specified length are kept as is.
-        The wavesforms that are longer than the specified length split into multiple
-        segments of the specified length potitioning them in the mid point.
+        The waveforms that are longer than the specified length split into multiple
+        segments of the specified length positioning them in the mid point.
 
         Args:
             data (pd.DataFrame): The data to use for the dataset.
@@ -542,6 +542,9 @@ def one_test_dataloader(
             This DOES NOT filter the data. Defaults to None.
         batch_size (int, optional): Batch size for the dataloader.
             Defaults to 4.
+        time_slice (float, optional): Cut the waveforms to this length in seconds.
+        sample_rate (int, optional): The sample rate of the waveforms.
+            Defaults to 16_000 Hz.
         dataloader_kwargs (dict, optional): Additional keyword arguments to pass
             to the DataLoader constructor. Defaults to {}.
 

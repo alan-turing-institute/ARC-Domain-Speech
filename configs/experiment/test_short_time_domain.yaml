@@ -1,4 +1,6 @@
-data_config: test_dataset_config.yaml
+data_config: callhome_domain.yaml
 training_config: test_trainer_config.yaml
 model_config: default_pyannet.yaml
 random_seed: 42
+time_slice: 20.0
+batch_multiplier: 8

@@ -6,7 +6,11 @@ from pytorch_lightning.loggers import CSVLogger
 from safetensors.torch import save_model
 
 from dr_sad.data.data_fetching import load_data
-from dr_sad.data.dataloaders import domain_split_dataloaders, from_keys_dataloaders
+from dr_sad.data.dataloaders import (
+    domain_split_dataloaders,
+    from_keys_dataloaders,
+    one_test_dataloader,
+)
 from dr_sad.training import DrSadTrainer, create_model
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
@@ -55,6 +59,19 @@ def main(args) -> None:
     with open(model_cfg_pth) as f:
         model_cfg = yaml.safe_load(f)
 
+    time_slice = exp_config.get("time_slice")
+    if time_slice is not None:
+        batch_multiplier = exp_config.get("batch_multiplier")
+        if batch_multiplier is None:
+            msg = "If time_slice is set, batch_multiplier must also be set."
+            raise ValueError(msg)
+
+        batch_size = int(trainer_cfg["batch_size"] * batch_multiplier)
+        full_batch_size = trainer_cfg["batch_size"]
+    else:
+        batch_size = trainer_cfg["batch_size"]
+        full_batch_size = None
+
     data = load_data(data_cfg["name"], num_workers=trainer_cfg["num_workers"])
     with open(MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]) as file:
         data_split = yaml.safe_load(file)
@@ -71,7 +88,9 @@ def main(args) -> None:
             train_keys=data_split["train"],
             val_keys=data_split["val"],
             test_keys=data_split["test"],
-            batch_size=trainer_cfg["batch_size"],
+            batch_size=batch_size,
+            time_slice=time_slice,
+            random_seed=exp_config["random_seed"],
         )
     elif data_cfg["domain_type"] == "exclude_one":
         save_dir = (
@@ -88,10 +107,10 @@ def main(args) -> None:
             val_keys=data_split["val"],
             test_keys=data_split["test"],
             domain=args.exclude_domain,
-            batch_size=trainer_cfg["batch_size"],
+            batch_size=batch_size,
+            time_slice=time_slice,
             random_seed=exp_config["random_seed"],
         )
-
     else:
         err_msg = f"Unknown domain_type option: {data_cfg['domain_type']}"
         raise ValueError(err_msg)
@@ -143,6 +162,41 @@ def main(args) -> None:
         "in_domain_test": result_in_domain,
         "out_of_domain_test": result_out_domain,
     }
+
+    if full_batch_size is not None:
+        print("Evaluating with full batch size audio clips")
+        if data_cfg["domain_type"] == "all":
+            full_test_loader = one_test_dataloader(
+                data,
+                data_keys=data_split["test"],
+                batch_size=full_batch_size,
+            )
+            results["in_domain_test_full"] = trainer.test(model, full_test_loader)[0]
+            results["out_of_domain_test_full"] = None
+        elif data_cfg["domain_type"] == "exclude_one":
+            domain_keys = data[data["domains"] == args.exclude_domain].index.to_list()
+            test_without_domain_keys = list(set(data_split["test"]) - set(domain_keys))
+            full_test_loader = one_test_dataloader(
+                data,
+                data_keys=test_without_domain_keys,
+                batch_size=full_batch_size,
+            )
+            results["in_domain_test_full"] = trainer.test(model, full_test_loader)[0]
+            full_domain_loader = one_test_dataloader(
+                data,
+                data_keys=domain_keys,
+                batch_size=full_batch_size,
+            )
+            results["out_of_domain_test_full"] = trainer.test(
+                model, full_domain_loader
+            )[0]
+        else:
+            err_msg = (
+                f"Unknown domain_type option: {data_cfg['domain_type']} "
+                "This should be unreachable."
+            )
+            raise ValueError(err_msg)
+
     with (Path(save_dir) / "test_results.yaml").open("w") as f:
         yaml.safe_dump(results, f)
 
