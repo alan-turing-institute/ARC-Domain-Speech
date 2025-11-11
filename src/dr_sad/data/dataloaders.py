@@ -25,16 +25,75 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         Dataset: The base dataset class from PyTorch.
     """
 
-    def __init__(self, data: pd.DataFrame, domain: int | None = None):
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        domain: int | None = None,
+        time_slice: float | None = None,
+        sample_rate: int = 16_000,
+    ) -> None:
         """
         Initialize the DrSadDataset.
+
+        This also supports cutting waveforms to a specific length in seconds.
+        When this is done the new file ids are created by appending
+        "-XX" to the original file id, where XX is a zero-padded index in hexadecimal.
+        The waveforms that are shorter than the specified length are kept as is.
+        The wavesforms that are longer than the specified length split into multiple
+        segments of the specified length potitioning them in the mid point.
 
         Args:
             data (pd.DataFrame): The data to use for the dataset.
             domain (int, optional): The domain index for the dataset.
+            time_slice (float, optional): Cut the waveforms to this length in seconds.
+            sample_rate (int, optional): The sample rate of the waveforms.
+                Defaults to 16_000 Hz.
         """
-        self.data = data
+        if time_slice is not None:
+            if time_slice <= 0:
+                msg = "time_slice must be a positive value in seconds."
+                raise ValueError(msg)
+
+            time_count = round(time_slice * sample_rate)
+            self.data = pd.DataFrame(columns=data.columns)
+            for row in data.itertuples(index=True, name="Row"):
+                file_id = row.Index
+                if len(row.waveforms) <= time_count:
+                    self.data.loc[f"{file_id}-00"] = {
+                        "waveforms": row.waveforms,
+                        "annotations": row.annotations,
+                        "domains": row.domains,
+                    }
+                else:
+                    num_slices = len(row.waveforms) // time_count
+                    start_point = (len(row.waveforms) - num_slices * time_count) // 2
+                    for slice_idx in range(num_slices):
+                        start_idx = start_point + slice_idx * time_count
+                        end_idx = start_idx + time_count
+                        sliced_waveform = row.waveforms[start_idx:end_idx]
+                        new_file_id = f"{file_id}-{slice_idx:02x}"
+                        start_time = start_idx / sample_rate
+                        end_time = end_idx / sample_rate
+                        new_annotations = []
+                        for ann in row.annotations:
+                            if ann[0] >= end_time:
+                                continue
+                            if ann[1] <= start_time:
+                                continue
+                            new_start = max(0.0, ann[0] - start_time)
+                            new_end = min(time_slice, ann[1] - start_time)
+                            new_annotations.append((new_start, new_end))
+                        self.data.loc[new_file_id] = {
+                            "file_id": new_file_id,
+                            "waveforms": sliced_waveform,
+                            "annotations": new_annotations,
+                            "domains": row.domains,
+                        }
+
+        else:
+            self.data = data
         self.domain = domain
+        self.time_slice = time_slice
         self.key_list = list(data.index)
 
     @classmethod
