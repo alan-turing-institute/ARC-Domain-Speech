@@ -47,7 +47,7 @@ def _create_ground_truth_mask(audio_length, sample_rate, speech_segments):
 def _downsample_to_prediction_frames(
     signal, sample_rate, prediction_length, frame_rate_hz=160
 ):
-    """Downsample audio/labels to match prediction frame rate."""
+    """Downsample audio to match prediction frame rate."""
     # Calculate the frame hop in samples (approximately)
     frame_hop_samples = sample_rate // frame_rate_hz
 
@@ -127,24 +127,25 @@ def plot_analysis(
     # Plot audio waveform, scaled and shifted to be centered at 0.5
     audio_normalized = audio / np.max(np.abs(audio))  # Normalize to [-1, 1]
     # Scale to 0.3 amplitude and shift to center at 0.5
-    audio_scaled = (audio_normalized * 0.3) + 0.5
+    audio_scaled = (audio_normalized * 0.4) + 0.5
     ax.plot(
         time_audio,
         audio_scaled,
-        alpha=0.3,
+        alpha=0.7,
         color="lightgray",
         linewidth=0.5,
         label="Audio",
     )
 
     # Plot upsampled ground truth speech activity
-    ax.plot(
+    ax.fill_between(
         time_audio,
+        np.zeros_like(gt_upsampled),
         gt_upsampled,
         color="green",
         linewidth=2,
         label="Ground Truth",
-        alpha=0.8,
+        alpha=0.5,
     )
 
     # Plot upsampled model predictions

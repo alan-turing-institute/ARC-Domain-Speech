@@ -11,7 +11,7 @@ from tqdm import tqdm
 from dr_sad.analysing import analyse_file
 
 
-def main(prediction_path):
+def main(prediction_path: Path):
     # Load prediction file
     predictions = load_file(prediction_path)
 
@@ -21,12 +21,13 @@ def main(prediction_path):
     # Create output directory in the experiment folder
     experiment_dir = prediction_path.parent.parent  # outputs/test_domain/domain_0
     analysis_dir = experiment_dir / "analysis_plots"
+    data_name = prediction_path.stem
     print(f"Saving plots to: {analysis_dir}")
 
     # Analyze the first few files
     for file_id in tqdm(list(predictions.keys()), desc="Analyzing files"):
         tensor = predictions[file_id]
-        analyse_file(file_id, tensor, output_dir=analysis_dir)
+        analyse_file(file_id, tensor, output_dir=Path(analysis_dir / data_name))
 
 
 if __name__ == "__main__":
