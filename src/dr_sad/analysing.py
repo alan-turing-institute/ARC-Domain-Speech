@@ -6,6 +6,13 @@ import soundfile
 import torch
 
 
+def mode(x):
+    """Return the mode of a 1D numpy array."""
+    values, counts = np.unique(x, return_counts=True)
+    max_count_index = np.argmax(counts)
+    return values[max_count_index]
+
+
 def _load_audio_and_annotations(file_id, data_dir="data/callhome"):
     """Load audio file and corresponding RTTM annotations."""
     data_path = Path(data_dir)
@@ -44,38 +51,32 @@ def _create_ground_truth_mask(audio_length, sample_rate, speech_segments):
     return mask
 
 
-def _downsample_to_prediction_frames(
-    signal, sample_rate, prediction_length, frame_rate_hz=160
-):
-    """Downsample audio to match prediction frame rate."""
-    # Calculate the frame hop in samples (approximately)
-    frame_hop_samples = sample_rate // frame_rate_hz
+def _downsample_to_prediction_frames(signal, prediction_length, is_binary=False):
+    """Downsample signal to match prediction frame rate."""
+    signal_length = len(signal)
+    frame_hop_samples = signal_length / prediction_length
 
-    # Downsample by taking averages over frame windows
+    # Downsample by taking max for binary masks, mean for continuous signals
     downsampled = []
-    for i in range(prediction_length):
-        start_idx = i * frame_hop_samples
-        end_idx = min((i + 1) * frame_hop_samples, len(signal))
-        if start_idx < len(signal):
-            if end_idx > start_idx:
-                frame_avg = np.mean(signal[start_idx:end_idx])
-            else:
-                frame_avg = 0.0
-            downsampled.append(frame_avg)
-        else:
-            downsampled.append(0.0)
 
-    # Ensure output length matches prediction_length exactly
-    downsampled = np.array(downsampled)
-    if len(downsampled) < prediction_length:
-        # Pad with zeros if too short
-        downsampled = np.pad(
-            downsampled, (0, prediction_length - len(downsampled)), mode="constant"
-        )
-    elif len(downsampled) > prediction_length:
-        # Trim if too long
-        downsampled = downsampled[:prediction_length]
-    return downsampled
+    for i in range(prediction_length):
+        start_idx = int(i * frame_hop_samples)
+        end_idx = int((i + 1) * frame_hop_samples)
+        start_idx = min(start_idx, signal_length)
+        end_idx = min(end_idx, signal_length)
+
+        if end_idx > start_idx:
+            if is_binary:
+                # For binary masks, use modal value to preserve speech regions
+                frame_value = mode(signal[start_idx:end_idx])
+            else:
+                # For continuous signals (audio), use mean
+                frame_value = np.mean(signal[start_idx:end_idx])
+        else:
+            frame_value = 0.0
+        downsampled.append(frame_value)
+
+    return np.array(downsampled)
 
 
 def plot_analysis(
@@ -100,105 +101,88 @@ def plot_analysis(
 
     # Convert predictions to numpy if needed
     if torch.is_tensor(predictions):
-        pred_probs = predictions.squeeze().numpy()
+        pred_probs = predictions.detach().cpu().numpy().squeeze()
     else:
         pred_probs = predictions.squeeze()
 
-    # Downsample ground truth to match prediction frames
+    # Downsample both audio and ground truth to match prediction length
     pred_length = len(pred_probs)
+    # Create single time axis for all signals
+    audio_duration = len(audio) / sample_rate
+    pred_times = np.linspace(0, audio_duration, pred_length)
+
+    # Downsample ground truth
     gt_downsampled = _downsample_to_prediction_frames(
-        ground_truth_mask, sample_rate, pred_length
+        ground_truth_mask, pred_length, is_binary=True
     )
 
-    # Upsample predictions and ground truth to audio sample rate for aligned plotting
-    audio_len = len(audio)
-    # Create time axis for original audio
-    time_audio = np.arange(audio_len) / sample_rate
+    # Downsample audio
+    audio_downsampled = _downsample_to_prediction_frames(audio, pred_length)
+    # Normalize audio to [-0.5, 0.5] then shift to [0, 1] for plotting
+    if np.max(np.abs(audio_downsampled)) > 0:
+        audio_normalised = audio_downsampled / (2 * np.max(np.abs(audio_downsampled)))
+        audio_normalised = audio_normalised + 0.5
+    else:
+        audio_normalised = np.ones_like(audio_downsampled) * 0.5
 
-    # For upsampling, use np.interp to match audio length
-    pred_time = np.linspace(0, audio_len / sample_rate, pred_length, endpoint=False)
-    pred_probs_upsampled = np.interp(time_audio, pred_time, pred_probs)
-    gt_time = np.linspace(0, audio_len / sample_rate, pred_length, endpoint=False)
-    gt_upsampled = np.interp(time_audio, gt_time, gt_downsampled)
+    # Create figure
+    _, ax = plt.subplots(figsize=(16, 6))
 
-    # Create single figure
-    fig, ax = plt.subplots(1, 1, figsize=(15, 6))
-
-    # Plot audio waveform, scaled and shifted to be centered at 0.5
-    audio_normalized = audio / np.max(np.abs(audio))  # Normalize to [-1, 1]
-    # Scale to 0.3 amplitude and shift to center at 0.5
-    audio_scaled = (audio_normalized * 0.4) + 0.5
+    # Plot downsampled audio waveform in background
     ax.plot(
-        time_audio,
-        audio_scaled,
-        alpha=0.7,
+        pred_times,
+        audio_normalised,
         color="lightgray",
-        linewidth=0.5,
-        label="Audio",
-    )
-
-    # Plot upsampled ground truth speech activity
-    ax.fill_between(
-        time_audio,
-        np.zeros_like(gt_upsampled),
-        gt_upsampled,
-        color="green",
-        linewidth=2,
-        label="Ground Truth",
         alpha=0.5,
+        linewidth=0.5,
+        label="Audio waveform",
+    )
+    # Plot ground truth as fill_between
+    ax.fill_between(
+        pred_times, 0, gt_downsampled, color="green", alpha=0.3, label="Ground Truth"
     )
 
-    # Plot upsampled model predictions
-    ax.plot(
-        time_audio,
-        pred_probs_upsampled,
-        color="red",
-        linewidth=2,
-        label="Model Predictions",
-        alpha=0.8,
-    )
+    # Plot predictions
+    ax.plot(pred_times, pred_probs, label="Predictions", color="red", alpha=0.7)
 
-    # Formatting
-    ax.set_ylabel("Probability")
+    # Labels and formatting
     ax.set_xlabel("Time (seconds)")
+    ax.set_ylabel("Speech Activity")
     ax.set_title(f"Speech Activity Detection: {file_id}")
-    ax.set_ylim(0, 1)
+    ax.legend()
     ax.grid(True, alpha=0.3)
-    ax.legend(loc="upper right")
 
-    plt.tight_layout()
-
-    # Determine output directory and create if needed
-    output_dir = Path(".temp") if output_dir is None else Path(output_dir)
-
+    # Save plot
+    if output_dir is None:
+        output_dir = Path(".temp")
+    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save the plot
     output_path = output_dir / f"{file_id}_analysis.png"
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    print(f"Saved plot to: {output_path}")
-
-    # Close the figure to free memory and avoid resource leaks
-    plt.close(fig)
-
-    return fig
+    plt.close()
 
 
-def analyse_file(file_id, predictions, output_dir=None):
+def analyse_file(file_id, predictions, model_metadata: dict, output_dir=None):
     """Analyze a single file with audio, ground truth, and predictions.
 
     Args:
         file_id: ID of the file to analyze
         predictions: Model predictions for this file
+        model_meta_data: Metadata dictionary for the model
         output_dir: Directory to save plots (if None, uses .temp/)
     """
 
-    audio, sample_rate, _speech_segments = _load_audio_and_annotations(file_id)
+    audio, sample_rate, speech_segments = _load_audio_and_annotations(file_id)
 
     # Create ground truth mask
     ground_truth_mask = _create_ground_truth_mask(
-        len(audio), sample_rate, _speech_segments
+        len(audio), sample_rate, speech_segments
     )
+    frame_rate_hz = model_metadata["frame_rate_hz"]
+    audio_duration_sec = len(audio) / sample_rate
+    actual_num_frames = int(audio_duration_sec * frame_rate_hz)
+    predictions = predictions[:, :actual_num_frames]
 
     # Create visualization
     plot_analysis(

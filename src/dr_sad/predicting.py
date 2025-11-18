@@ -10,7 +10,7 @@ from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import domain_split_dataloaders, from_keys_dataloaders
 from dr_sad.training import create_model
 
-MAIN_DIR = Path(__file__).resolve().parent.parent
+MAIN_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
 
 
