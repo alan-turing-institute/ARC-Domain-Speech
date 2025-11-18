@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,14 +7,17 @@ import soundfile
 import torch
 
 
-def mode(x):
+def mode(x: np.ndarray) -> np.ndarray:
     """Return the mode of a 1D numpy array."""
     values, counts = np.unique(x, return_counts=True)
     max_count_index = np.argmax(counts)
     return values[max_count_index]
 
 
-def _load_audio_and_annotations(file_id, data_dir="data/callhome"):
+def _load_audio_and_annotations(
+    file_id: str,
+    data_dir: str = "data/callhome",
+) -> tuple[np.ndarray, int, list[tuple[float, float]]]:
     """Load audio file and corresponding RTTM annotations."""
     data_path = Path(data_dir)
 
@@ -37,7 +41,11 @@ def _load_audio_and_annotations(file_id, data_dir="data/callhome"):
     return audio, sample_rate, speech_segments
 
 
-def _create_ground_truth_mask(audio_length, sample_rate, speech_segments):
+def _create_ground_truth_mask(
+    audio_length: int,
+    sample_rate: int,
+    speech_segments: list[tuple[float, float]],
+) -> np.ndarray:
     """Create a binary mask for ground truth speech activity."""
     mask = np.zeros(audio_length)
 
@@ -51,7 +59,11 @@ def _create_ground_truth_mask(audio_length, sample_rate, speech_segments):
     return mask
 
 
-def _downsample_to_prediction_frames(signal, prediction_length, is_binary=False):
+def _downsample_to_prediction_frames(
+    signal: np.ndarray,
+    prediction_length: int,
+    is_binary: bool = False,
+) -> np.ndarray:
     """Downsample signal to match prediction frame rate."""
     signal_length = len(signal)
     frame_hop_samples = signal_length / prediction_length
@@ -80,13 +92,13 @@ def _downsample_to_prediction_frames(signal, prediction_length, is_binary=False)
 
 
 def plot_analysis(
-    file_id,
-    audio,
-    sample_rate,
-    ground_truth_mask,
-    predictions,
-    output_dir=None,
-):
+    file_id: str,
+    audio: np.ndarray,
+    sample_rate: int,
+    ground_truth_mask: np.ndarray,
+    predictions: np.ndarray,
+    output_dir: Path | None = None,
+) -> None:
     """
     Create a single plot with audio background, ground truth, and predictions overlaid.
 
@@ -163,7 +175,12 @@ def plot_analysis(
     plt.close()
 
 
-def analyse_file(file_id, predictions, model_metadata: dict, output_dir=None):
+def analyse_file(
+    file_id: str,
+    predictions: torch.Tensor,
+    model_metadata: dict[str, Any],
+    output_dir: Path | None = None,
+) -> None:
     """Analyze a single file with audio, ground truth, and predictions.
 
     Args:
