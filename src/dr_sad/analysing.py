@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import soundfile
 import torch
+from scipy import signal as sp_signal
 
 
 def mode(x: np.ndarray) -> np.ndarray:
@@ -64,31 +65,20 @@ def _downsample_to_prediction_frames(
     prediction_length: int,
     is_binary: bool = False,
 ) -> np.ndarray:
-    """Downsample signal to match prediction frame rate."""
-    signal_length = len(signal)
-    frame_hop_samples = signal_length / prediction_length
+    """Downsample signal to match prediction frame rate using vectorized operations."""
 
-    # Downsample by taking max for binary masks, mean for continuous signals
-    downsampled = []
+    if is_binary:
+        # Use scipy's resample with nearest neighbor for binary
+        downsampled: np.ndarray = sp_signal.resample(
+            signal, prediction_length, window="boxcar"
+        )
+        # Re-binarize after resampling (threshold at 0.5)
+        downsampled = (downsampled > 0.5).astype(float)
+    else:
+        # For continuous signals, scipy.signal.resample is efficient
+        downsampled = sp_signal.resample(signal, prediction_length)
 
-    for i in range(prediction_length):
-        start_idx = int(i * frame_hop_samples)
-        end_idx = int((i + 1) * frame_hop_samples)
-        start_idx = min(start_idx, signal_length)
-        end_idx = min(end_idx, signal_length)
-
-        if end_idx > start_idx:
-            if is_binary:
-                # For binary masks, use modal value to preserve speech regions
-                frame_value = mode(signal[start_idx:end_idx])
-            else:
-                # For continuous signals (audio), use mean
-                frame_value = np.mean(signal[start_idx:end_idx])
-        else:
-            frame_value = 0.0
-        downsampled.append(frame_value)
-
-    return np.array(downsampled)
+    return downsampled
 
 
 def plot_analysis(
@@ -186,7 +176,7 @@ def analyse_file(
     Args:
         file_id: ID of the file to analyze
         predictions: Model predictions for this file
-        model_meta_data: Metadata dictionary for the model
+        model_metadata: Metadata dictionary for the model
         output_dir: Directory to save plots (if None, uses .temp/)
     """
 

@@ -17,7 +17,7 @@ def save_model_metadata(model: PyanNet, prediction_dir: Path) -> None:
 
     Args:
         model: The trained model object containing metadata.
-        output_path (Path): The path where the metadata YAML file will be saved.
+        prediction_dir (Path): The path where the metadata YAML file will be saved.
     """
     metadata = {
         "sample_rate": model.sincnet.sample_rate,
@@ -84,7 +84,6 @@ def main(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
     )
-    save_model_metadata(model, Path(model_path).parent / "saved_predictions")
 
     test_loader, domain_loader = load_data_eval(
         data_cfg=data_cfg,
@@ -96,6 +95,8 @@ def main(
 
     prediction_dir = Path(model_path).parent / "saved_predictions"
     prediction_dir.mkdir(parents=True, exist_ok=True)
+
+    save_model_metadata(model, prediction_dir)
 
     print("Saving test predictions...")
     save_predictions_chunked(

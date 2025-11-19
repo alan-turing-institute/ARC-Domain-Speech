@@ -28,7 +28,7 @@ def main(prediction_path: Path):
     data_name = prediction_path.stem
     print(f"Saving plots to: {analysis_dir}")
 
-    # Analyze the first few files
+    # Analyze all files
     for file_id in tqdm(list(predictions.keys()), desc="Analyzing files"):
         tensor = predictions[file_id]
         analyse_file(
