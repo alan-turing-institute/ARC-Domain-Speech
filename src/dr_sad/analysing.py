@@ -7,6 +7,8 @@ import soundfile
 import torch
 from scipy import signal as sp_signal
 
+from dr_sad.evaluating import EvaluationMetrics, SpeechDetectionEvaluator
+
 
 def mode(x: np.ndarray) -> np.ndarray:
     """Return the mode of a 1D numpy array."""
@@ -88,6 +90,7 @@ def plot_analysis(
     ground_truth_mask: np.ndarray,
     predictions: np.ndarray,
     output_dir: Path | None = None,
+    evaluation_metrics: EvaluationMetrics | None = None,
 ) -> None:
     """
     Create a single plot with audio background, ground truth, and predictions overlaid.
@@ -154,6 +157,21 @@ def plot_analysis(
     ax.legend()
     ax.grid(True, alpha=0.3)
 
+    # Add DER metrics text box if provided
+    if evaluation_metrics:
+        metrics_text = evaluation_metrics.format_for_plot()
+        # Add text box in upper right corner
+        ax.text(
+            0.98,
+            0.98,
+            metrics_text,
+            transform=ax.transAxes,
+            fontsize=10,
+            verticalalignment="top",
+            horizontalalignment="right",
+            bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
+        )
+
     # Save plot
     if output_dir is None:
         output_dir = Path(".temp")
@@ -161,16 +179,18 @@ def plot_analysis(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = output_dir / f"{file_id}_analysis.png"
+
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
 
 
 def analyse_file(
     file_id: str,
-    predictions: torch.Tensor,
+    predictions: np.ndarray,
     model_metadata: dict[str, Any],
     output_dir: Path | None = None,
-) -> None:
+    evaluator: SpeechDetectionEvaluator | None = None,
+) -> EvaluationMetrics | None:
     """Analyze a single file with audio, ground truth, and predictions.
 
     Args:
@@ -189,7 +209,21 @@ def analyse_file(
     frame_rate_hz = model_metadata["frame_rate_hz"]
     audio_duration_sec = len(audio) / sample_rate
     actual_num_frames = int(audio_duration_sec * frame_rate_hz)
-    predictions = predictions[:, :actual_num_frames]
+
+    # get only the valid portion of predictions
+    signal_predictions = predictions[:actual_num_frames]
+
+    # Downsample ground truth to match predictions
+    gt_downsampled = _downsample_to_prediction_frames(
+        ground_truth_mask, len(signal_predictions), is_binary=True
+    )
+    # Compute DER metrics
+    if evaluator is None:
+        evaluation_metrics = None
+    else:
+        evaluation_metrics = evaluator.evaluate(
+            predictions=signal_predictions, ground_truth=gt_downsampled
+        )
 
     # Create visualization
     plot_analysis(
@@ -197,6 +231,9 @@ def analyse_file(
         audio,
         sample_rate,
         ground_truth_mask,
-        predictions,
+        signal_predictions,
         output_dir,
+        evaluation_metrics=evaluation_metrics,
     )
+
+    return evaluation_metrics if evaluation_metrics else None

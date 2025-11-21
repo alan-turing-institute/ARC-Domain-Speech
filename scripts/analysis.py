@@ -10,6 +10,7 @@ from safetensors.torch import load_file
 from tqdm import tqdm
 
 from dr_sad.analysing import analyse_file
+from dr_sad.evaluating import SpeechDetectionEvaluator
 
 
 def main(prediction_path: Path):
@@ -28,11 +29,21 @@ def main(prediction_path: Path):
     data_name = prediction_path.stem
     print(f"Saving plots to: {analysis_dir}")
 
+    # Initialize evaluator
+    evaluator = SpeechDetectionEvaluator(
+        collar_frames=int(0.25 * model_metadata["frame_rate_hz"]),
+        detection_threshold=0.8,
+    )
+
     # Analyze all files
     for file_id in tqdm(list(predictions.keys()), desc="Analyzing files"):
-        tensor = predictions[file_id]
+        numpy_predictions = predictions[file_id].numpy().squeeze()
         analyse_file(
-            file_id, tensor, model_metadata, output_dir=Path(analysis_dir / data_name)
+            file_id,
+            numpy_predictions,
+            model_metadata,
+            output_dir=Path(analysis_dir / data_name),
+            evaluator=evaluator,
         )
 
 
