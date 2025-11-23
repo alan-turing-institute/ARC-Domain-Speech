@@ -11,13 +11,6 @@ from scipy import signal as sp_signal
 from dr_sad.evaluating import EvaluationMetrics, SpeechDetectionEvaluator
 
 
-def mode(x: np.ndarray) -> np.ndarray:
-    """Return the mode of a 1D numpy array."""
-    values, counts = np.unique(x, return_counts=True)
-    max_count_index = np.argmax(counts)
-    return values[max_count_index]
-
-
 def _load_audio_and_annotations(
     file_id: str,
     data_dir: str = "data/callhome",
@@ -68,17 +61,29 @@ def _downsample_to_prediction_frames(
     prediction_length: int,
     is_binary: bool = False,
 ) -> np.ndarray:
-    """Downsample signal to match prediction frame rate using vectorized operations."""
+    """
+    Downsample signal to match prediction frame rate.
+
+    Args:
+        signal: Input signal to downsample
+        prediction_length: Target length after downsampling
+        is_binary: If True, uses nearest-neighbor resampling to preserve binary values.
+                   If False, uses spectral interpolation for smooth resampling.
+
+    Returns:
+        Downsampled signal
+    """
 
     if is_binary:
-        # Use scipy's resample with nearest neighbor for binary
-        downsampled: np.ndarray = sp_signal.resample(
-            signal, prediction_length, window="boxcar"
+        # For binary signals, use nearest-neighbor interpolation
+        # This preserves the binary nature without introducing fractional values
+        indices = np.round(np.linspace(0, len(signal) - 1, prediction_length)).astype(
+            int
         )
-        # Re-binarize after resampling (threshold at 0.5)
-        downsampled = (downsampled > 0.5).astype(float)
+        downsampled = signal[indices].astype(float)
     else:
-        # For continuous signals, scipy.signal.resample is efficient
+        # For continuous signals (audio), use spectral interpolation
+        # This provides smooth, anti-aliased downsampling
         downsampled = sp_signal.resample(signal, prediction_length)
 
     return downsampled

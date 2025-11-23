@@ -13,6 +13,11 @@ from tqdm import tqdm
 from dr_sad.analysing import evaluate_file
 from dr_sad.evaluating import SpeechDetectionEvaluator
 
+# Collar duration in seconds and detection threshold for evaluation metrics
+# We can adjust these later if needed
+COLLAR_SECONDS = 0.25
+DETECTION_THRESHOLD = 0.8
+
 
 def main(prediction_path: Path, plot_figures: bool):
     # Load prediction file
@@ -33,9 +38,11 @@ def main(prediction_path: Path, plot_figures: bool):
         analysis_dir = None
 
     # Initialize evaluator
+    collar_frames = int(COLLAR_SECONDS * model_metadata["frame_rate_hz"])
+
     evaluator = SpeechDetectionEvaluator(
-        collar_frames=int(0.25 * model_metadata["frame_rate_hz"]),
-        detection_threshold=0.8,
+        collar_frames=collar_frames,
+        detection_threshold=DETECTION_THRESHOLD,
     )
 
     all_results = {}
