@@ -10,11 +10,11 @@ import yaml
 from safetensors.torch import load_file
 from tqdm import tqdm
 
-from dr_sad.analysing import analyse_file
+from dr_sad.analysing import evaluate_file
 from dr_sad.evaluating import SpeechDetectionEvaluator
 
 
-def main(prediction_path: Path):
+def main(prediction_path: Path, plot_figures: bool):
     # Load prediction file
     predictions = load_file(prediction_path)
     model_metadata = yaml.safe_load(
@@ -24,11 +24,13 @@ def main(prediction_path: Path):
     print(f"Loaded predictions from: {prediction_path}")
     print(f"Number of files: {len(predictions)}")
 
-    # Create output directory in the experiment folder
-    experiment_dir = prediction_path.parent.parent
-    analysis_dir = experiment_dir / "analysis_plots"
+    # Create output directory in the experiment folder if plotting is enabled
     data_name = prediction_path.stem
-    print(f"Saving plots to: {analysis_dir}")
+    experiment_dir = prediction_path.parent.parent
+    if plot_figures:
+        analysis_dir = experiment_dir / "analysis_plots" / data_name
+    else:
+        analysis_dir = None
 
     # Initialize evaluator
     evaluator = SpeechDetectionEvaluator(
@@ -41,15 +43,15 @@ def main(prediction_path: Path):
     # Analyze all files
     for file_id in tqdm(list(predictions.keys()), desc="Analyzing files"):
         numpy_predictions = predictions[file_id].numpy().squeeze()
-        evaluation_metrics = analyse_file(
+        evaluation_metrics = evaluate_file(
             file_id,
             numpy_predictions,
             model_metadata,
-            output_dir=Path(analysis_dir / data_name),
+            output_dir=analysis_dir,
             evaluator=evaluator,
+            plot_figures=plot_figures,
         )
-        if evaluation_metrics is not None:  # this keeps mypy happy
-            all_results[file_id] = evaluation_metrics.to_dict()
+        all_results[file_id] = evaluation_metrics.to_dict()
 
     # Filter out None results and calculate means
     valid_results: list[dict[str, float]] = list(all_results.values())
@@ -77,5 +79,10 @@ if __name__ == "__main__":
         required=True,
         help="Path to the prediction safetensors file",
     )
+    parser.add_argument(
+        "--plot-figures",
+        action="store_true",
+        help="Whether to generate and save analysis plots for each file",
+    )
     args = parser.parse_args()
-    main(Path(args.prediction_path))
+    main(Path(args.prediction_path), plot_figures=args.plot_figures)

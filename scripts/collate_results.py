@@ -6,36 +6,17 @@ import pandas as pd
 import yaml
 
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
+from dr_sad.utils import get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = MAIN_DIR / "outputs"
 
 
-def get_experiment_name(exp_name_arg: str) -> tuple[str, Path]:
-    """Get experiment name and path from argument."""
-    p = Path(exp_name_arg)
-    if p.exists():
-        experiment_path = p
-    elif (OUTPUT_DIR / p).exists():
-        experiment_path = OUTPUT_DIR / p
-    else:
-        msg = f"Experiment config not found: {exp_name_arg}"
-        raise FileNotFoundError(msg)
-    # Determine experiment_name string
-    try:
-        # If experiment_path is inside OUTPUT_DIR
-        rel = experiment_path.relative_to(OUTPUT_DIR)
-        # Remove suffix (.yaml/.yml) and return the parent path + stem
-        experiment_name = str(rel.with_suffix("")).replace("\\", "/")
-    except ValueError:
-        # Not inside OUTPUT_DIR → just use the filename without suffix
-        experiment_name = experiment_path.stem
-
-    return experiment_name, experiment_path
-
-
 def main(args) -> None:
-    exp_name, exp_path = get_experiment_name(args.experiment_name)
+    exp_name, exp_path = get_experiment_name(
+        exp_name_arg=args.experiment_name,
+        exp_config_dir=OUTPUT_DIR,
+    )
     print(f"Collating results for experiment: {exp_name}")
 
     results = {}

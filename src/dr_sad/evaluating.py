@@ -17,7 +17,7 @@ class EvaluationMetrics:
     missed_speech_rate: float
     """Missed speech rate"""
 
-    accuracy: float
+    frame_accuracy: float
     """Frame-level accuracy"""
 
     detection_cost_function: float
@@ -28,7 +28,7 @@ class EvaluationMetrics:
             f"Evaluation Metrics:\n"
             f"  DER: {self.der:.2%}\n"
             f"  DCF: {self.detection_cost_function:.2%}\n"
-            f"  Frame Accuracy: {self.accuracy:.2%}\n"
+            f"  Frame Accuracy: {self.frame_accuracy:.2%}\n"
             f"  False Alarm: {self.false_alarm_rate:.2%}\n"
             f"  Missed Speech: {self.missed_speech_rate:.2%}\n"
         )
@@ -38,7 +38,7 @@ class EvaluationMetrics:
             f"Metrics:\n"
             f"DER: {self.der:.2%}\n"
             f"DCF: {self.detection_cost_function:.2%}\n"
-            f"Acc: {self.accuracy:.2%}\n"
+            f"Acc: {self.frame_accuracy:.2%}\n"
             f"FA: {self.false_alarm_rate:.2%}\n"
             f"Miss: {self.missed_speech_rate:.2%}"
         )
@@ -334,6 +334,6 @@ class SpeechDetectionEvaluator:
             der=der_results["der"],
             false_alarm_rate=der_results["false_alarm_rate"],
             missed_speech_rate=der_results["missed_speech_rate"],
-            accuracy=accuracy,
+            frame_accuracy=accuracy,
             detection_cost_function=dcf,
         )

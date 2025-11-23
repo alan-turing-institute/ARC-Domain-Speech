@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -89,7 +90,7 @@ def plot_analysis(
     sample_rate: int,
     ground_truth_mask: np.ndarray,
     predictions: np.ndarray,
-    output_dir: Path | None = None,
+    output_dir: Path,
     evaluation_metrics: EvaluationMetrics | None = None,
 ) -> None:
     """
@@ -101,7 +102,8 @@ def plot_analysis(
         sample_rate: Audio sample rate
         ground_truth_mask: Binary mask for ground truth speech activity
         predictions: Model predictions
-        output_dir: Directory to save plots (if None, uses .temp/)
+        output_dir: Directory to save plots
+        evaluation_metrics: EvaluationMetrics object for displaying metrics on plot
     """
 
     # Convert predictions to numpy if needed
@@ -173,8 +175,6 @@ def plot_analysis(
         )
 
     # Save plot
-    if output_dir is None:
-        output_dir = Path(".temp")
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -184,21 +184,39 @@ def plot_analysis(
     plt.close()
 
 
-def analyse_file(
+def evaluate_file(
     file_id: str,
     predictions: np.ndarray,
     model_metadata: dict[str, Any],
-    output_dir: Path | None = None,
-    evaluator: SpeechDetectionEvaluator | None = None,
-) -> EvaluationMetrics | None:
+    evaluator: SpeechDetectionEvaluator,
+    output_dir: None | Path = None,
+    plot_figures: bool = False,
+) -> EvaluationMetrics:
     """Analyze a single file with audio, ground truth, and predictions.
 
     Args:
         file_id: ID of the file to analyze
         predictions: Model predictions for this file
         model_metadata: Metadata dictionary for the model
-        output_dir: Directory to save plots (if None, uses .temp/)
+        output_dir: Directory to save plots (only required if plot_figures is True)
+        evaluator: SpeechDetectionEvaluator instance for metric calculations
+        plot_figures: Whether to generate and save plots
+    returns:
+        EvaluationMetrics object with computed metrics, or None if evaluator is None
     """
+
+    # check plotting arguments are consistent
+    if output_dir is None and plot_figures:
+        err_msg = "output_dir must be provided if plot_figures is True."
+        raise ValueError(err_msg)
+
+    if output_dir is not None and not plot_figures:
+        warnings.warn(
+            "output_dir provided but plot_figures is False."
+            " output_dir will be ignored.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     audio, sample_rate, speech_segments = _load_audio_and_annotations(file_id)
 
@@ -218,22 +236,20 @@ def analyse_file(
         ground_truth_mask, len(signal_predictions), is_binary=True
     )
     # Compute DER metrics
-    if evaluator is None:
-        evaluation_metrics = None
-    else:
-        evaluation_metrics = evaluator.evaluate(
-            predictions=signal_predictions, ground_truth=gt_downsampled
-        )
-
-    # Create visualization
-    plot_analysis(
-        file_id,
-        audio,
-        sample_rate,
-        ground_truth_mask,
-        signal_predictions,
-        output_dir,
-        evaluation_metrics=evaluation_metrics,
+    evaluation_metrics = evaluator.evaluate(
+        predictions=signal_predictions, ground_truth=gt_downsampled
     )
 
-    return evaluation_metrics if evaluation_metrics else None
+    if plot_figures and output_dir is not None:
+        # Create visualization
+        plot_analysis(
+            file_id,
+            audio,
+            sample_rate,
+            ground_truth_mask,
+            signal_predictions,
+            output_dir,
+            evaluation_metrics=evaluation_metrics,
+        )
+
+    return evaluation_metrics

@@ -152,11 +152,11 @@ class TestEvaluationMetrics:
             der=0.15,
             false_alarm_rate=0.08,
             missed_speech_rate=0.07,
-            accuracy=0.92,
+            frame_accuracy=0.92,
             detection_cost_function=0.10,
         )
         assert metrics.der == 0.15
-        assert metrics.accuracy == 0.92
+        assert metrics.frame_accuracy == 0.92
         assert metrics.detection_cost_function == 0.10
 
     def test_to_dict(self):
@@ -165,13 +165,13 @@ class TestEvaluationMetrics:
             der=0.15,
             false_alarm_rate=0.08,
             missed_speech_rate=0.07,
-            accuracy=0.92,
+            frame_accuracy=0.92,
             detection_cost_function=0.10,
         )
         metrics_dict = metrics.to_dict()
         assert isinstance(metrics_dict, dict)
         assert metrics_dict["der"] == 0.15
-        assert metrics_dict["accuracy"] == 0.92
+        assert metrics_dict["frame_accuracy"] == 0.92
         assert metrics_dict["detection_cost_function"] == 0.10
 
     def test_format_for_plot(self):
@@ -180,7 +180,7 @@ class TestEvaluationMetrics:
             der=0.15,
             false_alarm_rate=0.08,
             missed_speech_rate=0.07,
-            accuracy=0.92,
+            frame_accuracy=0.92,
             detection_cost_function=0.10,
         )
         plot_text = metrics.format_for_plot()
@@ -232,7 +232,7 @@ class TestSpeechDetectionEvaluator:
         assert metrics.der == pytest.approx(
             2 / 3, rel=1e-3
         )  # (1 FA + 1 Miss) / 3 speech frames = 2/3
-        assert metrics.accuracy == pytest.approx(
+        assert metrics.frame_accuracy == pytest.approx(
             5 / 7, rel=1e-3
         )  # 5 correct out of 7 frames
         assert metrics.false_alarm_rate == pytest.approx(
