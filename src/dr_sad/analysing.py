@@ -8,6 +8,7 @@ import soundfile
 import torch
 from scipy import signal as sp_signal
 
+from dr_sad.annotation import speaking_map
 from dr_sad.evaluating import EvaluationMetrics, SpeechDetectionEvaluator
 
 
@@ -226,23 +227,33 @@ def evaluate_file(
     audio, sample_rate, speech_segments = _load_audio_and_annotations(file_id)
 
     # Create ground truth mask
-    ground_truth_mask = _create_ground_truth_mask(
-        len(audio), sample_rate, speech_segments
-    )
+    # ground_truth_mask = _create_ground_truth_mask(
+    #     len(audio), sample_rate, speech_segments
+    # )
     frame_rate_hz = model_metadata["frame_rate_hz"]
+
     audio_duration_sec = len(audio) / sample_rate
     actual_num_frames = int(audio_duration_sec * frame_rate_hz)
 
     # get only the valid portion of predictions
     signal_predictions = predictions[:actual_num_frames]
 
-    # Downsample ground truth to match predictions
-    gt_downsampled = _downsample_to_prediction_frames(
-        ground_truth_mask, len(signal_predictions), is_binary=True
+    all_timestamps = (
+        np.arange(len(signal_predictions)) * (1 / frame_rate_hz)
+    ) + model_metadata["frame_hop_sec"]
+
+    ground_truth_mask = speaking_map(
+        timestamps=all_timestamps,
+        annotations=speech_segments,
     )
+
+    # Downsample ground truth to match predictions
+    # gt_downsampled = _downsample_to_prediction_frames(
+    #     ground_truth_mask, len(signal_predictions), is_binary=True
+    # )
     # Compute DER metrics
     evaluation_metrics = evaluator.evaluate(
-        predictions=signal_predictions, ground_truth=gt_downsampled
+        predictions=signal_predictions, ground_truth=ground_truth_mask
     )
 
     if plot_figures and output_dir is not None:

@@ -23,12 +23,12 @@ class TestApplyCollar:
 
     def test_identifies_boundaries(self):
         """Test that apply_collar identifies and dilates boundaries."""
-        mask = np.array([0, 0, 1, 1, 1, 0, 0])
+        mask = np.array([0, 0, 1, 1, 1, 1, 1, 0, 0, 0])
         output_evaluation_mask = apply_collar(mask, collar_frames=1)
-        # Boundaries at indices 2 (0->1) and 5 (1->0)
+        # Boundaries at indices 2 (0->1) and 7 (1->0)
         # With collar_frames=1, should dilate by 1 on each side
-        # Expected: collar at indices 1,2,3 and 4,5,6
-        expected = np.array([0, 1, 1, 1, 1, 1, 1])
+        # Expected: collar at indices 1,2,3 and 6,7,8
+        expected = np.array([0, 1, 1, 1, 0, 0, 1, 1, 1, 0])
         np.testing.assert_array_equal(output_evaluation_mask, expected)
 
     def test_negative_collar(self):
@@ -192,33 +192,6 @@ class TestEvaluationMetrics:
 
 class TestSpeechDetectionEvaluator:
     """Tests for SpeechDetectionEvaluator class."""
-
-    def test_calculate_detection_error_rate(self):
-        """Test evaluator's DER calculation method."""
-        evaluator = SpeechDetectionEvaluator(collar_frames=0, detection_threshold=0.5)
-        ground_truth = np.array([0, 0, 1, 1, 1, 0, 0])
-        predictions = np.array([0, 0, 1, 1, 1, 0, 0])
-
-        result = evaluator.calculate_detection_error_rate(ground_truth, predictions)
-        assert result["der"] == 0.0
-
-    def test_calculate_frame_accuracy(self):
-        """Test evaluator's frame accuracy calculation method."""
-        evaluator = SpeechDetectionEvaluator(collar_frames=0, detection_threshold=0.5)
-        ground_truth = np.array([0, 0, 1, 1, 1, 0, 0])
-        predictions = np.array([0.1, 0.2, 0.9, 0.8, 0.7, 0.1, 0.3])
-
-        accuracy = evaluator.calculate_frame_accuracy(ground_truth, predictions)
-        assert accuracy == 1.0
-
-    def test_calculate_detection_cost_function(self):
-        """Test evaluator's DCF calculation method."""
-        evaluator = SpeechDetectionEvaluator(collar_frames=0, detection_threshold=0.5)
-        ground_truth = np.array([0, 0, 1, 1, 1, 0, 0])
-        predictions = np.array([0, 0, 1, 1, 1, 0, 0])
-
-        dcf = evaluator.calculate_detection_cost_function(ground_truth, predictions)
-        assert dcf == 0.0
 
     def test_evaluate(self):
         """Test evaluator's full evaluation method."""

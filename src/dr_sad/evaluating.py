@@ -9,19 +9,31 @@ class EvaluationMetrics:
     """Container for speech activity detection evaluation metrics."""
 
     der: float
-    """Detection error rate"""
+    """
+    Detection error rate = (Total missed speech + Total false Alarms) / Total frames
+    """
 
     false_alarm_rate: float
-    """False alarm rate"""
+    """
+    False alarm rate = Total false alarms / Total non-speech frames
+    """
 
     missed_speech_rate: float
-    """Missed speech rate"""
+    """
+    Missed speech rate = Total missed speech / Total speech frames
+    """
 
     frame_accuracy: float
-    """Frame-level accuracy"""
+    """
+    Frame-level accuracy = Total correct frames / Total frames
+    (1 - DER)
+    """
 
     detection_cost_function: float
-    """Detection cost function (DCF)"""
+    """
+    Detection cost function (DCF) = weighted {false alarm rate + missed speech rate}
+    (Normalised to 1)
+    """
 
     def __str__(self) -> str:
         return (
@@ -49,25 +61,22 @@ class EvaluationMetrics:
 
 
 def apply_collar(
-    mask: np.ndarray,
+    annotations: np.ndarray,
     collar_frames: int,
 ) -> np.ndarray:
     """
-    Create a collar mask around segment boundaries.
-
-    The collar removes frames around boundaries from evaluation (half the collar
-    duration before the boundary, half after). This accounts for uncertainty in
-    exact boundary detection.
+    Create a collar mask around segment boundaries. Identifies index at which transition
+    occurs. Adds a collar of specified size around this index (inclusive of the index).
 
     Args:
-        mask: Binary mask (0s and 1s)
+        annotations: Binary annotation labels (0s and 1s)
         collar_frames: Number of frames for the collar on each side of boundaries
 
     Returns:
         Binary mask with 1s indicating collar regions (to be excluded from eval)
     """
     if collar_frames == 0:
-        return np.zeros_like(mask)
+        return np.zeros_like(annotations)
 
     if collar_frames < 0:
         err_msg = (
@@ -77,7 +86,7 @@ def apply_collar(
 
     # Find boundaries (transitions between speech and non-speech)
     # Boundaries occur where the difference between adjacent frames is non-zero
-    boundaries = np.abs(np.diff(mask.astype(int)))
+    boundaries = np.abs(np.diff(annotations.astype(int)))
     # Diff produces an array one element shorter than input
     boundaries = np.concatenate([[0], boundaries])
 
@@ -245,71 +254,59 @@ class SpeechDetectionEvaluator:
         self.collar_frames = collar_frames
         self.detection_threshold = detection_threshold
 
-    def calculate_detection_error_rate(
-        self,
-        ground_truth: np.ndarray,
-        predictions: np.ndarray,
-    ) -> dict[str, float]:
+    def calculate_base_metrics(self, ground_truth, predictions) -> dict[str, float]:
         """
-        Calculate detection error rate metrics.
+        Calculate base values for frame-wise metrics. This is a utility function which
+        will be used in calculating other metrics.
 
         Args:
             ground_truth: Binary ground truth mask
             predictions: Model predictions
 
         Returns:
-            Dictionary with DER metrics.
+            Total frames
+            Real positives
+            Real negatives
+            False Positives
+            False Negatives
+            True Positives
+            True Negatives
         """
-        return detection_error_rate(
-            ground_truth,
-            predictions,
-            threshold=self.detection_threshold,
-            collar_frames=self.collar_frames,
+        pred_binary = (predictions > self.detection_threshold).astype(float)
+
+        if self.collar_frames > 0:
+            collar_mask = apply_collar(ground_truth, self.collar_frames)
+            eval_mask = 1 - collar_mask
+        else:
+            eval_mask = np.ones_like(ground_truth)
+
+        # Apply eval_mask to all calculations
+        true_positives = np.sum(
+            (pred_binary == 1) & (ground_truth == 1) & (eval_mask == 1)
+        )
+        true_negatives = np.sum(
+            (pred_binary == 0) & (ground_truth == 0) & (eval_mask == 1)
+        )
+        false_positives = np.sum(
+            (pred_binary == 1) & (ground_truth == 0) & (eval_mask == 1)
+        )
+        false_negatives = np.sum(
+            (pred_binary == 0) & (ground_truth == 1) & (eval_mask == 1)
         )
 
-    def calculate_frame_accuracy(
-        self,
-        ground_truth: np.ndarray,
-        predictions: np.ndarray,
-    ) -> float:
-        """
-        Calculate frame-level accuracy.
+        real_positives = np.sum((ground_truth == 1) & (eval_mask == 1))
+        real_negatives = np.sum((ground_truth == 0) & (eval_mask == 1))
+        total_frames = np.sum(eval_mask)
 
-        Args:
-            ground_truth: Binary ground truth mask
-            predictions: Model predictions
-
-        Returns:
-            Frame-level accuracy as a float.
-        """
-        return frame_accuracy(
-            predictions,
-            ground_truth,
-            threshold=self.detection_threshold,
-            collar_frames=self.collar_frames,
-        )
-
-    def calculate_detection_cost_function(
-        self,
-        ground_truth: np.ndarray,
-        predictions: np.ndarray,
-    ) -> float:
-        """
-        Calculate detection cost function (DCF).
-
-        Args:
-            ground_truth: Binary ground truth mask
-            predictions: Model predictions
-
-        Returns:
-            DCF as a float.
-        """
-        return detection_cost_function(
-            ground_truth,
-            predictions,
-            threshold=self.detection_threshold,
-            collar_frames=self.collar_frames,
-        )
+        return {
+            "total_frames": total_frames,
+            "real_positives": real_positives,
+            "real_negatives": real_negatives,
+            "false_positives": false_positives,
+            "false_negatives": false_negatives,
+            "true_positives": true_positives,
+            "true_negatives": true_negatives,
+        }
 
     def evaluate(
         self,
@@ -326,14 +323,38 @@ class SpeechDetectionEvaluator:
         Returns:
             EvaluationMetrics object
         """
-        der_results = self.calculate_detection_error_rate(ground_truth, predictions)
-        accuracy = self.calculate_frame_accuracy(ground_truth, predictions)
-        dcf = self.calculate_detection_cost_function(ground_truth, predictions)
+        base_metrics = self.calculate_base_metrics(ground_truth, predictions)
+
+        false_alarms = base_metrics["false_positives"]
+        missed_speech = base_metrics["false_negatives"]
+        total_speech_frames = base_metrics["real_positives"]
+        total_nonspeech_frames = base_metrics["real_negatives"]
+        total_frames = base_metrics["total_frames"]
+        true_positives = base_metrics["true_positives"]
+        true_negatives = base_metrics["true_negatives"]
+
+        der = (
+            (false_alarms + missed_speech) / total_speech_frames
+            if total_speech_frames > 0
+            else 0.0
+        )
+        false_alarm_rate = (
+            false_alarms / total_nonspeech_frames if total_nonspeech_frames > 0 else 0.0
+        )
+        missed_speech_rate = (
+            missed_speech / total_speech_frames if total_speech_frames > 0 else 0.0
+        )
+        frame_accuracy = (
+            (true_positives + true_negatives) / total_frames
+            if total_frames > 0
+            else 0.0
+        )
+        detection_cost_function = 0.75 * missed_speech_rate + 0.25 * false_alarm_rate
 
         return EvaluationMetrics(
-            der=der_results["der"],
-            false_alarm_rate=der_results["false_alarm_rate"],
-            missed_speech_rate=der_results["missed_speech_rate"],
-            frame_accuracy=accuracy,
-            detection_cost_function=dcf,
+            der=der,
+            false_alarm_rate=false_alarm_rate,
+            missed_speech_rate=missed_speech_rate,
+            frame_accuracy=frame_accuracy,
+            detection_cost_function=detection_cost_function,
         )

@@ -27,6 +27,10 @@ def save_model_metadata(model: PyanNet, prediction_dir: Path) -> None:
         "frame_hop_samples": model.sincnet.frame_hop_samples,
         "frame_hop_sec": model.sincnet.frame_hop_samples / model.sincnet.sample_rate,
         "frame_rate_hz": model.sincnet.frame_rate_hz,
+        # first frame in input sequence predicted by model
+        "frame_center_start": model.sincnet.frame_center_start_step[0],
+        # step between frames in input sequence predicted by model
+        "frame_center_step": model.sincnet.frame_center_start_step[1],
     }
 
     metadata_path = prediction_dir / "model_metadata.yaml"
