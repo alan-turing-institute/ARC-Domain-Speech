@@ -44,8 +44,30 @@ def binarise(
                 binary_array[n] = current
             current = binary_array[n]
 
-    if min_duration_off is not None or min_duration_on is not None:
-        msg = "Minimum duration handling not yet implemented"
-        raise NotImplementedError(msg)
+    if min_duration_off is not None:
+        start_idx = 0
+        status = binary_array[0]
+        for n in range(1, len(binary_array)):
+            if binary_array[n] != status:
+                if not status and n - start_idx < min_duration_off:
+                    binary_array[start_idx:n] = True
+                start_idx = n
+                status = binary_array[n]
+
+        if not status and len(binary_array) - start_idx < min_duration_off:
+            binary_array[start_idx:] = True
+
+    if min_duration_on is not None:
+        start_idx = 0
+        status = binary_array[0]
+        for n in range(1, len(binary_array)):
+            if binary_array[n] != status:
+                if status and n - start_idx < min_duration_on:
+                    binary_array[start_idx:n] = False
+                start_idx = n
+                status = binary_array[n]
+
+        if status and len(binary_array) - start_idx < min_duration_on:
+            binary_array[start_idx:] = False
 
     return binary_array
