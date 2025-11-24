@@ -71,3 +71,40 @@ def binarise(
             binary_array[start_idx:] = False
 
     return binary_array
+
+
+def segment_times(
+    binary_array: np.ndarray, time_start: float, time_step: float
+) -> list[tuple[float, float]]:
+    """Convert a binary array to a list of time segments.
+
+    Args:
+        binary_array: 1D numpy array of boolean values indicating "on" (True)
+            and "off" (False) states.
+        time_start: (float): Value for the first timestamp.
+        time_step: (float): Time difference between consecutive timestamps.
+
+    Returns:
+        segments (list of tuples): List of (start_time, end_time) tuples for
+            each "on" segment.
+    """
+    timestamps = time_start - time_step / 2 + time_step * np.arange(len(binary_array))
+
+    segments = []
+    start_time = 0.0
+    in_segment = binary_array[0]
+
+    for n, val in enumerate(binary_array):
+        if val and not in_segment:
+            in_segment = True
+            start_time = timestamps[n]
+        elif not val and in_segment:
+            in_segment = False
+            end_time = timestamps[n]
+            segments.append((start_time, end_time))
+
+    if in_segment:
+        end_time = (len(binary_array) - 1) * time_step + time_start * 2
+        segments.append((start_time, end_time))
+
+    return segments

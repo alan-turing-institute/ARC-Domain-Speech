@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from dr_sad.segment import binarise
+from dr_sad.segment import binarise, segment_times
 
 
 class TestBinarise:
@@ -58,3 +58,41 @@ class TestBinarise:
 
         with pytest.raises(ValueError, match="On threshold must"):
             binarise(input_array, on_threshold=0.3, off_threshold=0.5)
+
+
+class TestSegmentTimes:
+    def test_simple(self):
+        input_array = np.array([0, 1, 1, 1, 1, 0, 0, 0], dtype=bool)
+        expected_times = [(1.25, 3.25)]
+        output_times = segment_times(input_array, 1, 0.5)
+        np.testing.assert_almost_equal(output_times, expected_times)
+
+    def test_no_segments(self):
+        input_array = np.array([0, 0, 0, 0], dtype=bool)
+        expected_times: list[tuple[float, float]] = []
+        output_times = segment_times(input_array, 1, 0.5)
+        np.testing.assert_almost_equal(output_times, expected_times)
+
+    def test_starting_on(self):
+        input_array = np.array([1, 1, 0, 0, 0, 0], dtype=bool)
+        expected_times = [(0.0, 1.75)]
+        output_times = segment_times(input_array, 1, 0.5)
+        np.testing.assert_almost_equal(output_times, expected_times)
+
+    def test_ending_on(self):
+        input_array = np.array([0, 0, 0, 0, 1, 1], dtype=bool)
+        expected_times = [(2.75, 4.5)]
+        output_times = segment_times(input_array, 1, 0.5)
+        np.testing.assert_almost_equal(output_times, expected_times)
+
+    def test_multiple_segments(self):
+        input_array = np.array([0, 1, 1, 0, 1, 1, 1, 0], dtype=bool)
+        expected_times = [(1.25, 2.25), (2.75, 4.25)]
+        output_times = segment_times(input_array, 1, 0.5)
+        np.testing.assert_almost_equal(output_times, expected_times)
+
+    def test_different_time_step(self):
+        input_array = np.array([0, 1, 1, 1, 0, 0], dtype=bool)
+        expected_times = [(1.125, 1.875)]
+        output_times = segment_times(input_array, 1.0, 0.25)
+        np.testing.assert_almost_equal(output_times, expected_times)
