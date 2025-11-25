@@ -14,14 +14,14 @@ def binarise(
 
     Args:
         input: 1D numpy array of float values to be binarised.
-        on_threshold: Values above this threshold are considered "on".
-        off_threshold: Values below this threshold are considered "off".
+        on_threshold: Values greater than or equal to this threshold are "on".
+        off_threshold: Values less than or equal to this threshold are "off".
         min_duration_off: Minimum duration (in samples) for "off" segments.
         min_duration_on: Minimum duration (in samples) for "on" segments.
 
     Returns:
-        output (np.ndarray): A boolean numpy array indicating "on" (1) and
-            "off" (0) states.
+        binary_array (np.ndarray): A boolean numpy array indicating speech (True)
+            and non-speech (False) frames.
     """
     if input.ndim != 1:
         msg = "Input array must be 1D"
@@ -79,10 +79,10 @@ def segment_times(
     """Convert a binary array to a list of time segments.
 
     Args:
-        binary_array: 1D numpy array of boolean values indicating "on" (True)
-            and "off" (False) states.
-        time_start: (float): Value for the first timestamp.
-        time_step: (float): Time difference between consecutive timestamps.
+        binary_array (np.ndarray): 1D numpy array of boolean values indicating
+            speech (True) and non-speech (False) frames.
+        time_start (float): Center time for the first frame.
+        time_step (float): Time difference between consecutive frames.
 
     Returns:
         segments (list of tuples): List of (start_time, end_time) tuples for
@@ -131,11 +131,14 @@ def segment_scores(
     """
     total_predicted = len(predicted_segments)
     total_reference = len(reference_segments)
+
+    if total_reference == 0:
+        # No reference segments, all predictions are false positives
+        return 0, total_predicted, 0
+
     tp = 0
 
     ref_array = np.array(reference_segments)
-    if ref_array.size == 0:
-        ref_array = ref_array.reshape((0, 2))
     pred_array = np.zeros_like(ref_array)
 
     for pred_start, pred_end in predicted_segments:
@@ -258,8 +261,18 @@ class SegmentEvaluator:
             predictions: List of numpy arrays containing model predictions.
             references: List of lists of (start_time, end_time) tuples for
                 reference segments.
-        """
+            time_start: Center time for the first frame.
+            time_step: Time difference between consecutive frames.
+            tolerance: Time tolerance for matching segments.
 
+        Optional Args:
+            threshold_on: Values above this threshold are considered "on".
+            threshold_off: Values below this threshold are considered "off".
+            min_duration_off: Minimum duration (in samples) for "off" segments.
+            min_duration_on: Minimum duration (in samples) for "on" segments.
+
+        The optional arguments can be overridden later using set_parameters().
+        """
         self.keys = []
         self.predictions = []
         self.references = []

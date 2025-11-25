@@ -120,7 +120,7 @@ def main(experiment_config_path: str, exclude_domain: int | None):
     output_path = (
         MAIN_DIR / "outputs" / experiment_path.stem
         if exclude_domain is None
-        else MAIN_DIR / "outputs" / f"{experiment_path.stem} / domain_{exclude_domain}"
+        else MAIN_DIR / "outputs" / experiment_path.stem / f"domain_{exclude_domain}"
     )
     predictions_paths = list(output_path.glob("saved_predictions/*.safetensors"))
 
@@ -143,7 +143,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "experiment-config",
         type=str,
-        required=True,
         help="Path or name to the experiment configuration file.",
     )
     parser.add_argument(
