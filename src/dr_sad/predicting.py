@@ -10,7 +10,7 @@ from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import domain_split_dataloaders, from_keys_dataloaders
 from dr_sad.training import create_model
 
-MAIN_DIR = Path(__file__).resolve().parent.parent
+MAIN_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
 
 
@@ -152,7 +152,7 @@ def load_data_eval(
     trainer_cfg: dict[str, str | int | float],
     exp_config: dict[str, str | int | float],
     exclude_domain: int | None = None,
-) -> tuple[DataLoader, DataLoader | None]:
+) -> tuple[DataLoader, DataLoader, DataLoader | None]:
     """
     Load evaluation DataLoaders based on the provided configuration and data split.
 
@@ -170,6 +170,7 @@ def load_data_eval(
 
     Returns:
         tuple[DataLoader, DataLoader | None]: A tuple containing:
+            - validation_loader (DataLoader): DataLoader for the validation set.
             - test_loader (DataLoader): DataLoader for the test set or the included
                 domain.
             - excluded_loader (DataLoader | None): DataLoader for the excluded domain if
@@ -191,7 +192,7 @@ def load_data_eval(
             err_msg = "Cannot exclude domain when domain_type is set to 'all'."
             raise ValueError(err_msg)
 
-        _, _, test_loader = from_keys_dataloaders(
+        _, validation_loader, test_loader = from_keys_dataloaders(
             data,
             train_keys=data_split["train"],
             val_keys=data_split["val"],
@@ -199,14 +200,14 @@ def load_data_eval(
             batch_size=int(trainer_cfg["batch_size"]),
             random_seed=int(exp_config["random_seed"]),
         )
-        return test_loader, None
+        return validation_loader, test_loader, None
 
     if data_cfg["domain_type"] == "exclude_one":
         if exclude_domain is None:
             err_msg = "Must specify --exclude_domain when domain_type is 'exclude_one'."
             raise ValueError(err_msg)
         # Use domain_split_dataloaders to exclude the specified domain
-        _, _, test_loader, domain_loader = domain_split_dataloaders(
+        _, validation_loader, test_loader, domain_loader = domain_split_dataloaders(
             data,
             train_keys=data_split["train"],
             val_keys=data_split["val"],
@@ -216,7 +217,7 @@ def load_data_eval(
             random_seed=int(exp_config["random_seed"]),
         )
 
-        return test_loader, domain_loader
+        return validation_loader, test_loader, domain_loader
 
     err_msg = f"Unknown domain_type option: {data_cfg['domain_type']}"
     raise ValueError(err_msg)

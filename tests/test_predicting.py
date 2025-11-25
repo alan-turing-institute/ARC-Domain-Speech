@@ -314,11 +314,12 @@ class TestLoadDataEval:
             mock_load_data.return_value = mock_dataset
 
             # Mock the dataloaders
+            mock_val_loader = MagicMock(spec=DataLoader)
             mock_test_loader = MagicMock(spec=DataLoader)
-            mock_from_keys.return_value = (None, None, mock_test_loader)
+            mock_from_keys.return_value = (None, mock_val_loader, mock_test_loader)
 
             # Load data
-            test_loader, domain_loader = load_data_eval(
+            validation_loader, test_loader, domain_loader = load_data_eval(
                 data_cfg=data_cfg,
                 data_split=None,
                 trainer_cfg=trainer_cfg,
@@ -340,6 +341,7 @@ class TestLoadDataEval:
             )
 
             # Verify return values
+            assert validation_loader is mock_val_loader
             assert test_loader is mock_test_loader
             assert domain_loader is None
 
@@ -367,17 +369,18 @@ class TestLoadDataEval:
             mock_load_data.return_value = mock_dataset
 
             # Mock the dataloaders
+            mock_val_loader = MagicMock(spec=DataLoader)
             mock_test_loader = MagicMock(spec=DataLoader)
             mock_domain_loader = MagicMock(spec=DataLoader)
             mock_domain_split.return_value = (
                 None,
-                None,
+                mock_val_loader,
                 mock_test_loader,
                 mock_domain_loader,
             )
 
             # Load data with excluded domain
-            test_loader, domain_loader = load_data_eval(
+            validation_loader, test_loader, domain_loader = load_data_eval(
                 data_cfg=data_cfg,
                 data_split=None,
                 trainer_cfg=trainer_cfg,
@@ -397,5 +400,6 @@ class TestLoadDataEval:
             )
 
             # Verify return values
+            assert validation_loader is mock_val_loader
             assert test_loader is mock_test_loader
             assert domain_loader is mock_domain_loader
