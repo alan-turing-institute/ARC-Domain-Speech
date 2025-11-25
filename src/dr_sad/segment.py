@@ -108,3 +108,45 @@ def segment_times(
         segments.append((start_time, end_time))
 
     return segments
+
+
+def segment_scores(
+    predicted_segments: list[tuple[float, float]],
+    reference_segments: list[tuple[float, float]],
+    tolerance: float,
+) -> tuple[int, int, int]:
+    """Calculate true positives, false positives, and false negatives.
+
+    Args:
+        predicted_segments: List of (start_time, end_time) tuples for predicted
+            segments.
+        reference_segments: List of (start_time, end_time) tuples for reference
+            segments.
+        tolerance: Time tolerance for matching segments.
+
+    Returns:
+        tp (int): Number of true positives.
+        fp (int): Number of false positives.
+        fn (int): Number of false negatives.
+    """
+    total_predicted = len(predicted_segments)
+    total_reference = len(reference_segments)
+    tp = 0
+
+    ref_array = np.array(reference_segments)
+    if ref_array.size == 0:
+        ref_array = ref_array.reshape((0, 2))
+    pred_array = np.zeros_like(ref_array)
+
+    for pred_start, pred_end in predicted_segments:
+        pred_array[:, 0] = pred_start
+        pred_array[:, 1] = pred_end
+
+        diffs = np.abs(ref_array - pred_array)
+        matches = np.all(diffs <= tolerance, axis=1)
+        tp += 1 if np.any(matches) else 0
+
+    fp = total_predicted - tp
+    fn = total_reference - tp
+
+    return tp, fp, fn

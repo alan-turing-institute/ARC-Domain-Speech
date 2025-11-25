@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from dr_sad.segment import binarise, segment_times
+from dr_sad.segment import binarise, segment_scores, segment_times
 
 
 class TestBinarise:
@@ -96,3 +96,45 @@ class TestSegmentTimes:
         expected_times = [(1.125, 1.875)]
         output_times = segment_times(input_array, 1.0, 0.25)
         np.testing.assert_almost_equal(output_times, expected_times)
+
+
+class TestSegmentScores:
+    def test_simple(self):
+        predicted_segments = [(1.0, 2.0), (3.0, 4.0)]
+        reference_segments = [(1.0, 2.0), (10.0, 12.0)]
+        tolerance = 0.1
+        expec_tp, expec_fp, expec_fn = 1, 1, 1
+        tp, fp, fn = segment_scores(predicted_segments, reference_segments, tolerance)
+        assert (tp, fp, fn) == (expec_tp, expec_fp, expec_fn)
+
+    def test_tolerance(self):
+        predicted_segments = [(1.0, 2.0), (3.2, 4.0)]
+        reference_segments = [(1.05, 1.95), (3.0, 4.0)]
+        tolerance = 0.1
+        expec_tp, expec_fp, expec_fn = 1, 1, 1
+        tp, fp, fn = segment_scores(predicted_segments, reference_segments, tolerance)
+        assert (tp, fp, fn) == (expec_tp, expec_fp, expec_fn)
+
+    def test_no_matches(self):
+        predicted_segments = [(5.0, 6.0)]
+        reference_segments = [(1.0, 2.0)]
+        tolerance = 0.1
+        expec_tp, expec_fp, expec_fn = 0, 1, 1
+        tp, fp, fn = segment_scores(predicted_segments, reference_segments, tolerance)
+        assert (tp, fp, fn) == (expec_tp, expec_fp, expec_fn)
+
+    def test_no_predictions(self):
+        predicted_segments: list[tuple[float, float]] = []
+        reference_segments = [(1.0, 2.0)]
+        tolerance = 0.1
+        expec_tp, expec_fp, expec_fn = 0, 0, 1
+        tp, fp, fn = segment_scores(predicted_segments, reference_segments, tolerance)
+        assert (tp, fp, fn) == (expec_tp, expec_fp, expec_fn)
+
+    def test_no_references(self):
+        predicted_segments = [(1.0, 2.0)]
+        reference_segments: list[tuple[float, float]] = []
+        tolerance = 0.1
+        expec_tp, expec_fp, expec_fn = 0, 1, 0
+        tp, fp, fn = segment_scores(predicted_segments, reference_segments, tolerance)
+        assert (tp, fp, fn) == (expec_tp, expec_fp, expec_fn)
