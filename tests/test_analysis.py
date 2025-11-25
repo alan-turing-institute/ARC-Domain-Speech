@@ -127,7 +127,7 @@ class TestCreateGroundTruthMask:
         """Test mask creation with no speech segments."""
         audio_length = 16000
         sample_rate = 16000
-        speech_segments = []
+        speech_segments: list[tuple[float, float]] = []
 
         mask = _create_ground_truth_mask(audio_length, sample_rate, speech_segments)
 
