@@ -150,3 +150,46 @@ def segment_scores(
     fn = total_reference - tp
 
     return tp, fp, fn
+
+
+def f1_score_set(
+    predicted_segments: list[list[tuple[float, float]]],
+    reference_segments: list[list[tuple[float, float]]],
+    tolerance: float,
+) -> float:
+    """Calculate the F1 score over a set of predicted and reference segments.
+
+    Args:
+        predicted_segments: List of lists of (start_time, end_time) tuples for
+            predicted segments.
+        reference_segments: List of lists of (start_time, end_time) tuples for
+            reference segments.
+        tolerance: Time tolerance for matching segments.
+
+    Returns:
+        f1_score (float): The F1 score calculated over the entire set.
+    """
+    total_tp = 0
+    total_fp = 0
+    total_fn = 0
+
+    if len(predicted_segments) != len(reference_segments):
+        msg = "Predicted and reference segments lists must have the same length"
+        raise ValueError(msg)
+
+    for pred_segs, ref_segs in zip(predicted_segments, reference_segments, strict=True):
+        tp, fp, fn = segment_scores(pred_segs, ref_segs, tolerance)
+        total_tp += tp
+        total_fp += fp
+        total_fn += fn
+
+    if total_tp + total_fp == 0 or total_tp + total_fn == 0:
+        return 0.0
+
+    precision = total_tp / (total_tp + total_fp)
+    recall = total_tp / (total_tp + total_fn)
+
+    if precision + recall == 0:
+        return 0.0
+
+    return 2 * (precision * recall) / (precision + recall)

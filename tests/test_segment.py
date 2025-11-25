@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from dr_sad.segment import binarise, segment_scores, segment_times
+from dr_sad.segment import binarise, f1_score_set, segment_scores, segment_times
 
 
 class TestBinarise:
@@ -138,3 +138,45 @@ class TestSegmentScores:
         expec_tp, expec_fp, expec_fn = 0, 1, 0
         tp, fp, fn = segment_scores(predicted_segments, reference_segments, tolerance)
         assert (tp, fp, fn) == (expec_tp, expec_fp, expec_fn)
+
+
+class TestF1ScoreSet:
+    def test_simple(self):
+        predicted_segments = [[(1.0, 2.0)], [(3.0, 4.0)]]
+        reference_segments = [[(1.0, 2.0)], [(10.0, 12.0)]]
+        tolerance = 0.1
+        expected_f1 = 0.5
+        f1 = f1_score_set(predicted_segments, reference_segments, tolerance)
+        np.testing.assert_almost_equal(f1, expected_f1)
+
+    def test_no_predictions(self):
+        predicted_segments: list[list[tuple[float, float]]] = [[], []]
+        reference_segments = [[(1.0, 2.0)], [(3.0, 4.0)]]
+        tolerance = 0.1
+        expected_f1 = 0.0
+        f1 = f1_score_set(predicted_segments, reference_segments, tolerance)
+        np.testing.assert_almost_equal(f1, expected_f1)
+
+    def test_no_references(self):
+        predicted_segments = [[(1.0, 2.0)], [(3.0, 4.0)]]
+        reference_segments: list[list[tuple[float, float]]] = [[], []]
+        tolerance = 0.1
+        expected_f1 = 0.0
+        f1 = f1_score_set(predicted_segments, reference_segments, tolerance)
+        np.testing.assert_almost_equal(f1, expected_f1)
+
+    def test_perfect_match(self):
+        predicted_segments = [[(1.0, 2.0)], [(3.0, 4.0)]]
+        reference_segments = [[(1.01, 2.02)], [(3.05, 3.95)]]
+        tolerance = 0.1
+        expected_f1 = 1.0
+        f1 = f1_score_set(predicted_segments, reference_segments, tolerance)
+        np.testing.assert_almost_equal(f1, expected_f1)
+
+    def test_all_wrong(self):
+        predicted_segments = [[(5.0, 6.0)], [(7.0, 8.0)]]
+        reference_segments = [[(1.0, 2.0)], [(3.0, 4.0)]]
+        tolerance = 0.1
+        expected_f1 = 0.0
+        f1 = f1_score_set(predicted_segments, reference_segments, tolerance)
+        np.testing.assert_almost_equal(f1, expected_f1)
