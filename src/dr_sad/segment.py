@@ -233,3 +233,153 @@ def dataset_to_segments(
         all_segments.append(segments)
 
     return all_segments
+
+
+class SegmentEvaluator:
+    """Class for evaluating segment predictions against references.
+    The intent is for this to also be used in threshold optimisation.
+    """
+
+    def __init__(
+        self,
+        prediction_set: dict[str, np.ndarray],
+        reference_set: dict[str, list[tuple[float, float]]],
+        time_start: float,
+        time_step: float,
+        tolerance: float,
+        threshold_on: float = 0.5,
+        threshold_off: float | None = None,
+        min_duration_off: float | None = None,
+        min_duration_on: float | None = None,
+    ):
+        """Initialise the ThresholdOptimiser.
+
+        Args:
+            predictions: List of numpy arrays containing model predictions.
+            references: List of lists of (start_time, end_time) tuples for
+                reference segments.
+        """
+
+        self.keys = []
+        self.predictions = []
+        self.references = []
+
+        for key, prediction in prediction_set.items():
+            if key in reference_set:
+                self.keys.append(key)
+                self.predictions.append(prediction)
+                self.references.append(reference_set[key])
+            else:
+                msg = f"Key {key} not found in reference set"
+                raise ValueError(msg)
+
+        self.time_start = time_start
+        self.time_step = time_step
+        self.tolerance = tolerance
+
+        self.main_threshold_on = threshold_on
+        self.main_threshold_off = threshold_off
+        self.main_min_duration_off = min_duration_off
+        self.main_min_duration_on = min_duration_on
+
+    def set_parameters(
+        self,
+        threshold_on: float | str = "no_change",
+        threshold_off: float | None | str = "no_change",
+        min_duration_off: float | None | str = "no_change",
+        min_duration_on: float | None | str = "no_change",
+    ) -> None:
+        """Set the threshold and duration parameters.
+
+        Args:
+            threshold_on: New on threshold value, or "no_change" to keep
+                current value. This must be a float.
+                The default is "no_change".
+            threshold_off: New off threshold value, or "no_change" to keep
+                current value. This can be a float or None.
+                The default is "no_change".
+            min_duration_off: New minimum off duration, or "no_change" to keep
+                current value. This can be a float or None.
+                The default is "no_change".
+            min_duration_on: New minimum on duration, or "no_change" to keep
+                current value. This can be a float or None.
+                The default is "no_change".
+        """
+        if isinstance(threshold_on, str):
+            if threshold_on != "no_change":
+                msg = "threshold_on must be a float or not specified"
+                raise ValueError(msg)
+        else:
+            self.main_threshold_on = threshold_on
+
+        if isinstance(threshold_off, str):
+            if threshold_off != "no_change":
+                msg = "threshold_off must be a float, None, or not specified"
+                raise ValueError(msg)
+        else:
+            self.main_threshold_off = threshold_off
+
+        if isinstance(min_duration_off, str):
+            if min_duration_off != "no_change":
+                msg = "min_duration_off must be a float, None, or not specified"
+                raise ValueError(msg)
+        else:
+            self.main_min_duration_off = min_duration_off
+
+        if isinstance(min_duration_on, str):
+            if min_duration_on != "no_change":
+                msg = "min_duration_on must be a float, None, or not specified"
+                raise ValueError(msg)
+        else:
+            self.main_min_duration_on = min_duration_on
+
+    def get_parameters(self) -> dict[str, float | None]:
+        """Get the current threshold and duration parameters.
+
+        Returns:
+            params (dict): Dictionary containing the current parameter values.
+        """
+        return {
+            "threshold_on": self.main_threshold_on,
+            "threshold_off": self.main_threshold_off,
+            "min_duration_off": self.main_min_duration_off,
+            "min_duration_on": self.main_min_duration_on,
+        }
+
+    def generate_segments(
+        self,
+        as_list: bool = False,
+    ) -> dict[str, list[tuple[float, float]]] | list[list[tuple[float, float]]]:
+        """Generate segments using the current threshold parameters.
+
+        Returns:
+            segments_dict (dict or list): Dictionary mapping keys to lists of
+                (start_time, end_time) tuples for each sample.
+        """
+        segments = dataset_to_segments(
+            self.predictions,
+            self.time_start,
+            self.time_step,
+            on_threshold=self.main_threshold_on,
+            off_threshold=self.main_threshold_off,
+            min_duration_off=self.main_min_duration_off,
+            min_duration_on=self.main_min_duration_on,
+        )
+
+        if as_list:
+            return segments
+        return dict(zip(self.keys, segments, strict=True))
+
+    def f1_score(self) -> float:
+        """Calculate the F1 score using the current threshold parameters.
+
+        Returns:
+            f1_score (float): The F1 score calculated over the entire set.
+        """
+        predicted_segments = self.generate_segments(as_list=True)
+        if isinstance(predicted_segments, dict):
+            msg = "Unreachable error, here for type checking"
+            raise RuntimeError(msg)
+        reference_segments = self.references
+
+        return f1_score_set(predicted_segments, reference_segments, self.tolerance)

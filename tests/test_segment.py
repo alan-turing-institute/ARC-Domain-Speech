@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from dr_sad.segment import (
+    SegmentEvaluator,
     binarise,
     dataset_to_segments,
     f1_score_set,
@@ -209,3 +210,173 @@ class TestDatasetToSegments:
         segments = dataset_to_segments(predictions, time_start, time_step)
         for seg_list, exp_list in zip(segments, expected_segments, strict=True):
             np.testing.assert_almost_equal(seg_list, exp_list)
+
+
+class TestSegmentEvaluator:
+    def test_init_simple(self):
+        prediction_set = {"test01": np.array([0.1, 0.6, 0.7, 0.8, 0.2])}
+        reference_set = {"test01": [(1.5, 4.5)]}
+
+        seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.5,
+        )
+        assert len(seg_eval.keys) == 1
+        assert len(seg_eval.predictions) == 1
+        assert len(seg_eval.references) == 1
+        assert seg_eval.tolerance == 0.5
+        assert seg_eval.time_start == 1.0
+        assert seg_eval.time_step == 1.0
+
+    def test_init_raises_on_key_mismatch(self):
+        prediction_set = {"test01": np.array([0.1, 0.6, 0.7, 0.8, 0.2])}
+        reference_set = {"test02": [(1.5, 4.5)]}
+
+        with pytest.raises(ValueError, match="Key test01 not found in reference set"):
+            SegmentEvaluator(prediction_set, reference_set, 1.0, 1.0, 0.2)
+
+    def test_get_parameters(self):
+        prediction_set = {"test01": np.array([0.1, 0.6, 0.7, 0.8, 0.2])}
+        reference_set = {"test01": [(1.5, 4.5)]}
+
+        seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.3,
+        )
+
+        params = seg_eval.get_parameters()
+        expected_params = {
+            "threshold_on": 0.5,
+            "threshold_off": None,
+            "min_duration_off": None,
+            "min_duration_on": None,
+        }
+        assert params == expected_params
+
+    def test_set_parameters(self):
+        prediction_set = {"test01": np.array([0.1, 0.6, 0.7, 0.8, 0.2])}
+        reference_set = {"test01": [(1.5, 4.5)]}
+
+        seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.3,
+        )
+
+        seg_eval.set_parameters(
+            threshold_on=0.6,
+            threshold_off=0.4,
+            min_duration_off=0.5,
+            min_duration_on=1.0,
+        )
+
+        params = seg_eval.get_parameters()
+        expected_params = {
+            "threshold_on": 0.6,
+            "threshold_off": 0.4,
+            "min_duration_off": 0.5,
+            "min_duration_on": 1.0,
+        }
+        assert params == expected_params
+
+    def test_generate_segments(self):
+        prediction_set = {
+            "test01": np.array([0.1, 0.6, 0.7, 0.8, 0.2]),
+            "test02": np.array([0.7, 0.2, 0.9, 0.8, 0.1]),
+        }
+        reference_set = {
+            "test01": [(1.5, 4.5)],
+            "test02": [(0.0, 1.5), (2.5, 3.0)],
+        }
+
+        seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.2,
+        )
+
+        segments_dict = seg_eval.generate_segments(as_list=False)
+        expected_segments_dict = {
+            "test01": [(1.5, 4.5)],
+            "test02": [(0.0, 1.5), (2.5, 4.5)],
+        }
+        assert isinstance(segments_dict, dict)
+        assert segments_dict.keys() == expected_segments_dict.keys()
+        for key in seg_eval.keys:
+            np.testing.assert_almost_equal(
+                segments_dict[key],
+                expected_segments_dict[key],
+            )
+
+        segments_list = seg_eval.generate_segments(as_list=True)
+        expected_segments_list = [
+            [(1.5, 4.5)],
+            [(0.0, 1.5), (2.5, 4.5)],
+        ]
+        assert isinstance(segments_list, list)
+        assert len(segments_list) == len(expected_segments_list)
+        for i in range(len(expected_segments_list)):
+            np.testing.assert_almost_equal(
+                segments_list[i],
+                expected_segments_list[i],
+            )
+
+    def test_f1_score(self):
+        prediction_set = {
+            "test01": np.array([0.1, 0.6, 0.7, 0.8, 0.2]),
+            "test02": np.array([0.7, 0.2, 0.9, 0.8, 0.1]),
+        }
+        reference_set = {
+            "test01": [(1.5, 4.5)],
+            "test02": [(0.0, 1.5), (2.5, 3.0)],
+        }
+
+        seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.5,
+        )
+
+        f1_predicted = seg_eval.f1_score()
+        expected_f1 = 2 / 3
+        assert np.isclose(f1_predicted, expected_f1)
+
+    def test_parameters_effect_f1(self):
+        prediction_set = {
+            "test01": np.array([0.1, 0.8, 0.9, 0.8, 0.2]),
+            "test02": np.array([0.7, 0.2, 0.9, 0.8, 0.47]),
+        }
+        reference_set = {
+            "test01": [(1.5, 4.5)],
+            "test02": [(0.0, 1.5), (2.5, 6.0)],
+        }
+
+        seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.5,
+        )
+
+        f1_default = seg_eval.f1_score()
+        expected_f1_default = 2 / 3
+        assert np.isclose(f1_default, expected_f1_default)
+
+        seg_eval.set_parameters(threshold_on=0.55, threshold_off=0.45)
+
+        f1_updated = seg_eval.f1_score()
+        expected_f1_updated = 1.0
+        assert np.isclose(f1_updated, expected_f1_updated)
