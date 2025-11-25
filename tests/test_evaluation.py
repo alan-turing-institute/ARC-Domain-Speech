@@ -223,3 +223,9 @@ class TestSpeechDetectionEvaluator:
         assert metrics.detection_cost_function == pytest.approx(
             0.75 * (1 / 3) + 0.25 * (1 / 4), rel=1e-3
         )  # DCF = 0.75 * miss_rate + 0.25 * fa_rate
+        assert metrics.f1_speech == pytest.approx(
+            (2 * 2) / (2 * 2 + 1 + 1), rel=1e-3
+        )  # F1 for speech class
+        assert metrics.f1_nonspeech == pytest.approx(
+            (2 * 3) / (2 * 3 + 1 + 1), rel=1e-3
+        )  # F1 for non-speech class

@@ -16,6 +16,7 @@ class EvaluationMetrics:
     - Frame-level accuracy = Total correct frames / Total frames
     - Detection cost function (DCF) = weighted {false alarm rate + missed speech rate}
     (Normalised to 1)
+    - F1 score (for speech and non-speech classes) = 2 * TP / (2 * TP + FP + FN)
     """
 
     der: float
@@ -59,7 +60,7 @@ class EvaluationMetrics:
             f"FA: {self.false_alarm_rate:.2%}\n"
             f"Miss: {self.missed_speech_rate:.2%}\n"
             f"F1 Spk: {self.f1_speech:.2%}\n"
-            f"F1 Non-spk: {self.f1_nonspeech:.2%}\n"
+            f"F1 Non-spk: {self.f1_nonspeech:.2%}"
         )
 
     def to_dict(self) -> dict[str, float]:
@@ -357,11 +358,15 @@ class SpeechDetectionEvaluator:
             else 0.0
         )
         detection_cost_function = 0.75 * missed_speech_rate + 0.25 * false_alarm_rate
-        f1_speech = (2 * true_positives) / (
-            (2 * true_positives) + false_alarms + missed_speech
+        f1_speech = (
+            (2 * true_positives) / ((2 * true_positives) + false_alarms + missed_speech)
+            if ((2 * true_positives) + false_alarms + missed_speech) > 0
+            else 0.0
         )
-        f1_nonspeech = (2 * true_negatives) / (
-            (2 * true_negatives) + missed_speech + false_alarms
+        f1_nonspeech = (
+            (2 * true_negatives) / ((2 * true_negatives) + missed_speech + false_alarms)
+            if ((2 * true_negatives) + missed_speech + false_alarms) > 0
+            else 0.0
         )
 
         return EvaluationMetrics(

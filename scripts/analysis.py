@@ -110,9 +110,13 @@ def main(prediction_path: Path, experiment_config_path: str, plot_figures: bool)
     split_name = prediction_path.stem
     experiment_dir = prediction_path.parent.parent
     if plot_figures:
-        analysis_dir = experiment_dir / "analysis_plots" / split_name
+        analysis_dir_with_collar = (
+            experiment_dir / "analysis_plots" / f"{split_name}_with_collar"
+        )
+        analysis_dir_no_collar = experiment_dir / "analysis_plots" / split_name
     else:
-        analysis_dir = None
+        analysis_dir_with_collar = None
+        analysis_dir_no_collar = None
 
     # Load model metadata
     model_metadata = yaml.safe_load(
@@ -131,7 +135,7 @@ def main(prediction_path: Path, experiment_config_path: str, plot_figures: bool)
         evaluator=evaluator,
         model_metadata=model_metadata,
         data_name=data_name,
-        analysis_dir=analysis_dir,
+        analysis_dir=analysis_dir_with_collar,
         split_name=f"{split_name}_with_collar",
         results_filepath=experiment_dir / "frame_metrics.yaml",
         plot_figures=plot_figures,
@@ -148,7 +152,7 @@ def main(prediction_path: Path, experiment_config_path: str, plot_figures: bool)
         evaluator=evaluator,
         model_metadata=model_metadata,
         data_name=data_name,
-        analysis_dir=analysis_dir,
+        analysis_dir=analysis_dir_no_collar,
         split_name=split_name,
         results_filepath=experiment_dir / "frame_metrics.yaml",
         plot_figures=plot_figures,
