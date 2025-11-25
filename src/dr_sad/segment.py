@@ -193,3 +193,43 @@ def f1_score_set(
         return 0.0
 
     return 2 * (precision * recall) / (precision + recall)
+
+
+def dataset_to_segments(
+    predictions: list[np.ndarray],
+    time_start: float,
+    time_step: float,
+    on_threshold: float = 0.5,
+    off_threshold: float | None = None,
+    min_duration_off: float | None = None,
+    min_duration_on: float | None = None,
+) -> list[list[tuple[float, float]]]:
+    """Convert a dataset of predictions to segments.
+
+    Args:
+        predictions: List of numpy arrays containing model predictions.
+        time_start: Value for the first timestamp.
+        time_step: Time difference between consecutive timestamps.
+        on_threshold: Values above this threshold are considered "on".
+        off_threshold: Values below this threshold are considered "off".
+        min_duration_off: Minimum duration (in samples) for "off" segments.
+        min_duration_on: Minimum duration (in samples) for "on" segments.
+
+    Returns:
+        all_segments (list of lists): List containing lists of (start_time,
+            end_time) tuples for each sample in the dataset.
+    """
+    all_segments = []
+
+    for prediction in predictions:
+        binary_array = binarise(
+            prediction,
+            on_threshold=on_threshold,
+            off_threshold=off_threshold,
+            min_duration_off=min_duration_off,
+            min_duration_on=min_duration_on,
+        )
+        segments = segment_times(binary_array, time_start, time_step)
+        all_segments.append(segments)
+
+    return all_segments

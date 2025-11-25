@@ -1,7 +1,13 @@
 import numpy as np
 import pytest
 
-from dr_sad.segment import binarise, f1_score_set, segment_scores, segment_times
+from dr_sad.segment import (
+    binarise,
+    dataset_to_segments,
+    f1_score_set,
+    segment_scores,
+    segment_times,
+)
 
 
 class TestBinarise:
@@ -180,3 +186,26 @@ class TestF1ScoreSet:
         expected_f1 = 0.0
         f1 = f1_score_set(predicted_segments, reference_segments, tolerance)
         np.testing.assert_almost_equal(f1, expected_f1)
+
+
+class TestDatasetToSegments:
+    def test_simple(self):
+        predictions = [np.array([0.1, 0.6, 0.7, 0.8, 0.2])]
+        time_start = 0.0
+        time_step = 1.0
+        expected_segments = [[(0.5, 3.5)]]
+        segments = dataset_to_segments(predictions, time_start, time_step)
+        for seg_list, exp_list in zip(segments, expected_segments, strict=True):
+            np.testing.assert_almost_equal(seg_list, exp_list)
+
+    def test_multiple_samples(self):
+        predictions = [
+            np.array([0.1, 0.6, 0.7, 0.8, 0.2]),
+            np.array([0.7, 0.2, 0.9, 0.8]),
+        ]
+        time_start = 0.0
+        time_step = 1.0
+        expected_segments = [[(0.5, 3.5)], [(0.0, 0.5), (1.5, 3.0)]]
+        segments = dataset_to_segments(predictions, time_start, time_step)
+        for seg_list, exp_list in zip(segments, expected_segments, strict=True):
+            np.testing.assert_almost_equal(seg_list, exp_list)
