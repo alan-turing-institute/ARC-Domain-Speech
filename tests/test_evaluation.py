@@ -154,6 +154,8 @@ class TestEvaluationMetrics:
             missed_speech_rate=0.07,
             frame_accuracy=0.92,
             detection_cost_function=0.10,
+            f1_speech=0.89,
+            f1_nonspeech=0.40,
         )
         assert metrics.der == 0.15
         assert metrics.frame_accuracy == 0.92
@@ -167,6 +169,8 @@ class TestEvaluationMetrics:
             missed_speech_rate=0.07,
             frame_accuracy=0.92,
             detection_cost_function=0.10,
+            f1_speech=0.89,
+            f1_nonspeech=0.40,
         )
         metrics_dict = metrics.to_dict()
         assert isinstance(metrics_dict, dict)
@@ -182,6 +186,8 @@ class TestEvaluationMetrics:
             missed_speech_rate=0.07,
             frame_accuracy=0.92,
             detection_cost_function=0.10,
+            f1_speech=0.89,
+            f1_nonspeech=0.40,
         )
         plot_text = metrics.format_for_plot()
         assert isinstance(plot_text, str)

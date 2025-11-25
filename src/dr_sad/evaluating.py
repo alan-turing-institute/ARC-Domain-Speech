@@ -23,8 +23,16 @@ class EvaluationMetrics:
     missed_speech_rate: float
     frame_accuracy: float
     detection_cost_function: float
+    f1_speech: float
+    f1_nonspeech: float
 
     def __str__(self) -> str:
+        """
+        For pretty printing of evaluation metrics.
+
+        Returns:
+            Formatted string of evaluation metrics.
+        """
         return (
             f"Evaluation Metrics:\n"
             f"  DER: {self.der:.2%}\n"
@@ -32,16 +40,26 @@ class EvaluationMetrics:
             f"  Frame Accuracy: {self.frame_accuracy:.2%}\n"
             f"  False Alarm: {self.false_alarm_rate:.2%}\n"
             f"  Missed Speech: {self.missed_speech_rate:.2%}\n"
+            f"  F1 Speech: {self.f1_speech:.2%}\n"
+            f"  F1 Non-speech: {self.f1_nonspeech:.2%}\n"
         )
 
     def format_for_plot(self) -> str:
+        """
+        Format evaluation metrics for plotting with concise labels.
+
+        Returns:
+            Formatted string of evaluation metrics for plot annotations.
+        """
         return (
             f"Metrics:\n"
             f"DER: {self.der:.2%}\n"
             f"DCF: {self.detection_cost_function:.2%}\n"
             f"Acc: {self.frame_accuracy:.2%}\n"
             f"FA: {self.false_alarm_rate:.2%}\n"
-            f"Miss: {self.missed_speech_rate:.2%}"
+            f"Miss: {self.missed_speech_rate:.2%}\n"
+            f"F1 Spk: {self.f1_speech:.2%}\n"
+            f"F1 Non-spk: {self.f1_nonspeech:.2%}\n"
         )
 
     def to_dict(self) -> dict[str, float]:
@@ -339,6 +357,12 @@ class SpeechDetectionEvaluator:
             else 0.0
         )
         detection_cost_function = 0.75 * missed_speech_rate + 0.25 * false_alarm_rate
+        f1_speech = (2 * true_positives) / (
+            (2 * true_positives) + false_alarms + missed_speech
+        )
+        f1_nonspeech = (2 * true_negatives) / (
+            (2 * true_negatives) + missed_speech + false_alarms
+        )
 
         return EvaluationMetrics(
             der=float(der),
@@ -346,4 +370,6 @@ class SpeechDetectionEvaluator:
             missed_speech_rate=float(missed_speech_rate),
             frame_accuracy=float(frame_accuracy),
             detection_cost_function=float(detection_cost_function),
+            f1_speech=float(f1_speech),
+            f1_nonspeech=float(f1_nonspeech),
         )
