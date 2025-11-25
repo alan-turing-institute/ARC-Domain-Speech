@@ -13,7 +13,7 @@ OUTPUT_DIR = MAIN_DIR / "outputs"
 
 
 def main(args) -> None:
-    exp_name, exp_path = get_experiment_name(
+    exp_name, _ = get_experiment_name(
         exp_name_arg=args.experiment_name,
         exp_config_dir=MAIN_DIR / "configs" / "experiments",
     )

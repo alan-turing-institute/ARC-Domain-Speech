@@ -16,8 +16,8 @@ def binarise(
         input: 1D numpy array of float values to be binarised.
         on_threshold: Values greater than or equal to this threshold are "on".
         off_threshold: Values less than or equal to this threshold are "off".
-        min_duration_off: Minimum duration (in samples) for "off" segments.
-        min_duration_on: Minimum duration (in samples) for "on" segments.
+        min_duration_off: Minimum duration (in seconds) for "off" segments.
+        min_duration_on: Minimum duration (in seconds) for "on" segments.
 
     Returns:
         binary_array (np.ndarray): A boolean numpy array indicating speech (True)
@@ -211,16 +211,15 @@ def dataset_to_segments(
 
     Args:
         predictions: List of numpy arrays containing model predictions.
-        time_start: Value for the first timestamp.
-        time_step: Time difference between consecutive timestamps.
+        time_start: Center time for the first frame.
+        time_step: Time difference between consecutive frames.
         on_threshold: Values above this threshold are considered "on".
         off_threshold: Values below this threshold are considered "off".
-        min_duration_off: Minimum duration (in samples) for "off" segments.
-        min_duration_on: Minimum duration (in samples) for "on" segments.
-
+        min_duration_off: Minimum duration (in seconds) for "off" segments.
+        min_duration_on: Minimum duration (in seconds) for "on" segments.
     Returns:
         all_segments (list of lists): List containing lists of (start_time,
-            end_time) tuples for each sample in the dataset.
+            end_time) tuples for each clip in the dataset.
     """
     all_segments = []
 
@@ -255,11 +254,11 @@ class SegmentEvaluator:
         min_duration_off: float | None = None,
         min_duration_on: float | None = None,
     ):
-        """Initialise the ThresholdOptimiser.
+        """Initialise the SegmentEvaluator.
 
         Args:
-            predictions: List of numpy arrays containing model predictions.
-            references: List of lists of (start_time, end_time) tuples for
+            prediction_set: Dictionary of numpy arrays containing model predictions.
+            reference_set: Dictionary of lists of (start_time, end_time) tuples for
                 reference segments.
             time_start: Center time for the first frame.
             time_step: Time difference between consecutive frames.
@@ -268,8 +267,8 @@ class SegmentEvaluator:
         Optional Args:
             threshold_on: Values above this threshold are considered "on".
             threshold_off: Values below this threshold are considered "off".
-            min_duration_off: Minimum duration (in samples) for "off" segments.
-            min_duration_on: Minimum duration (in samples) for "on" segments.
+            min_duration_off: Minimum duration (in seconds) for "off" segments.
+            min_duration_on: Minimum duration (in seconds) for "on" segments.
 
         The optional arguments can be overridden later using set_parameters().
         """
@@ -390,9 +389,8 @@ class SegmentEvaluator:
             f1_score (float): The F1 score calculated over the entire set.
         """
         predicted_segments = self.generate_segments(as_list=True)
-        if isinstance(predicted_segments, dict):
-            msg = "Unreachable error, here for type checking"
-            raise RuntimeError(msg)
+        assert isinstance(predicted_segments, list), "Unreachable type error"
+
         reference_segments = self.references
 
         return f1_score_set(predicted_segments, reference_segments, self.tolerance)

@@ -148,7 +148,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "experiment_config",
         type=str,
-        help="Path or name to the experiment configuration file.",
+        help="Path to or name of the experiment configuration file.",
     )
     parser.add_argument(
         "--exclude-domain",
