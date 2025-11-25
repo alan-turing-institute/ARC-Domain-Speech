@@ -2,7 +2,6 @@
 Analysis script for model predictions.
 """
 
-import json
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -12,28 +11,40 @@ from tqdm import tqdm
 
 from dr_sad.analysing import evaluate_file
 from dr_sad.evaluating import SpeechDetectionEvaluator
+from dr_sad.utils import get_experiment_name
 
 # Collar duration in seconds and detection threshold for evaluation metrics
 # We can adjust these later if needed
 COLLAR_SECONDS = 0.25
 DETECTION_THRESHOLD = 0.8
+MAIN_DIR = Path(__file__).resolve().parent.parent
+CONFIG_DIR = MAIN_DIR / "configs"
+EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
 
 
-def main(prediction_path: Path, plot_figures: bool):
+def main(prediction_path: Path, experiment_config_path: str, plot_figures: bool):
     # Load prediction file
     predictions = load_file(prediction_path)
     model_metadata = yaml.safe_load(
-        (prediction_path.parent / "model_metadata.yaml").read_text()
+        (prediction_path.parent.parent / "model_metadata.yaml").read_text()
     )
+    # load experiment config to get data name
+    _, experiment_path = get_experiment_name(experiment_config_path, EXP_CONFIG_DIR)
+    with open(experiment_path) as f:
+        exp_config = yaml.safe_load(f)
+    data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
+    with open(data_cfg_pth) as f:
+        data_cfg = yaml.safe_load(f)
+    data_name = data_cfg["name"]
 
     print(f"Loaded predictions from: {prediction_path}")
     print(f"Number of files: {len(predictions)}")
 
     # Create output directory in the experiment folder if plotting is enabled
-    data_name = prediction_path.stem
+    split_name = prediction_path.stem
     experiment_dir = prediction_path.parent.parent
     if plot_figures:
-        analysis_dir = experiment_dir / "analysis_plots" / data_name
+        analysis_dir = experiment_dir / "analysis_plots" / split_name
     else:
         analysis_dir = None
 
@@ -51,6 +62,7 @@ def main(prediction_path: Path, plot_figures: bool):
     for file_id in tqdm(list(predictions.keys()), desc="Analyzing files"):
         numpy_predictions = predictions[file_id].numpy().squeeze()
         evaluation_metrics = evaluate_file(
+            data_name,
             file_id,
             numpy_predictions,
             model_metadata,
@@ -71,15 +83,31 @@ def main(prediction_path: Path, plot_figures: bool):
                 result[metric] for result in valid_results
             ) / len(valid_results)
 
-        # save mean results to json
-        mean_results_path = experiment_dir / "mean_metrics" / f"{data_name}.json"
-        mean_results_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(mean_results_path, "w") as f:
-            json.dump(mean_results, f, indent=2)
+        # Load existing results or create new dict
+        results_filepath = experiment_dir / "frame_metrics.yaml"
+        if results_filepath.exists():
+            with open(results_filepath) as f:
+                all_split_results = yaml.safe_load(f) or {}
+        else:
+            all_split_results = {}
+
+        # Add mean results for this split
+        all_split_results[split_name] = mean_results
+
+        # Save updated results to yaml file
+        results_filepath.parent.mkdir(parents=True, exist_ok=True)
+        with open(results_filepath, "w") as f:
+            yaml.dump(all_split_results, f)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Analyze model predictions")
+    parser.add_argument(
+        "--experiment-config",
+        type=str,
+        required=True,
+        help="Path or name to the experiment configuration file.",
+    )
     parser.add_argument(
         "--prediction-path",
         type=str,
@@ -92,4 +120,8 @@ if __name__ == "__main__":
         help="Whether to generate and save analysis plots for each file",
     )
     args = parser.parse_args()
-    main(Path(args.prediction_path), plot_figures=args.plot_figures)
+    main(
+        Path(args.prediction_path),
+        args.experiment_config,
+        plot_figures=args.plot_figures,
+    )

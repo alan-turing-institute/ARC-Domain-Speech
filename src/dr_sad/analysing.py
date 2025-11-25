@@ -12,9 +12,9 @@ from dr_sad.annotation import speaking_map
 from dr_sad.evaluating import EvaluationMetrics, SpeechDetectionEvaluator
 
 
-def _load_audio_and_annotations(
+def load_audio_and_annotations(
     file_id: str,
-    data_dir: str = "data/callhome",
+    data_dir: str,
 ) -> tuple[np.ndarray, int, list[tuple[float, float]]]:
     """Load audio file and corresponding RTTM annotations."""
     data_path = Path(data_dir)
@@ -39,25 +39,7 @@ def _load_audio_and_annotations(
     return audio, sample_rate, speech_segments
 
 
-def _create_ground_truth_mask(
-    audio_length: int,
-    sample_rate: int,
-    speech_segments: list[tuple[float, float]],
-) -> np.ndarray:
-    """Create a binary mask for ground truth speech activity."""
-    mask = np.zeros(audio_length)
-
-    for start_time, end_time in speech_segments:
-        start_sample = int(start_time * sample_rate)
-        end_sample = int(end_time * sample_rate)
-        start_sample = max(0, start_sample)
-        end_sample = min(audio_length, end_sample)
-        mask[start_sample:end_sample] = 1.0
-
-    return mask
-
-
-def _downsample_to_prediction_frames(
+def downsample_to_prediction_frames(
     signal: np.ndarray,
     prediction_length: int,
     is_binary: bool = False,
@@ -125,12 +107,12 @@ def plot_analysis(
     pred_times = np.linspace(0, audio_duration, pred_length)
 
     # Downsample ground truth
-    gt_downsampled = _downsample_to_prediction_frames(
+    gt_downsampled = downsample_to_prediction_frames(
         ground_truth_mask, pred_length, is_binary=True
     )
 
     # Downsample audio
-    audio_downsampled = _downsample_to_prediction_frames(audio, pred_length)
+    audio_downsampled = downsample_to_prediction_frames(audio, pred_length)
     # Normalize audio to [-0.5, 0.5] then shift to [0, 1] for plotting
     if np.max(np.abs(audio_downsampled)) > 0:
         audio_normalised = audio_downsampled / (2 * np.max(np.abs(audio_downsampled)))
@@ -191,6 +173,7 @@ def plot_analysis(
 
 
 def evaluate_file(
+    data_name: str,
     file_id: str,
     predictions: np.ndarray,
     model_metadata: dict[str, Any],
@@ -224,16 +207,16 @@ def evaluate_file(
             stacklevel=2,
         )
 
-    audio, sample_rate, speech_segments = _load_audio_and_annotations(file_id)
+    audio, sample_rate, speech_segments = load_audio_and_annotations(
+        file_id,
+        f"data/{data_name}",
+    )
 
-    # Create ground truth mask
-    # ground_truth_mask = _create_ground_truth_mask(
-    #     len(audio), sample_rate, speech_segments
-    # )
+    # get model frame parameters
     frame_rate_hz = model_metadata["frame_rate_hz"]
-
-    audio_duration_sec = len(audio) / sample_rate
-    actual_num_frames = int(audio_duration_sec * frame_rate_hz)
+    frame_center_start = model_metadata["frame_center_start"]
+    frame_center_step = model_metadata["frame_center_step"]
+    actual_num_frames = ((len(audio) - 2 * frame_center_start) // frame_center_step) + 1
 
     # get only the valid portion of predictions
     signal_predictions = predictions[:actual_num_frames]
@@ -242,15 +225,13 @@ def evaluate_file(
         np.arange(len(signal_predictions)) * (1 / frame_rate_hz)
     ) + model_metadata["frame_hop_sec"]
 
+    # Create ground truth mask
     ground_truth_mask = speaking_map(
         timestamps=all_timestamps,
         annotations=speech_segments,
     )
 
     # Downsample ground truth to match predictions
-    # gt_downsampled = _downsample_to_prediction_frames(
-    #     ground_truth_mask, len(signal_predictions), is_binary=True
-    # )
     # Compute DER metrics
     evaluation_metrics = evaluator.evaluate(
         predictions=signal_predictions, ground_truth=ground_truth_mask

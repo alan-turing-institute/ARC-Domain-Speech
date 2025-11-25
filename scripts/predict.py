@@ -89,7 +89,7 @@ def main(
         trainer_cfg=trainer_cfg,
     )
 
-    test_loader, domain_loader = load_data_eval(
+    validation_loader, test_loader, domain_loader = load_data_eval(
         data_cfg=data_cfg,
         data_split=None,
         trainer_cfg=trainer_cfg,
@@ -100,13 +100,20 @@ def main(
     prediction_dir = Path(model_path).parent / "saved_predictions"
     prediction_dir.mkdir(parents=True, exist_ok=True)
 
-    save_model_metadata(model, prediction_dir)
+    save_model_metadata(model, prediction_dir.parent)
 
+    print("Saving validation predictions...")
+    save_predictions_chunked(
+        model,
+        validation_loader,
+        prediction_dir / "validation.safetensors",
+        chunk_size=25,
+    )
     print("Saving test predictions...")
     save_predictions_chunked(
         model,
         test_loader,
-        prediction_dir / "test_predictions.safetensors",
+        prediction_dir / "test.safetensors",
         chunk_size=25,
     )
 
@@ -115,7 +122,7 @@ def main(
         save_predictions_chunked(
             model,
             domain_loader,
-            prediction_dir / "excluded_domain_predictions.safetensors",
+            prediction_dir / "out_of_domain.safetensors",
             chunk_size=25,
         )
 

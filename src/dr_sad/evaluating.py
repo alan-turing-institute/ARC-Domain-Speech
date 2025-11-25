@@ -6,34 +6,23 @@ from scipy.ndimage import binary_dilation
 
 @dataclass
 class EvaluationMetrics:
-    """Container for speech activity detection evaluation metrics."""
+    """
+    Container for speech activity detection evaluation metrics.
 
-    der: float
-    """
-    Detection error rate = (Total missed speech + Total false Alarms) / Total frames
-    """
-
-    false_alarm_rate: float
-    """
-    False alarm rate = Total false alarms / Total non-speech frames
-    """
-
-    missed_speech_rate: float
-    """
-    Missed speech rate = Total missed speech / Total speech frames
-    """
-
-    frame_accuracy: float
-    """
-    Frame-level accuracy = Total correct frames / Total frames
-    (1 - DER)
-    """
-
-    detection_cost_function: float
-    """
-    Detection cost function (DCF) = weighted {false alarm rate + missed speech rate}
+    - Detection error rate = (Total missed speech + Total false Alarms) / Total speech
+    frames
+    - False alarm rate = Total false alarms / Total non-speech frames
+    - Missed speech rate = Total missed speech / Total speech frames
+    - Frame-level accuracy = Total correct frames / Total frames
+    - Detection cost function (DCF) = weighted {false alarm rate + missed speech rate}
     (Normalised to 1)
     """
+
+    der: float
+    false_alarm_rate: float
+    missed_speech_rate: float
+    frame_accuracy: float
+    detection_cost_function: float
 
     def __str__(self) -> str:
         return (
@@ -352,9 +341,9 @@ class SpeechDetectionEvaluator:
         detection_cost_function = 0.75 * missed_speech_rate + 0.25 * false_alarm_rate
 
         return EvaluationMetrics(
-            der=der,
-            false_alarm_rate=false_alarm_rate,
-            missed_speech_rate=missed_speech_rate,
-            frame_accuracy=frame_accuracy,
-            detection_cost_function=detection_cost_function,
+            der=float(der),
+            false_alarm_rate=float(false_alarm_rate),
+            missed_speech_rate=float(missed_speech_rate),
+            frame_accuracy=float(frame_accuracy),
+            detection_cost_function=float(detection_cost_function),
         )

@@ -5,11 +5,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from dr_sad.analysing import (
-    _create_ground_truth_mask,
-    _downsample_to_prediction_frames,
-    _load_audio_and_annotations,
-)
+from dr_sad.analysing import downsample_to_prediction_frames, load_audio_and_annotations
 
 
 class TestLoadAudioAndAnnotations:
@@ -17,7 +13,7 @@ class TestLoadAudioAndAnnotations:
 
     def test_load_valid_file(self, test_dataset):
         """Test loading a valid audio file with annotations."""
-        audio, sample_rate, speech_segments = _load_audio_and_annotations(
+        audio, sample_rate, speech_segments = load_audio_and_annotations(
             file_id="TEST_0001", data_dir=str(test_dataset)
         )
 
@@ -36,7 +32,7 @@ class TestLoadAudioAndAnnotations:
         file_ids = ["TEST_0001", "TEST_0005", "TEST_0010"]
 
         for file_id in file_ids:
-            audio, sample_rate, speech_segments = _load_audio_and_annotations(
+            audio, sample_rate, speech_segments = load_audio_and_annotations(
                 file_id=file_id, data_dir=str(test_dataset)
             )
             assert len(audio) > 0
@@ -46,7 +42,7 @@ class TestLoadAudioAndAnnotations:
     def test_load_nonexistent_file(self, test_dataset):
         """Test that loading a nonexistent file raises an error."""
         with pytest.raises((FileNotFoundError, sf.LibsndfileError)):
-            _load_audio_and_annotations(
+            load_audio_and_annotations(
                 file_id="NONEXISTENT", data_dir=str(test_dataset)
             )
 
@@ -73,7 +69,7 @@ class TestLoadAudioAndAnnotations:
                 f.write("SPEAKER TEST 1 0.500 0.300 <NA> <NA> spk2 <NA> <NA>\n")
                 f.write("SPEAKER TEST 1 2.000 0.500 <NA> <NA> spk1 <NA> <NA>\n")
 
-            audio, sample_rate, segments = _load_audio_and_annotations(
+            audio, sample_rate, segments = load_audio_and_annotations(
                 file_id="TEST", data_dir=str(dataset_dir)
             )
 
@@ -82,71 +78,6 @@ class TestLoadAudioAndAnnotations:
             assert segments[0] == pytest.approx((0.1, 0.3))  # start + duration
             assert segments[1] == pytest.approx((0.5, 0.8))
             assert segments[2] == pytest.approx((2.0, 2.5))
-
-
-class TestCreateGroundTruthMask:
-    """Tests for _create_ground_truth_mask function."""
-
-    def test_basic_mask_creation(self):
-        """Test creating a basic binary mask with single segment."""
-        audio_length = 16000  # 1 second at 16kHz
-        sample_rate = 16000
-        speech_segments = [(0.25, 0.75)]  # Speech from 0.25s to 0.75s
-
-        mask = _create_ground_truth_mask(audio_length, sample_rate, speech_segments)
-
-        assert len(mask) == audio_length
-        assert mask.dtype == np.float64 or mask.dtype == np.float32
-
-        # Check that speech region is marked as 1
-        assert np.all(mask[4000:12000] == 1.0)  # 0.25s to 0.75s
-
-        # Check that non-speech regions are marked as 0
-        assert np.all(mask[:4000] == 0.0)  # Before speech
-        assert np.all(mask[12000:] == 0.0)  # After speech
-
-    def test_multiple_segments(self):
-        """Test mask creation with multiple speech segments."""
-        audio_length = 48000  # 3 seconds at 16kHz
-        sample_rate = 16000
-        speech_segments = [(0.5, 1.0), (1.5, 2.0), (2.5, 2.8)]
-
-        mask = _create_ground_truth_mask(audio_length, sample_rate, speech_segments)
-
-        # Check speech segments
-        assert np.all(mask[8000:16000] == 1.0)  # 0.5-1.0s
-        assert np.all(mask[24000:32000] == 1.0)  # 1.5-2.0s
-        assert np.all(mask[40000:44800] == 1.0)  # 2.5-2.8s
-
-        # Check silence segments
-        assert np.all(mask[0:8000] == 0.0)  # 0-0.5s
-        assert np.all(mask[16000:24000] == 0.0)  # 1.0-1.5s
-        assert np.all(mask[32000:40000] == 0.0)  # 2.0-2.5s
-
-    def test_empty_segments(self):
-        """Test mask creation with no speech segments."""
-        audio_length = 16000
-        sample_rate = 16000
-        speech_segments: list[tuple[float, float]] = []
-
-        mask = _create_ground_truth_mask(audio_length, sample_rate, speech_segments)
-
-        assert len(mask) == audio_length
-        assert np.all(mask == 0.0)  # All silence
-
-    def test_boundary_clipping(self):
-        """Test that segments outside audio bounds are clipped correctly."""
-        audio_length = 16000  # 1 second
-        sample_rate = 16000
-        # Segment that extends beyond audio length
-        speech_segments = [(0.8, 1.5)]  # Extends 0.5s beyond audio
-
-        mask = _create_ground_truth_mask(audio_length, sample_rate, speech_segments)
-
-        assert len(mask) == audio_length
-        # Should only mark the valid portion
-        assert np.all(mask[12800:16000] == 1.0)  # 0.8s to 1.0s
-        assert np.all(mask[:12800] == 0.0)
 
 
 class TestDownsampleToPredictionFrames:
@@ -158,7 +89,7 @@ class TestDownsampleToPredictionFrames:
         signal = np.array([0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0], dtype=float)
         prediction_length = 6
 
-        downsampled = _downsample_to_prediction_frames(
+        downsampled = downsample_to_prediction_frames(
             signal, prediction_length, is_binary=True
         )
 
@@ -172,7 +103,7 @@ class TestDownsampleToPredictionFrames:
         signal = np.sin(np.linspace(0, 4 * np.pi, 1000))
         prediction_length = 100
 
-        downsampled = _downsample_to_prediction_frames(
+        downsampled = downsample_to_prediction_frames(
             signal, prediction_length, is_binary=False
         )
 
@@ -187,7 +118,7 @@ class TestDownsampleToPredictionFrames:
         signal = np.zeros(1000)
         signal[250:750] = 1.0  # 50% of signal is speech
 
-        downsampled = _downsample_to_prediction_frames(signal, 100, is_binary=True)
+        downsampled = downsample_to_prediction_frames(signal, 100, is_binary=True)
 
         # Distributions should be approximately preserved (within 10% tolerance)
         original_distribution = np.sum(signal) / len(signal)
@@ -200,7 +131,7 @@ class TestDownsampleToPredictionFrames:
         signal = np.random.rand(10000)
         prediction_length = 10
 
-        downsampled = _downsample_to_prediction_frames(
+        downsampled = downsample_to_prediction_frames(
             signal, prediction_length, is_binary=False
         )
 
@@ -214,7 +145,7 @@ class TestDownsampleToPredictionFrames:
         signal = np.array([0, 1, 0, 1, 0], dtype=float)
         prediction_length = 20
 
-        downsampled = _downsample_to_prediction_frames(
+        downsampled = downsample_to_prediction_frames(
             signal, prediction_length, is_binary=True
         )
 
