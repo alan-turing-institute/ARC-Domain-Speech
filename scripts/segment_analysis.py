@@ -13,12 +13,12 @@ from dr_sad.utils import get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 
+TOLERANCE_SECONDS = 0.25
 # Evaluation parameters
 THRESHOLD_ON = 0.6
 THRESHOLD_OFF = 0.4
-TOLERANCE_SECONDS = 0.25
-MIN_DURATION_ON = None
-MIN_DURATION_OFF = None
+MIN_DURATION_OFF = 0.2
+MIN_DURATION_ON = 0.3
 
 
 def load_annotations(
@@ -73,7 +73,12 @@ def evaluate_set(
     time_start = model_metadata["frame_center_start"] / model_metadata["sample_rate"]
     time_step = model_metadata["frame_center_step"] / model_metadata["sample_rate"]
 
-    predictions = load_file(prediction_data_path)
+    # Load predictions and convert to numpy arrays
+    st_predictions = load_file(prediction_data_path)
+    predictions = {
+        file_id: pred_tensor.flatten().numpy()
+        for file_id, pred_tensor in st_predictions.items()
+    }
 
     print(f"Loaded predictions from: {prediction_data_path.resolve()}")
     print(f"Number of files: {len(predictions)}")
@@ -141,7 +146,7 @@ def main(experiment_config_path: str, exclude_domain: int | None):
 if __name__ == "__main__":
     parser = ArgumentParser(description="Analyze model predictions")
     parser.add_argument(
-        "experiment-config",
+        "experiment_config",
         type=str,
         help="Path or name to the experiment configuration file.",
     )
