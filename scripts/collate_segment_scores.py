@@ -9,19 +9,32 @@ from dr_sad.data.data_fetching import DOMAIN_SETTINGS
 from dr_sad.utils import get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = MAIN_DIR / "outputs"
 
 
 def main(args) -> None:
-    exp_name, _ = get_experiment_name(
+    exp_name, exp_path = get_experiment_name(
         exp_name_arg=args.experiment_name,
-        exp_config_dir=MAIN_DIR / "configs" / "experiments",
+        exp_config_dir=MAIN_DIR / "configs" / "experiment",
     )
     print(f"Collating segment analysis results for experiment: {exp_name}")
 
-    results = {}
+    with open(exp_path) as ec_file:
+        exp_config = yaml.safe_load(ec_file)
 
-    out_path = OUTPUT_DIR / exp_name
+    if "data_config" in exp_config:
+        with open(MAIN_DIR / "configs" / "data" / exp_config["data_config"]) as dc_file:
+            data_config = yaml.safe_load(dc_file)
+    else:
+        data_config = {}
+
+    data_name = data_config.get("name")
+
+    if data_name is None:
+        print("Warning: data_name not found; domain names will be indices.")
+
+    results: dict[int, dict[str, float]] = {}
+
+    out_path = MAIN_DIR / "outputs" / exp_name
     if not out_path.exists():
         msg = f"Experiment output path does not exist: {out_path}"
         raise ValueError(msg)
@@ -37,14 +50,14 @@ def main(args) -> None:
 
     df = pd.DataFrame.from_dict(results, orient="index")
 
-    if args.dataset_name is not None:
-        if args.dataset_name not in DOMAIN_SETTINGS:
-            msg = f"Unknown dataset_name: {args.dataset_name}"
+    if data_name is not None:
+        if data_name not in DOMAIN_SETTINGS:
+            msg = f"Unknown dataset_name: {data_name}"
             raise ValueError(msg)
 
         domain_names: dict[int, str] = {
             v: k
-            for k, v in DOMAIN_SETTINGS[args.dataset_name]["domains_idx"].items()  # type: ignore[attr-defined]
+            for k, v in DOMAIN_SETTINGS[data_name]["domains_idx"].items()  # type: ignore[attr-defined]
         }
 
         df["domain"] = [domain_names[int(idx)] for idx in df.index]
@@ -69,12 +82,5 @@ if __name__ == "__main__":
         type=str,
         help="Location of the experiment directory to collate results from",
     )
-    parser.add_argument(
-        "--dataset-name",
-        type=str,
-        default=None,
-        help="Name of the dataset for the domain names",
-    )
-
     args = parser.parse_args()
     main(args)
