@@ -17,7 +17,7 @@ from dr_sad.utils import get_experiment_name
 # Collar duration in seconds and detection threshold for evaluation metrics
 # We can adjust these later if needed
 COLLAR_SECONDS = 0.25
-DETECTION_THRESHOLD = 0.8
+DETECTION_THRESHOLD = 0.5
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
