@@ -9,19 +9,34 @@ from dr_sad.data.data_fetching import DOMAIN_SETTINGS
 from dr_sad.utils import get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = MAIN_DIR / "outputs"
 
 
 def main(args) -> None:
     exp_name, exp_path = get_experiment_name(
         exp_name_arg=args.experiment_name,
-        exp_config_dir=OUTPUT_DIR,
+        exp_config_dir=MAIN_DIR / "configs" / "experiment",
     )
     print(f"Collating results for experiment: {exp_name}")
 
-    results = {}
+    with open(exp_path) as ec_file:
+        exp_config = yaml.safe_load(ec_file)
 
-    for result_file in sorted(exp_path.glob("domain_*/test_results.yaml")):
+    if "data_config" in exp_config:
+        with open(MAIN_DIR / "configs" / "data" / exp_config["data_config"]) as dc_file:
+            data_config = yaml.safe_load(dc_file)
+    else:
+        data_config = {}
+
+    data_name = data_config.get("name")
+
+    if data_name is None:
+        print("Warning: data_name not found; domain names will be indices.")
+
+    results: dict[int, dict[str, float]] = {}
+
+    out_path = MAIN_DIR / "outputs" / exp_name
+
+    for result_file in sorted(out_path.glob("domain_*/test_results.yaml")):
         domain_re = re.search(r"domain_(\d+)", result_file.parent.name)
         if domain_re is None:
             msg = f"Could not parse domain index from path: {result_file}"
@@ -30,29 +45,31 @@ def main(args) -> None:
         with open(result_file) as f:
             domain_results = yaml.safe_load(f)
 
-        results[domain_idx] = {
-            "validation": domain_results["validation"]["test_accuracy"],
-            "in_domain": domain_results["in_domain_test"]["test_accuracy"],
-            "out_domain": domain_results["out_of_domain_test"]["test_accuracy"],
-        }
+        results[domain_idx] = {}
+        for key, score_dict in domain_results.items():
+            if score_dict is None or "test_accuracy" not in score_dict:
+                continue
+
+            results[domain_idx][key] = score_dict["test_accuracy"]
 
     df = pd.DataFrame.from_dict(results, orient="index")
 
-    if args.dataset_name is not None:
-        if args.dataset_name not in DOMAIN_SETTINGS:
-            msg = f"Unknown dataset_name: {args.dataset_name}"
+    if data_name is not None:
+        if data_name not in DOMAIN_SETTINGS:
+            msg = f"Unknown dataset_name: {data_name}"
             raise ValueError(msg)
 
         domain_names: dict[int, str] = {
             v: k
-            for k, v in DOMAIN_SETTINGS[args.dataset_name]["domains_idx"].items()  # type: ignore[attr-defined]
+            for k, v in DOMAIN_SETTINGS[data_name]["domains_idx"].items()  # type: ignore[attr-defined]
         }
 
         df["domain"] = [domain_names[int(idx)] for idx in df.index]
     else:
         df["domain"] = df.index.astype(str)
 
-    df = df[["domain", "validation", "in_domain", "out_domain"]]
+    # Reorder columns to have 'domain' first
+    df = df[["domain"] + [col for col in df.columns if col != "domain"]]
 
     df.loc["mean"] = df.mean(numeric_only=True)
     df.loc["std"] = df.std(numeric_only=True)
@@ -60,7 +77,7 @@ def main(args) -> None:
     print("\nCollated Results:")
     print(df)
 
-    df.to_csv(exp_path / "collated_results.csv")
+    df.to_csv(out_path / "collated_results.csv")
 
 
 if __name__ == "__main__":
@@ -70,12 +87,5 @@ if __name__ == "__main__":
         type=str,
         help="Location of the experiment directory to collate results from",
     )
-    parser.add_argument(
-        "--dataset-name",
-        type=str,
-        default=None,
-        help="Name of the dataset for the domain names",
-    )
-
     args = parser.parse_args()
     main(args)
