@@ -75,9 +75,9 @@ def downsample_to_prediction_frames(
 def plot_analysis(
     file_id: str,
     audio: np.ndarray,
-    sample_rate: int,
     ground_truth_mask: np.ndarray,
     predictions: np.ndarray,
+    timestamps: np.ndarray,
     output_dir: Path,
     evaluation_metrics: EvaluationMetrics | None = None,
 ) -> None:
@@ -87,9 +87,9 @@ def plot_analysis(
     Args:
         file_id: ID of the file being analyzed
         audio: Raw audio samples
-        sample_rate: Audio sample rate
         ground_truth_mask: Binary mask for ground truth speech activity
         predictions: Model predictions
+        timestamps: Time values corresponding to prediction frames
         output_dir: Directory to save plots
         evaluation_metrics: EvaluationMetrics object for displaying metrics on plot
     """
@@ -100,11 +100,9 @@ def plot_analysis(
     else:
         pred_probs = predictions.squeeze()
 
-    # Downsample both audio and ground truth to match prediction length
+    # Use provided timestamps that match the model's frame timing
     pred_length = len(pred_probs)
-    # Create single time axis for all signals
-    audio_duration = len(audio) / sample_rate
-    pred_times = np.linspace(0, audio_duration, pred_length)
+    pred_times = timestamps
 
     # Downsample ground truth
     gt_downsampled = downsample_to_prediction_frames(
@@ -207,7 +205,7 @@ def evaluate_file(
             stacklevel=2,
         )
 
-    audio, sample_rate, speech_segments = load_audio_and_annotations(
+    audio, _, speech_segments = load_audio_and_annotations(
         file_id,
         f"data/{data_name}",
     )
@@ -242,9 +240,9 @@ def evaluate_file(
         plot_analysis(
             file_id,
             audio,
-            sample_rate,
             ground_truth_mask,
             signal_predictions,
+            all_timestamps,
             output_dir,
             evaluation_metrics=evaluation_metrics,
         )
