@@ -12,16 +12,21 @@ from dr_sad.annotation import speaking_map
 from dr_sad.evaluating import EvaluationMetrics, SpeechDetectionEvaluator
 
 
-def load_audio_and_annotations(
+def load_annotations(
     file_id: str,
-    data_dir: str,
-) -> tuple[np.ndarray, int, list[tuple[float, float]]]:
-    """Load audio file and corresponding RTTM annotations."""
-    data_path = Path(data_dir)
+    data_dir: Path | str,
+) -> list[tuple[float, float]]:
+    """Load RTTM annotations.
 
-    # Load audio file
-    audio_path = data_path / "flac" / f"{file_id}.flac"
-    audio, sample_rate = soundfile.read(audio_path)
+    Args:
+        file_id (str): Identifier for the audio file.
+        data_path (str | Path): Directory containing the RTTM files.
+
+    Returns:
+        speech_segments (list[tuple[float, float]]): List of speech segments as
+            tuples of (start_time, end_time).
+    """
+    data_path = Path(data_dir) if isinstance(data_dir, str) else data_dir
 
     # Load RTTM annotations
     rttm_path = data_path / "rttm" / f"{file_id}.rttm"
@@ -35,6 +40,33 @@ def load_audio_and_annotations(
                 duration = float(parts[4])
                 end_time = start_time + duration
                 speech_segments.append((start_time, end_time))
+
+    return speech_segments
+
+
+def load_audio_and_annotations(
+    file_id: str,
+    data_dir: str | Path,
+) -> tuple[np.ndarray, int, list[tuple[float, float]]]:
+    """Load audio file and corresponding RTTM annotations.
+
+    Args:
+        file_id (str): Identifier for the audio file.
+        data_path (str | Path): Directory containing the audio and RTTM files.
+
+    Returns:
+        audio (np.ndarray): Loaded audio samples.
+        sample_rate (int): Sample rate of the audio file.
+        speech_segments (list[tuple[float, float]]): List of speech segments as
+            tuples of (start_time, end_time).
+    """
+    data_path = Path(data_dir) if isinstance(data_dir, str) else data_dir
+
+    # Load audio file
+    audio_path = data_path / "flac" / f"{file_id}.flac"
+    audio, sample_rate = soundfile.read(audio_path)
+
+    speech_segments = load_annotations(file_id, data_path)
 
     return audio, sample_rate, speech_segments
 
