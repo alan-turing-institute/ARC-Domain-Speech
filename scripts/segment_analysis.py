@@ -8,6 +8,7 @@ from pathlib import Path
 import yaml
 from safetensors.torch import load_file
 
+from dr_sad.analysing import load_annotations
 from dr_sad.segment import SegmentEvaluator
 from dr_sad.utils import get_experiment_name
 
@@ -19,35 +20,6 @@ THRESHOLD_ON = 0.6
 THRESHOLD_OFF = 0.4
 MIN_DURATION_OFF = 0.2
 MIN_DURATION_ON = 0.3
-
-
-def load_annotations(
-    file_id: str,
-    data_path: Path,
-) -> list[tuple[float, float]]:
-    """Load RTTM annotations.
-
-    Args:
-        file_id: Identifier for the audio file.
-        data_path: Directory containing the RTTM files.
-
-    Returns:
-        List of speech segments as tuples of (start_time, end_time).
-    """
-    # Load RTTM annotations
-    rttm_path = data_path / "rttm" / f"{file_id}.rttm"
-    speech_segments = []
-
-    with open(rttm_path) as f:
-        for line in f:
-            if line.strip() and line.startswith("SPEAKER"):
-                parts = line.strip().split()
-                start_time = float(parts[3])
-                duration = float(parts[4])
-                end_time = start_time + duration
-                speech_segments.append((start_time, end_time))
-
-    return speech_segments
 
 
 def evaluate_set(
@@ -85,10 +57,7 @@ def evaluate_set(
 
     references = {}
     for file_id in predictions:
-        speech_segments = load_annotations(
-            file_id=file_id,
-            data_path=data_dir,
-        )
+        speech_segments = load_annotations(file_id, data_dir)
         references[file_id] = speech_segments
 
     # Evaluate predictions
