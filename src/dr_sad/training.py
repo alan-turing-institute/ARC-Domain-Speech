@@ -7,7 +7,14 @@ from safetensors.torch import save_file
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from dr_sad.IRM import IRMModel
 from dr_sad.pyannet import PyanNet
+
+# Model registry
+MODEL_DICT = {
+    "default_pyannet": PyanNet,
+    "irm_model": IRMModel,
+}
 
 
 def save_predictions(
@@ -105,12 +112,19 @@ def create_model(
         err_msg = "trainer_cfg must contain a 'scheduler' key"
         raise KeyError(err_msg)
 
-    if model_cfg.get("model_name") == "default_pyannet":
-        ModelClass = PyanNet
-
-    else:
-        err_msg = f"Unknown model name: {model_cfg.get('model_name')}"
+    model_name = model_cfg.get("model_name")
+    if model_name not in MODEL_DICT:
+        err_msg = (
+            f"Unknown model name: {model_name}. Available: {list(MODEL_DICT.keys())}"
+        )
         raise ValueError(err_msg)
+
+    ModelClass = MODEL_DICT[model_name]
+
+    # Extract model-specific parameters
+    model_specific_kwargs = {}
+    if model_name == "irm_model":
+        model_specific_kwargs["lambda_irm"] = model_cfg.get("lambda_irm", 1e2)
 
     # Create model with optional scheduler
     if trainer_cfg["scheduler"]["enabled"]:
@@ -119,8 +133,13 @@ def create_model(
         return ModelClass(
             scheduler_config=scheduler_config,
             learning_rate=trainer_cfg["learning_rate"],
+            **model_specific_kwargs,
             **model_kwargs,
         )
 
     # If there is no scheduler
-    return ModelClass(learning_rate=trainer_cfg["learning_rate"], **model_kwargs)
+    return ModelClass(
+        learning_rate=trainer_cfg["learning_rate"],
+        **model_specific_kwargs,
+        **model_kwargs,
+    )
