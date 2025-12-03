@@ -23,6 +23,10 @@ def binarise(
         binary_array (np.ndarray): A boolean numpy array indicating speech (True)
             and non-speech (False) frames.
     """
+    if input.size == 0:
+        msg = "Input array is empty"
+        raise ValueError(msg)
+
     if input.ndim != 1:
         msg = "Input array must be 1D"
         raise ValueError(msg)

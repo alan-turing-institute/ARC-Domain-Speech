@@ -66,6 +66,11 @@ class TestBinarise:
         with pytest.raises(ValueError, match="On threshold must"):
             binarise(input_array, on_threshold=0.3, off_threshold=0.5)
 
+    def test_empty_array(self):
+        input_array = np.array([], dtype=float)
+        with pytest.raises(ValueError, match="Input array is empty"):
+            binarise(input_array)
+
 
 class TestSegmentTimes:
     def test_simple(self):
