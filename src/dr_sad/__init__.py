@@ -6,7 +6,15 @@ from __future__ import annotations
 
 from importlib.metadata import version
 
-__all__ = ("__version__", "annotation", "data", "pyannet", "segment", "training")
+__all__ = (
+    "__version__",
+    "analysis",
+    "annotation",
+    "data",
+    "pyannet",
+    "segment",
+    "training",
+)
 __version__ = version(__name__)
 
-from . import annotation, data, pyannet, segment, training
+from . import analysis, annotation, data, pyannet, segment, training

@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 from safetensors.torch import load_file
 
-from dr_sad.analysing import load_annotations
+from dr_sad.analysis import load_annotations
 from dr_sad.segment import SegmentEvaluator
 from dr_sad.utils import get_experiment_name
 
