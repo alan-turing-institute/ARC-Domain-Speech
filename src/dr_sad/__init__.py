@@ -11,10 +11,11 @@ __all__ = (
     "analysis",
     "annotation",
     "data",
+    "models",
     "pyannet",
     "segment",
     "training",
 )
 __version__ = version(__name__)
 
-from . import analysis, annotation, data, pyannet, segment, training
+from . import analysis, annotation, data, models, pyannet, segment, training
