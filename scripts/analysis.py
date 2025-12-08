@@ -10,7 +10,7 @@ from safetensors.torch import load_file
 from torch import Tensor
 from tqdm import tqdm
 
-from dr_sad.analysing import evaluate_file
+from dr_sad.analysis import evaluate_file
 from dr_sad.evaluating import SpeechDetectionEvaluator
 from dr_sad.utils import get_experiment_name
 

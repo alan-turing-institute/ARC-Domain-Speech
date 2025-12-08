@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from dr_sad.analysing import (
+from dr_sad.analysis import (
     downsample_to_prediction_frames,
     load_annotations,
     load_audio_and_annotations,
