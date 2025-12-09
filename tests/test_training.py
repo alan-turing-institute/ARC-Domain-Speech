@@ -40,7 +40,7 @@ class TestDrSadTrainer:
 
 class TestCreateModel:
     def test_create_model_with_scheduler(self, monkeypatch):
-        monkeypatch.setattr(training, "PyanNet", DummyModel)
+        monkeypatch.setitem(training.MODEL_DICT, "default_pyannet", DummyModel)
         model_cfg = {"model_name": "default_pyannet"}
         trainer_cfg = {
             "scheduler": {
@@ -53,12 +53,16 @@ class TestCreateModel:
         }
         model = training.create_model(model_cfg, trainer_cfg, foo="bar")
         assert isinstance(model, DummyModel)
-        assert model.scheduler_config["patience"] == 3
+        assert model.scheduler_config == {
+            "type": "ReduceLROnPlateau",
+            "patience": 3,
+            "factor": 0.5,
+        }
         assert model.learning_rate == 1e-4
         assert model.kwargs["foo"] == "bar"
 
     def test_create_model_without_scheduler(self, monkeypatch):
-        monkeypatch.setattr(training, "PyanNet", DummyModel)
+        monkeypatch.setitem(training.MODEL_DICT, "default_pyannet", DummyModel)
         model_cfg = {"model_name": "default_pyannet"}
         trainer_cfg: dict[str, Any] = {
             "scheduler": {"enabled": False},
@@ -68,6 +72,20 @@ class TestCreateModel:
         assert isinstance(model, DummyModel)
         assert model.scheduler_config is None
         assert model.learning_rate == 1e-4
+        assert model.kwargs["foo"] == "bar"
+
+    def test_create_model_with_irm_model(self, monkeypatch):
+        monkeypatch.setitem(training.MODEL_DICT, "irm_model", DummyModel)
+        model_cfg = {"model_name": "irm_model", "lambda_irm": 200.0}
+        trainer_cfg = {
+            "scheduler": {"enabled": True, "type": "ReduceLROnPlateau", "patience": 2},
+            "learning_rate": 1e-3,
+        }
+        model = training.create_model(model_cfg, trainer_cfg)
+        assert isinstance(model, DummyModel)
+        assert model.scheduler_config == {"type": "ReduceLROnPlateau", "patience": 2}
+        assert model.learning_rate == 1e-3
+        assert model.kwargs["lambda_irm"] == 200.0
 
     def test_create_model_with_bad_config(self, monkeypatch):
         monkeypatch.setattr(training, "PyanNet", DummyModel)
