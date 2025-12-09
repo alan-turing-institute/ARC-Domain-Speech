@@ -3,7 +3,8 @@ from unittest.mock import Mock
 import torch
 import torch.nn.functional as F
 
-from dr_sad.IRM import IRMLoss, IRMModel, TrainingBatch
+from dr_sad.models.IRM import IRMLoss, IRMModel, TrainingBatch
+from dr_sad.pyannet import PyanNet
 
 
 class TestIRMLoss:
@@ -186,7 +187,7 @@ class TestIRMModel:
     def test_irm_model_only_overrides_training_step(self):
         """Test that IRMModel only overrides training_step, not val/test steps."""
         model = IRMModel(lambda_irm=10.0)
-        parent_class = model.__class__.__bases__[0]  # PyanNet
+        parent_class = PyanNet  # PyanNet
 
         # Check that training_step is overridden
         assert model.__class__.training_step != parent_class.training_step  # type: ignore[attr-defined]

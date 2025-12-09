@@ -80,7 +80,7 @@ class IRMLoss(nn.Module):  # type: ignore[misc]
             penalty = grad**2
             env_penalties.append(penalty)
 
-        # Efficiently sum the losses while maintaining gradients
+        # sum losses and penalties across environments
         total_erm = torch.stack(env_erm_losses).sum()
         total_penalty = torch.stack(env_penalties).sum()
 
