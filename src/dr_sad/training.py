@@ -7,6 +7,8 @@ from safetensors.torch import save_file
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from dr_sad.data.data_fetching import DOMAIN_SETTINGS
+from dr_sad.models import AdversarialNet
 from dr_sad.pyannet import PyanNet
 
 
@@ -80,9 +82,36 @@ class DrSadTrainer(Trainer):  # type: ignore[misc]
         )
 
 
+def _get_domain_num_from_data_cfg(data_cfg: dict[str, Any] | None) -> int:
+    """
+    Get the number of domains from the data configuration.
+
+    Args:
+        data_cfg: Data configuration dictionary. Must contain a 'name' key.
+
+    Returns:
+        Number of domains as an integer.
+    """
+    if data_cfg is None:
+        err_msg = "data_cfg cannot be None"
+        raise ValueError(err_msg)
+
+    domain_name = data_cfg.get("name")
+    if domain_name is None:
+        err_msg = "data_cfg must contain a 'name' key"
+        raise KeyError(err_msg)
+
+    if domain_name not in DOMAIN_SETTINGS:
+        err_msg = f"Unknown data_cfg name: {domain_name}"
+        raise ValueError(err_msg)
+
+    return len(DOMAIN_SETTINGS[domain_name]["domains_idx"])
+
+
 def create_model(
     model_cfg: dict[str, Any],
     trainer_cfg: dict[str, Any],
+    data_cfg: dict[str, Any] | None = None,
     **model_kwargs: Any,
 ) -> LightningModule:
     """
@@ -92,6 +121,7 @@ def create_model(
         model_cfg: Model configuration dictionary.
         trainer_cfg: Trainer configuration dictionary. Must contain a 'learning_rate'
             key (initial learning rate, default: 1e-3).
+        data_cfg: Data configuration dictionary (optional).
         **model_kwargs: Additional keyword arguments to pass to the model.
 
     Returns:
@@ -105,9 +135,16 @@ def create_model(
         err_msg = "trainer_cfg must contain a 'scheduler' key"
         raise KeyError(err_msg)
 
-    if model_cfg.get("model_name") == "default_pyannet":
-        ModelClass = PyanNet
+    for key, value in model_cfg.items():
+        if key != "model_name":
+            model_kwargs[key] = value
 
+    if model_cfg.get("model_name") == "default_pyannet":
+        ModelClass: LightningModule = PyanNet
+    elif model_cfg.get("model_name") == "adversarial_net":
+        num_domains = _get_domain_num_from_data_cfg(data_cfg)
+        model_kwargs["num_domains"] = num_domains
+        ModelClass = AdversarialNet
     else:
         err_msg = f"Unknown model name: {model_cfg.get('model_name')}"
         raise ValueError(err_msg)

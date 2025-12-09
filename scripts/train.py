@@ -130,6 +130,7 @@ def main(args) -> None:
     model = create_model(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
+        data_cfg=data_cfg,
     )
 
     # Train the model
