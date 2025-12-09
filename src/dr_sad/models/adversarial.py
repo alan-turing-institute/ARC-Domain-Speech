@@ -52,6 +52,7 @@ class AdversarialNet(PyanNet):
             *args, **kwargs: Passed through to PyanNet.
         """
         super().__init__(*args, **kwargs)
+        self.save_hyperparameters("num_domains", "grl_lambda", "domain_loss_weight")
 
         self.num_domains = num_domains
         self.domain_loss_weight = domain_loss_weight
@@ -185,13 +186,13 @@ class AdversarialNet(PyanNet):
                     padded to the same length at the end with zeros.
               - annotations (list[list[tuple[float, float]]]): List of annotations
                     for each sample in the batch.
-              - _domains (list[int]): List of domain indices for each sample.
+              - domains (list[int]): List of domain indices for each sample.
             _batch_idx (int): Batch index, unused.
 
         Returns:
             loss (torch.Tensor): Computed loss for the batch.
         """
-        waveforms, annotations, _domains = (
+        waveforms, annotations, domains = (
             batch["waveforms"],
             batch["annotations"],
             batch["domains"],
@@ -200,7 +201,7 @@ class AdversarialNet(PyanNet):
         # (batch, time, channels) -> (batch, channels, time)
         outputs = outputs.swapaxes(1, 2)
         speaker_truth = self.prepare_annotation(waveforms, annotations)
-        loss = self.loss_function(speaker_truth, _domains, outputs, domain_logits)
+        loss = self.loss_function(speaker_truth, domains, outputs, domain_logits)
         self.log("train_loss", loss)
         return loss
 
@@ -241,7 +242,7 @@ class AdversarialNet(PyanNet):
                     padded to the same length at the end with zeros.
               - annotations (list[list[tuple[float, float]]]): List of annotations
                     for each sample in the batch.
-              - _domains (list[int]): List of domain indices for each sample.
+              - domains (list[int]): List of domain indices for each sample.
 
         Logs:
             loss (torch.Tensor): Computed loss for the batch.
@@ -250,7 +251,7 @@ class AdversarialNet(PyanNet):
             domain_loss (torch.Tensor): Computed domain loss for the batch.
             domain_accuracy (float): Computed domain accuracy for the batch.
         """
-        waveforms, annotations, _domains = (
+        waveforms, annotations, domains = (
             batch["waveforms"],
             batch["annotations"],
             batch["domains"],
@@ -260,10 +261,10 @@ class AdversarialNet(PyanNet):
         outputs = outputs.swapaxes(1, 2)
         speaker_truth = self.prepare_annotation(waveforms, annotations)
         total_loss, speaker_loss, domain_loss = self._compute_losses(
-            speaker_truth, _domains, outputs, domain_logits
+            speaker_truth, domains, outputs, domain_logits
         )
-        accuracy = self.accuracy_function(speaker_truth, _domains, outputs)
-        domain_accuracy = self.domain_accuracy_function(_domains, domain_logits)
+        accuracy = self.accuracy_function(speaker_truth, domains, outputs)
+        domain_accuracy = self.domain_accuracy_function(domains, domain_logits)
         return total_loss, accuracy, speaker_loss, domain_loss, domain_accuracy
 
     def test_step(self, batch: Any, batch_idx: int) -> None:
