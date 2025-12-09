@@ -138,7 +138,7 @@ class TestIRMModel:
         model = IRMModel(lambda_irm=10.0)
 
         # Mock parent class methods
-        model.prepare_annotation = Mock()
+        model.prepare_annotation = Mock()  # type: ignore[method-assign]
         model.log = Mock()
 
         # Create mock batch
@@ -158,7 +158,7 @@ class TestIRMModel:
         def mock_forward(_):
             return model_outputs
 
-        model.forward = mock_forward
+        model.forward = mock_forward  # type: ignore[method-assign]
 
         # Mock prepare_annotation output: (batch, 1, frames)
         speaker_truth = torch.randint(0, num_classes, (batch_size, 1, num_frames))

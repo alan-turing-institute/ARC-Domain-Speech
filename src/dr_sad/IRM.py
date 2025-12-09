@@ -1,17 +1,26 @@
+from typing import Any
+
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
-from torch import nn
 
 from dr_sad.pyannet import PyanNet
 
 
-class IRMLoss(nn.Module):
-    def __init__(self, lambda_irm=1e2):
+class IRMLoss(nn.Module):  # type: ignore[misc]
+    """IRM Loss implementation for domain-invariant speaker diarization."""
+
+    def __init__(self, lambda_irm: float = 1e2) -> None:
         super().__init__()
         self.lambda_irm = float(lambda_irm)
         self.dummy_w = nn.Parameter(torch.tensor(1.0))
 
-    def forward(self, logits, labels, env_ids):
+    def forward(
+        self,
+        logits: torch.Tensor,
+        labels: torch.Tensor,
+        env_ids: torch.Tensor,
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """
         Args:
             logits: (batch, channels, frames) - as output from PyanNet
@@ -78,11 +87,15 @@ class IRMLoss(nn.Module):
 
 
 class IRMModel(PyanNet):
-    def __init__(self, lambda_irm=1e2, **kwargs):
+    def __init__(self, lambda_irm: float = 1e2, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.irm_loss = IRMLoss(lambda_irm=lambda_irm)
 
-    def training_step(self, batch, batch_idx):  # noqa: ARG002
+    def training_step(
+        self,
+        batch: dict[str, torch.Tensor],
+        batch_idx: int,  # noqa: ARG002
+    ) -> torch.Tensor:
         """Override training step to use IRM loss"""
         waveforms, annotations, domains = (
             batch["waveforms"],
