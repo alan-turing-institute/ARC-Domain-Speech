@@ -5,7 +5,23 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from dr_sad.analysing import downsample_to_prediction_frames, load_audio_and_annotations
+from dr_sad.analysis import (
+    downsample_to_prediction_frames,
+    load_annotations,
+    load_audio_and_annotations,
+)
+
+
+class TestLoadAnnotations:
+    def load_valid_file(self, test_dataset):
+        """Test loading a valid RTTM file."""
+        speech_segments = load_annotations(
+            file_id="TEST_0001", data_dir=str(test_dataset)
+        )
+
+        assert len(speech_segments) == 2
+        assert speech_segments[0] == (0.5, 1.0)  # start at 0.5s, duration 0.5s
+        assert speech_segments[1] == (1.5, 2.0)  # start at 1.5s, duration 0.5s
 
 
 class TestLoadAudioAndAnnotations:
