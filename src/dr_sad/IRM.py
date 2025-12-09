@@ -34,13 +34,15 @@ class IRMLoss(nn.Module):
 
         unique_envs = env_ids.unique()
 
+        # Compute ERM loss and IRM penalty for each environment to capture
+        # per-environment behavior
         for env in unique_envs:
             # Get samples from this environment
             mask = env_ids == env
             env_logits = logits[mask]
             env_labels = labels[mask]
 
-            # Scale by dummy classifier
+            # Scale by dummy classifier -> creates computational graph
             env_logits_scaled = env_logits * self.dummy_w
 
             # Flatten for cross-entropy
@@ -54,13 +56,14 @@ class IRMLoss(nn.Module):
             erm_loss = losses.mean()
             total_erm = total_erm + erm_loss
 
-            # IRM penalty
+            # IRM penalty (how sensitive is loss to scaling dummy_w)
             grad = torch.autograd.grad(
                 erm_loss, self.dummy_w, create_graph=True, retain_graph=True
             )[0]
             penalty = grad**2
             total_penalty = total_penalty + penalty
 
+        # eq. (1) from https://www.arxiv.org/abs/1907.02893
         total_loss = (
             total_erm
             + torch.tensor(float(self.lambda_irm), device=device) * total_penalty
