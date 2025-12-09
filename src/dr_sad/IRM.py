@@ -1,10 +1,16 @@
-from typing import Any
+from typing import Any, TypedDict
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from dr_sad.pyannet import PyanNet
+
+
+class TrainingBatch(TypedDict):
+    waveforms: torch.Tensor
+    annotations: list[list[tuple[float, float]]]
+    domains: torch.Tensor
 
 
 class IRMLoss(nn.Module):  # type: ignore[misc]
@@ -35,13 +41,11 @@ class IRMLoss(nn.Module):  # type: ignore[misc]
         # Convert to (batch, frames, channels) and squeeze labels
         logits = logits.transpose(1, 2)  # (batch, frames, channels)
         labels = labels.squeeze(1)  # (batch, frames)
-
-        # Initialize as scalars on the correct device
-        device = logits.device
-        total_erm = torch.tensor(0.0, device=device, requires_grad=True)
-        total_penalty = torch.tensor(0.0, device=device, requires_grad=True)
-
         unique_envs = env_ids.unique()
+
+        # Collect per-environment losses to avoid inefficient tensor accumulation
+        env_erm_losses = []
+        env_penalties = []
 
         # Compute ERM loss and IRM penalty for each environment to capture
         # per-environment behavior
@@ -54,29 +58,34 @@ class IRMLoss(nn.Module):  # type: ignore[misc]
             # Scale by dummy classifier -> creates computational graph
             env_logits_scaled = env_logits * self.dummy_w
 
-            # Flatten for cross-entropy
-            env_logits_flat = env_logits_scaled.reshape(-1, env_logits_scaled.size(-1))
-            env_labels_flat = env_labels.reshape(-1)
+            # For binary classification: logits are (batch, frames, 1),
+            # labels are (batch, frames)
+            # Squeeze the last dimension from logits to match labels
+            env_logits_flat = env_logits_scaled.squeeze(-1)  # (batch, frames)
+            env_labels_flat = env_labels.float()  # Ensure float type
 
-            # Per-sample cross-entropy
-            losses = F.cross_entropy(env_logits_flat, env_labels_flat, reduction="none")
+            # Per-sample binary cross-entropy
+            losses = F.binary_cross_entropy_with_logits(
+                env_logits_flat, env_labels_flat, reduction="none"
+            )
 
             # ERM term
             erm_loss = losses.mean()
-            total_erm = total_erm + erm_loss
+            env_erm_losses.append(erm_loss)
 
             # IRM penalty (how sensitive is loss to scaling dummy_w)
             grad = torch.autograd.grad(
                 erm_loss, self.dummy_w, create_graph=True, retain_graph=True
             )[0]
             penalty = grad**2
-            total_penalty = total_penalty + penalty
+            env_penalties.append(penalty)
 
-        # eq. (1) from https://www.arxiv.org/abs/1907.02893
-        total_loss = (
-            total_erm
-            + torch.tensor(float(self.lambda_irm), device=device) * total_penalty
-        )
+        # Efficiently sum the losses while maintaining gradients
+        total_erm = torch.stack(env_erm_losses).sum()
+        total_penalty = torch.stack(env_penalties).sum()
+
+        # eq. (1) from https://arxiv.org/abs/1907.02893
+        total_loss = total_erm + self.lambda_irm * total_penalty
 
         metrics = {
             "erm_loss": total_erm.detach(),
@@ -93,7 +102,7 @@ class IRMModel(PyanNet):
 
     def training_step(
         self,
-        batch: dict[str, torch.Tensor],
+        batch: TrainingBatch,
         batch_idx: int,  # noqa: ARG002
     ) -> torch.Tensor:
         """Override training step to use IRM loss"""
@@ -111,7 +120,7 @@ class IRMModel(PyanNet):
         # Prepare ground truth
         speaker_truth = self.prepare_annotation(waveforms, annotations)
 
-        env_ids = domains.clone().detach().to(device=waveforms.device, dtype=torch.long)
+        env_ids = domains.detach().to(device=waveforms.device)
 
         # Compute IRM loss - IRMLoss handles the reshaping
         loss, metrics = self.irm_loss(outputs, speaker_truth, env_ids)

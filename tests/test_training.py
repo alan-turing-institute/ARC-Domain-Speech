@@ -88,14 +88,14 @@ class TestCreateModel:
         assert model.kwargs["lambda_irm"] == 200.0
 
     def test_create_model_with_bad_config(self, monkeypatch):
-        monkeypatch.setattr(training, "PyanNet", DummyModel)
+        monkeypatch.setitem(training.MODEL_DICT, "default_pyannet", DummyModel)
         model_cfg = {"model_name": "default_pyannet"}
         trainer_cfg: dict[str, Any] = {}
         with pytest.raises(ValueError, match="trainer_cfg cannot be empty"):
             training.create_model(model_cfg, trainer_cfg, foo="bar")
 
     def test_create_model_missing_scheduler_key(self, monkeypatch):
-        monkeypatch.setattr(training, "PyanNet", DummyModel)
+        monkeypatch.setitem(training.MODEL_DICT, "default_pyannet", DummyModel)
         model_cfg = {"model_name": "default_pyannet"}
         trainer_cfg: dict[str, Any] = {"learning_rate": 1e-4}
         with pytest.raises(KeyError):

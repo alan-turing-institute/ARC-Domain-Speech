@@ -121,10 +121,8 @@ def create_model(
 
     ModelClass = MODEL_DICT[model_name]
 
-    # Extract model-specific parameters
-    model_specific_kwargs = {}
-    if model_name == "irm_model":
-        model_specific_kwargs["lambda_irm"] = model_cfg.get("lambda_irm", 1e2)
+    # Extract all model config except 'model_name'
+    model_specific_kwargs = {k: v for k, v in model_cfg.items() if k != "model_name"}
 
     # Create model with optional scheduler
     if trainer_cfg["scheduler"]["enabled"]:
