@@ -190,14 +190,14 @@ class TestIRMModel:
         parent_class = PyanNet  # PyanNet
 
         # Check that training_step is overridden
-        assert model.__class__.training_step != parent_class.training_step  # type: ignore[attr-defined]
+        assert model.__class__.training_step != parent_class.training_step
 
         # Check that validation_step and test_step are NOT overridden
         assert (
             not hasattr(model.__class__, "validation_step")
-            or model.__class__.validation_step == parent_class.validation_step  # type: ignore[attr-defined]
+            or model.__class__.validation_step == parent_class.validation_step
         )
         assert (
             not hasattr(model.__class__, "test_step")
-            or model.__class__.test_step == parent_class.test_step  # type: ignore[attr-defined]
+            or model.__class__.test_step == parent_class.test_step
         )

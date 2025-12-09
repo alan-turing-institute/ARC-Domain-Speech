@@ -145,9 +145,9 @@ def create_model(
 
     model_name = model_cfg.get("model_name")
     if model_name not in MODEL_DICT:
-        err_msg = (
-            f"Unknown model name: {model_name}. Available: {list(MODEL_DICT.keys())}"
-        )
+        err_msg = f"Unknown model name: {model_name}"
+        raise ValueError(err_msg)
+
     for key, value in model_cfg.items():
         if key != "model_name":
             model_kwargs[key] = value
@@ -160,6 +160,7 @@ def create_model(
     # Extract all model config except 'model_name'
     model_specific_kwargs = {k: v for k, v in model_cfg.items() if k != "model_name"}
 
+    merged_kwargs = {**model_specific_kwargs, **model_kwargs}
     # Create model with optional scheduler
     if trainer_cfg["scheduler"]["enabled"]:
         scheduler_config = trainer_cfg["scheduler"].copy()
@@ -167,13 +168,12 @@ def create_model(
         return ModelClass(
             scheduler_config=scheduler_config,
             learning_rate=trainer_cfg["learning_rate"],
-            **model_specific_kwargs,
-            **model_kwargs,
+            **merged_kwargs,
         )
 
     # If there is no scheduler
     return ModelClass(
+        scheduler_config=None,
         learning_rate=trainer_cfg["learning_rate"],
-        **model_specific_kwargs,
-        **model_kwargs,
+        **merged_kwargs,
     )
