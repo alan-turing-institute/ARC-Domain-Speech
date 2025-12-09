@@ -215,7 +215,7 @@ class AdversarialNet(PyanNet):
 
         Args:
             domains (list[int] or tensor): True domain index for each sample.
-            domain_logits (torch.Tensor): Raw domain logits of shape.
+            domain_logits (torch.Tensor): Raw domain logits of shape (batch, frames, num_domains).
 
         Returns:
             float: Domain accuracy over the batch.
