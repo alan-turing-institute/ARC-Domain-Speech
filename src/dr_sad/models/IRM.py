@@ -52,30 +52,32 @@ class IRMLoss(nn.Module):  # type: ignore[misc]
         for env in unique_envs:
             # Get samples from this environment
             mask = env_ids == env
-            env_logits = logits[mask]
-            env_labels = labels[mask]
+            env_logits = logits[mask]  # (batch, frames, channels)
+            env_labels = labels[mask]  # (batch, frames)
 
             # Scale by dummy classifier -> creates computational graph
             env_logits_scaled = env_logits * self.dummy_w
 
-            # For binary classification: logits are (batch, frames, 1),
+            # For binary classification: logits are (batch, frames, channels),
             # labels are (batch, frames)
             # Squeeze the last dimension from logits to match labels
             env_logits_flat = env_logits_scaled.squeeze(-1)  # (batch, frames)
-            env_labels_flat = env_labels.float()  # Ensure float type
+            env_labels_flat = env_labels.float()
 
-            # Per-sample binary cross-entropy
-            losses = F.binary_cross_entropy_with_logits(
-                env_logits_flat, env_labels_flat, reduction="none"
+            # Compute loss from SCALED logits (this creates the computational graph for IRM)
+            scaled_loss = F.binary_cross_entropy_with_logits(
+                env_logits_flat, env_labels_flat
             )
 
-            # ERM term
-            erm_loss = losses.mean()
+            # For logging: compute ERM loss from original logits
+            erm_loss = F.binary_cross_entropy_with_logits(
+                env_logits.squeeze(-1), env_labels_flat
+            )
             env_erm_losses.append(erm_loss)
 
-            # IRM penalty (how sensitive is loss to scaling dummy_w)
+            # IRM penalty: gradient of scaled_loss w.r.t. dummy_w
             grad = torch.autograd.grad(
-                erm_loss, self.dummy_w, create_graph=True, retain_graph=True
+                scaled_loss, self.dummy_w, create_graph=True, retain_graph=True
             )[0]
             penalty = grad**2
             env_penalties.append(penalty)
