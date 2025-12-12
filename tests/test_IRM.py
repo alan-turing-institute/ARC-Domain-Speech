@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import torch
 import torch.nn.functional as F
 
-from dr_sad.models.IRM import IRMLoss, IRMModel, TrainingBatch
+from dr_sad.models.IRM import IRMModel, TrainingBatch
 from dr_sad.pyannet import PyanNet
 
 
@@ -13,28 +13,29 @@ class TestIRMLoss:
     def test_irm_loss_initialization(self):
         """Test IRMLoss initialization with default and custom lambda values."""
         # Default lambda
-        loss_fn = IRMLoss()
-        assert loss_fn.lambda_irm == 1e2
-        assert isinstance(loss_fn.dummy_w, torch.nn.Parameter)
-        assert loss_fn.dummy_w.item() == 1.0
+        model = IRMModel()
+        assert model.lambda_irm == 1e2
+        assert isinstance(model.dummy_w, torch.nn.Parameter)
+        assert model.dummy_w.item() == 1.0
 
         # Custom lambda
         custom_lambda = 50.0
-        loss_fn_custom = IRMLoss(lambda_irm=custom_lambda)
-        assert loss_fn_custom.lambda_irm == custom_lambda
+        model_custom = IRMModel(lambda_irm=custom_lambda)
+        assert model_custom.lambda_irm == custom_lambda
 
     def test_irm_loss_forward_single_environment(self):
         """Test IRMLoss forward pass with a single environment."""
-        loss_fn = IRMLoss(lambda_irm=10.0)
+        model = IRMModel(lambda_irm=10.0)
 
         # Create test data: (batch=2, channels=1, frames=4) for binary classification
         batch_size, num_classes, num_frames = 2, 1, 4
-        logits = torch.randn(batch_size, num_classes, num_frames, requires_grad=True)
+        # Create probabilities directly (as would come from model forward pass)
+        probs = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
         labels = torch.randint(0, 2, (batch_size, 1, num_frames))  # Binary: 0 or 1
         env_ids = torch.zeros(batch_size, dtype=torch.long)  # Single environment
 
         # Forward pass
-        loss, metrics = loss_fn(logits, labels, env_ids)
+        loss, metrics = model.IRMLoss(probs, labels, env_ids)
 
         # Check outputs
         assert isinstance(loss, torch.Tensor)
@@ -50,17 +51,18 @@ class TestIRMLoss:
 
     def test_irm_loss_forward_multiple_environments(self):
         """Test IRMLoss forward pass with multiple environments."""
-        loss_fn = IRMLoss(lambda_irm=5.0)
+        model = IRMModel(lambda_irm=5.0)
 
         # Create test data: (batch=6, channels=1, frames=3) for binary classification
         batch_size, num_classes, num_frames = 6, 1, 3
-        logits = torch.randn(batch_size, num_classes, num_frames, requires_grad=True)
+        # Create probabilities directly (as would come from model forward pass)
+        probs = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
         labels = torch.randint(0, 2, (batch_size, 1, num_frames))  # Binary: 0 or 1
         # Three environments with 2 samples each
         env_ids = torch.tensor([0, 0, 1, 1, 2, 2], dtype=torch.long)
 
         # Forward pass
-        loss, metrics = loss_fn(logits, labels, env_ids)
+        loss, metrics = model.IRMLoss(probs, labels, env_ids)
 
         # Check outputs
         assert isinstance(loss, torch.Tensor)
@@ -74,46 +76,45 @@ class TestIRMLoss:
 
     def test_irm_loss_backward_pass(self):
         """Test that IRMLoss supports gradient computation."""
-        loss_fn = IRMLoss(lambda_irm=1.0)
+        model = IRMModel(lambda_irm=1.0)
 
         # Create test data for binary classification
         batch_size, num_classes, num_frames = 3, 1, 5
-        logits = torch.randn(batch_size, num_classes, num_frames, requires_grad=True)
+        # Create probabilities directly (as would come from model forward pass)
+        probs = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
         labels = torch.randint(0, 2, (batch_size, 1, num_frames))  # Binary: 0 or 1
         env_ids = torch.tensor([0, 1, 1], dtype=torch.long)
 
         # Forward and backward pass
-        loss, _ = loss_fn(logits, labels, env_ids)
+        loss, _ = model.IRMLoss(probs, labels, env_ids)
         loss.backward()
 
         # Check gradients exist
-        assert logits.grad is not None
-        assert loss_fn.dummy_w.grad is not None
+        assert probs.grad is not None
+        assert model.dummy_w.grad is not None
 
     def test_erm_loss_equals_cross_entropy_when_lambda_zero(self):
         """Test that ERM loss equals standard binary cross-entropy when lambda_irm=0."""
-        loss_fn = IRMLoss(lambda_irm=0.0)
+        model = IRMModel(lambda_irm=0.0)
 
         # Create test data with single environment for binary classification
         batch_size, num_classes, num_frames = 4, 1, 5
-        logits = torch.randn(batch_size, num_classes, num_frames, requires_grad=True)
+        # Create probabilities directly (as would come from model forward pass)
+        probs = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
         labels = torch.randint(0, 2, (batch_size, 1, num_frames))  # Binary: 0 or 1
         env_ids = torch.zeros(batch_size, dtype=torch.long)  # Single environment
 
         # Forward pass through IRMLoss
-        irm_loss, metrics = loss_fn(logits, labels, env_ids)
+        irm_loss, metrics = model.IRMLoss(probs, labels, env_ids)
 
-        # Compute standard binary cross-entropy manually
-        # IRMLoss transforms: logits.transpose(1, 2), labels.squeeze(1)
-        logits_transformed = logits.transpose(1, 2)  # (batch, frames, 1)
+        # Compute standard binary cross-entropy manually using same format
+        # IRMLoss transforms: probs.transpose(1, 2), labels.squeeze(1)
+        probs_transformed = probs.transpose(1, 2)  # (batch, frames, 1)
         labels_transformed = labels.squeeze(1).float()  # (batch, frames)
 
-        # For binary cross-entropy, squeeze logits to match labels
-        logits_flat = logits_transformed.squeeze(-1)  # (batch, frames)
-
-        expected_loss = F.binary_cross_entropy_with_logits(
-            logits_flat, labels_transformed
-        )
+        # For binary cross-entropy with probabilities, squeeze probs to match labels
+        probs_flat = probs_transformed.squeeze(-1)  # (batch, frames)
+        expected_loss = F.binary_cross_entropy(probs_flat, labels_transformed)
 
         # When lambda_irm=0 and single environment, total loss should equal standard BCE
         assert torch.allclose(irm_loss, expected_loss, atol=1e-6)
@@ -127,14 +128,15 @@ class TestIRMModel:
         """Test IRMModel initialization."""
         # Test default lambda
         model = IRMModel()
-        assert hasattr(model, "irm_loss")
-        assert isinstance(model.irm_loss, IRMLoss)
-        assert model.irm_loss.lambda_irm == 1e2
+        # IRMLoss is now a method, not a class instance
+        # Check that IRMLoss is callable
+        assert callable(model.IRMLoss)
+        assert model.lambda_irm == 1e2
 
         # Test custom lambda
         custom_lambda = 25.0
         model_custom = IRMModel(lambda_irm=custom_lambda)
-        assert model_custom.irm_loss.lambda_irm == custom_lambda
+        assert model_custom.lambda_irm == custom_lambda
 
     def test_irm_model_training_step(self):
         """Test IRMModel training_step method."""
@@ -157,8 +159,8 @@ class TestIRMModel:
         # Mock model forward pass properly by overriding the forward method
         num_frames = 10
         num_classes = 1  # Binary classification
-        # Model should output (batch, time, channels)
-        model_outputs = torch.randn(batch_size, num_frames, num_classes)
+        # Model should output (batch, time, channels) with probabilities (not logits)
+        model_outputs = torch.rand(batch_size, num_frames, num_classes)
 
         def mock_forward(_):
             return model_outputs

@@ -2,7 +2,6 @@ from typing import Any, TypedDict
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from dr_sad.pyannet import PyanNet
 
@@ -13,15 +12,14 @@ class TrainingBatch(TypedDict):
     domains: torch.Tensor
 
 
-class IRMLoss(nn.Module):  # type: ignore[misc]
-    """IRM Loss implementation for domain-invariant speaker diarization."""
-
-    def __init__(self, lambda_irm: float = 1e2) -> None:
-        super().__init__()
+class IRMModel(PyanNet):
+    def __init__(self, lambda_irm: float = 1e2, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        # self.irm_loss assignment removed; IRMLoss is a method, not a class instance
         self.lambda_irm = float(lambda_irm)
         self.dummy_w = nn.Parameter(torch.tensor(1.0))
 
-    def forward(
+    def IRMLoss(
         self,
         logits: torch.Tensor,
         labels: torch.Tensor,
@@ -64,15 +62,11 @@ class IRMLoss(nn.Module):  # type: ignore[misc]
             env_logits_flat = env_logits_scaled.squeeze(-1)  # (batch, frames)
             env_labels_flat = env_labels.float()
 
-            # Compute loss from SCALED logits (this creates the computational graph for IRM)
-            scaled_loss = F.binary_cross_entropy_with_logits(
-                env_logits_flat, env_labels_flat
-            )
+            # Compute loss from scaled logits (creates the computational graph for IRM)
+            scaled_loss = self.loss_function(env_labels_flat, [], env_logits_flat)
 
             # For logging: compute ERM loss from original logits
-            erm_loss = F.binary_cross_entropy_with_logits(
-                env_logits.squeeze(-1), env_labels_flat
-            )
+            erm_loss = self.loss_function(env_labels_flat, [], env_logits.squeeze(-1))
             env_erm_losses.append(erm_loss)
 
             # IRM penalty: gradient of scaled_loss w.r.t. dummy_w
@@ -95,12 +89,6 @@ class IRMLoss(nn.Module):  # type: ignore[misc]
         }
 
         return total_loss, metrics
-
-
-class IRMModel(PyanNet):
-    def __init__(self, lambda_irm: float = 1e2, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.irm_loss = IRMLoss(lambda_irm=lambda_irm)
 
     def training_step(
         self,
@@ -125,7 +113,7 @@ class IRMModel(PyanNet):
         env_ids = domains.detach().to(device=waveforms.device)
 
         # Compute IRM loss - IRMLoss handles the reshaping
-        loss, metrics = self.irm_loss(outputs, speaker_truth, env_ids)
+        loss, metrics = self.IRMLoss(outputs, speaker_truth, env_ids)
 
         # Log metrics
         self.log("train_loss", loss)
