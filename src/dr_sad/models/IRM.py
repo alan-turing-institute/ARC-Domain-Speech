@@ -52,6 +52,7 @@ class IRMModel(PyanNet):
             mask = env_ids == env
             env_logits = logits[mask]  # (batch, frames, channels)
             env_labels = labels[mask]  # (batch, frames)
+            _domains = env_ids[mask]
 
             # Scale by dummy classifier -> creates computational graph
             env_logits_scaled = env_logits * self.dummy_w
@@ -61,12 +62,14 @@ class IRMModel(PyanNet):
             # Squeeze the last dimension from logits to match labels
             env_logits_flat = env_logits_scaled.squeeze(-1)  # (batch, frames)
             env_labels_flat = env_labels.float()
+            print(env_logits_flat.shape, env_labels_flat.shape, _domains.shape)
+            print(env_labels_flat)
 
             # Compute loss from scaled logits (creates the computational graph for IRM)
-            scaled_loss = self.loss_function(env_labels_flat, [], env_logits_flat)
+            scaled_loss = self.loss_function(env_logits_flat, _domains, env_labels_flat)
 
             # For logging: compute ERM loss from original logits
-            erm_loss = self.loss_function(env_labels_flat, [], env_logits.squeeze(-1))
+            erm_loss = self.loss_function(env_logits.squeeze(-1), _domains, env_labels_flat)
             env_erm_losses.append(erm_loss)
 
             # IRM penalty: gradient of scaled_loss w.r.t. dummy_w
