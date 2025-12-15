@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 import yaml
-from pytorch_lightning.loggers import CSVLogger
+from pytorch_lightning.loggers import CSVLogger, MLFlowLogger
 from safetensors.torch import save_model
 
 from dr_sad.data.data_fetching import load_data
@@ -12,7 +12,7 @@ from dr_sad.data.dataloaders import (
     one_test_dataloader,
 )
 from dr_sad.training import DrSadTrainer, create_model
-from dr_sad.utils import get_experiment_name
+from dr_sad.utils import flatten_dict, get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
@@ -107,7 +107,8 @@ def main(args) -> None:
         raise ValueError(err_msg)
 
     # Set up logging
-    logger = CSVLogger(save_dir=save_dir, name=None)
+    csv_logger = CSVLogger(save_dir=save_dir, name=None)
+    mlflow_logger = MLFlowLogger(experiment_name=experiment_name)
     log_per_batch = trainer_cfg.get("log_per_batch", 10)
     if log_per_batch < 1:
         msg = f"log_per_batch must be greater than 1, got {log_per_batch}"
@@ -121,7 +122,7 @@ def main(args) -> None:
     # Create trainer with early stopping
     trainer = DrSadTrainer.create_trainer(
         default_root_dir=save_dir,
-        logger=logger,
+        logger=[csv_logger, mlflow_logger],
         log_every_n_steps=log_steps,
         max_epochs=trainer_cfg["max_epochs"],
         early_stopping_cfg=trainer_cfg["early_stopping"],
@@ -191,6 +192,11 @@ def main(args) -> None:
 
     with (Path(save_dir) / "test_results.yaml").open("w") as f:
         yaml.safe_dump(results, f)
+
+    try:
+        mlflow_logger.log_metrics(flatten_dict(results))
+    except Exception as e:
+        print(f"Warning: MLFlow logging failed: {e}")
 
     # Save model
     trainer.save_checkpoint(Path(save_dir) / "final_checkpoint.ckpt")

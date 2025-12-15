@@ -1,6 +1,8 @@
+from typing import Any
+
 import pytest
 
-from dr_sad.utils import get_experiment_name
+from dr_sad.utils import flatten_dict, get_experiment_name
 
 
 class TestGetExperimentName:
@@ -60,3 +62,35 @@ class TestGetExperimentName:
 
         with pytest.raises(FileNotFoundError):
             get_experiment_name("does_not_exist.yaml", exp_config_dir)
+
+
+class TestFlattenDict:
+    """Tests for flatten_dict function."""
+
+    def test_flatten_simple(self):
+        """Test flattening a simple nested dictionary."""
+        nested = {"a": 1, "b": {"c": 2, "d": 3}, "e": {"f": {"g": 4}}}
+        expected = {"a": 1, "b_c": 2, "b_d": 3, "e_f_g": 4}
+        result = flatten_dict(nested)
+        assert result == expected
+
+    def test_flatten_with_custom_separator(self):
+        """Test flattening with a custom separator."""
+        nested = {"x": {"y": {"z": 5}}}
+        expected = {"x->y->z": 5}
+        result = flatten_dict(nested, sep="->")
+        assert result == expected
+
+    def test_flatten_empty_dict(self):
+        """Test flattening an empty dictionary."""
+        nested: dict[str, Any] = {}
+        expected: dict[str, Any] = {}
+        result = flatten_dict(nested)
+        assert result == expected
+
+    def test_with_none_values(self):
+        """Test flattening a dictionary with None values."""
+        nested = {"a": None, "b": {"c": None, "d": 4}}
+        expected = {"a": None, "b_c": None, "b_d": 4}
+        result = flatten_dict(nested)
+        assert result == expected
