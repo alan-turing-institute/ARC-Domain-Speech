@@ -148,32 +148,27 @@ def create_model(
         err_msg = f"Unknown model name: {model_name}"
         raise ValueError(err_msg)
 
-    for key, value in model_cfg.items():
-        if key != "model_name":
-            model_kwargs[key] = value
-
     ModelClass = MODEL_DICT[model_name]
     if model_cfg.get("model_name") == "adversarial_net":
         num_domains = _get_domain_num_from_data_cfg(data_cfg)
         model_kwargs["num_domains"] = num_domains
 
     # Extract all model config except 'model_name'
-    model_specific_kwargs = {k: v for k, v in model_cfg.items() if k != "model_name"}
-
-    merged_kwargs = {**model_specific_kwargs, **model_kwargs}
+    model_kwargs = {k: v for k, v in model_cfg.items() if k != "model_name"}
     # Create model with optional scheduler
     if trainer_cfg["scheduler"]["enabled"]:
         scheduler_config = trainer_cfg["scheduler"].copy()
         scheduler_config.pop("enabled")
+
         return ModelClass(
             scheduler_config=scheduler_config,
             learning_rate=trainer_cfg["learning_rate"],
-            **merged_kwargs,
+            **model_kwargs,
         )
 
     # If there is no scheduler
     return ModelClass(
         scheduler_config=None,
         learning_rate=trainer_cfg["learning_rate"],
-        **merged_kwargs,
+        **model_kwargs,
     )
