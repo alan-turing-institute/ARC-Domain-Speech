@@ -120,17 +120,17 @@ def create_model(
     model_cfg: dict[str, Any],
     trainer_cfg: dict[str, Any],
     data_cfg: dict[str, Any] | None = None,
-    **model_kwargs: Any,
+    **extra_kwargs: Any,
 ) -> LightningModule:
     """
     Create a model instance with scheduler configuration.
 
     Args:
-        model_cfg: Model configuration dictionary.
-        trainer_cfg: Trainer configuration dictionary. Must contain a 'learning_rate'
-            key (initial learning rate, default: 1e-3).
-        data_cfg: Data configuration dictionary (optional).
-        **model_kwargs: Additional keyword arguments to pass to the model.
+        model_cfg: Model configuration dictionary. Must contain 'model_name'
+        trainer_cfg: Trainer configuration dictionary. Must contain 'learning_rate'
+            and 'scheduler' keys
+        data_cfg: Data configuration dictionary (optional, required for adversarial_net)
+        **extra_kwargs: Additional keyword arguments to pass to the model constructor
 
     Returns:
         Model instance with scheduler configuration.
@@ -149,26 +149,28 @@ def create_model(
         raise ValueError(err_msg)
 
     ModelClass = MODEL_DICT[model_name]
-    if model_cfg.get("model_name") == "adversarial_net":
-        num_domains = _get_domain_num_from_data_cfg(data_cfg)
-        model_kwargs["num_domains"] = num_domains
 
-    # Extract all model config except 'model_name'
-    model_kwargs = {k: v for k, v in model_cfg.items() if k != "model_name"}
-    # Create model with optional scheduler
+    # Build model constructor arguments from model_cfg (excluding 'model_name')
+    constructor_kwargs = {k: v for k, v in model_cfg.items() if k != "model_name"}
+
+    # Add adversarial_net specific arguments
+    if model_name == "adversarial_net":
+        num_domains = _get_domain_num_from_data_cfg(data_cfg)
+        constructor_kwargs["num_domains"] = num_domains
+
+    # Merge in any additional kwargs passed to this function
+    constructor_kwargs.update(extra_kwargs)
+
+    # Prepare scheduler configuration
     if trainer_cfg["scheduler"]["enabled"]:
         scheduler_config = trainer_cfg["scheduler"].copy()
         scheduler_config.pop("enabled")
+    else:
+        scheduler_config = None
 
-        return ModelClass(
-            scheduler_config=scheduler_config,
-            learning_rate=trainer_cfg["learning_rate"],
-            **model_kwargs,
-        )
-
-    # If there is no scheduler
+    # Create and return model instance
     return ModelClass(
-        scheduler_config=None,
+        scheduler_config=scheduler_config,
         learning_rate=trainer_cfg["learning_rate"],
-        **model_kwargs,
+        **constructor_kwargs,
     )

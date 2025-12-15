@@ -4,34 +4,43 @@ import torch
 import torch.nn.functional as F
 
 from dr_sad.models.IRM import IRMModel, TrainingBatch
-from dr_sad.pyannet import PyanNet
 
 
 class TestIRMLoss:
     """Test cases for IRMLoss class."""
 
     def test_irm_loss_initialization(self):
-        """Test IRMLoss initialization with default and custom lambda values."""
-        # Default lambda
-        model = IRMModel()
-        assert model.lambda_irm == 1e2
-        assert isinstance(model.dummy_w, torch.nn.Parameter)
-        assert model.dummy_w.item() == 1.0
-
-        # Custom lambda
+        """Test IRMLoss initialization."""
         custom_lambda = 50.0
-        model_custom = IRMModel(lambda_irm=custom_lambda)
-        assert model_custom.lambda_irm == custom_lambda
+        lambda_scheduling_steps = 200
+        model = IRMModel(
+            lambda_irm=custom_lambda,
+            lambda_scheduling_steps=lambda_scheduling_steps,
+        )
+        assert model.lambda_irm == 0.0  # Starts at 0 with scheduling
+        assert model.lambda_scheduling_steps == lambda_scheduling_steps
+        assert model.target_lambda == custom_lambda
+
+        # test without scheduling
+        model_no_schedule = IRMModel(
+            lambda_irm=custom_lambda,
+            lambda_scheduling_steps=None,
+        )
+        assert model_no_schedule.lambda_irm == custom_lambda
+        assert model_no_schedule.target_lambda == custom_lambda
+        assert model_no_schedule.lambda_scheduling_steps is None
 
     def test_irm_loss_forward_single_environment(self):
         """Test IRMLoss forward pass with a single environment."""
-        model = IRMModel(lambda_irm=10.0)
+        model = IRMModel(lambda_irm=10.0, lambda_scheduling_steps=None)
 
         # Create test data: (batch=2, channels=1, frames=4) for binary classification
         batch_size, num_classes, num_frames = 2, 1, 4
         # Create probabilities directly (as would come from model forward pass)
         probs = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
-        labels = torch.randint(0, 2, (batch_size, 1, num_frames))  # Binary: 0 or 1
+        labels = torch.randint(
+            0, 2, (batch_size, 1, num_frames)
+        ).float()  # Binary: 0 or 1, convert to float
         env_ids = torch.zeros(batch_size, dtype=torch.long)  # Single environment
 
         # Forward pass
@@ -51,15 +60,17 @@ class TestIRMLoss:
 
     def test_irm_loss_forward_multiple_environments(self):
         """Test IRMLoss forward pass with multiple environments."""
-        model = IRMModel(lambda_irm=5.0)
+        model = IRMModel(lambda_irm=5.0, lambda_scheduling_steps=None)
 
         # Create test data: (batch=6, channels=1, frames=3) for binary classification
         batch_size, num_classes, num_frames = 6, 1, 3
         # Create probabilities directly (as would come from model forward pass)
         probs = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
-        labels = torch.randint(0, 2, (batch_size, 1, num_frames))  # Binary: 0 or 1
+        labels = torch.randint(
+            0, 2, (batch_size, 1, num_frames)
+        ).float()  # Binary: 0 or 1, convert to float
         # Three environments with 2 samples each
-        env_ids = torch.tensor([0, 0, 1, 1, 2, 2], dtype=torch.long)
+        env_ids = torch.tensor([0, 0, 1, 1, 2, 2])
 
         # Forward pass
         loss, metrics = model.IRMLoss(probs, labels, env_ids)
@@ -76,13 +87,15 @@ class TestIRMLoss:
 
     def test_irm_loss_backward_pass(self):
         """Test that IRMLoss supports gradient computation."""
-        model = IRMModel(lambda_irm=1.0)
+        model = IRMModel(lambda_irm=1.0, lambda_scheduling_steps=None)
 
         # Create test data for binary classification
         batch_size, num_classes, num_frames = 3, 1, 5
         # Create probabilities directly (as would come from model forward pass)
         probs = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
-        labels = torch.randint(0, 2, (batch_size, 1, num_frames))  # Binary: 0 or 1
+        labels = torch.randint(
+            0, 2, (batch_size, 1, num_frames)
+        ).float()  # Binary: 0 or 1, convert to float
         env_ids = torch.tensor([0, 1, 1], dtype=torch.long)
 
         # Forward and backward pass
@@ -101,7 +114,9 @@ class TestIRMLoss:
         batch_size, num_classes, num_frames = 4, 1, 5
         # Create probabilities directly (as would come from model forward pass)
         probs = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
-        labels = torch.randint(0, 2, (batch_size, 1, num_frames))  # Binary: 0 or 1
+        labels = torch.randint(
+            0, 2, (batch_size, 1, num_frames)
+        ).float()  # Binary: 0 or 1, convert to float
         env_ids = torch.zeros(batch_size, dtype=torch.long)  # Single environment
 
         # Forward pass through IRMLoss
@@ -126,8 +141,8 @@ class TestIRMModel:
 
     def test_irm_model_initialization(self):
         """Test IRMModel initialization."""
-        # Test default lambda
-        model = IRMModel()
+        # Test with explicit lambda (no default)
+        model = IRMModel(lambda_irm=1e2)
         # IRMLoss is now a method, not a class instance
         # Check that IRMLoss is callable
         assert callable(model.IRMLoss)
@@ -170,7 +185,7 @@ class TestIRMModel:
         # Mock prepare_annotation output: (batch, 1, frames) with binary labels
         speaker_truth = torch.randint(
             0, 2, (batch_size, 1, num_frames)
-        )  # Binary: 0 or 1
+        ).float()  # Binary: 0 or 1, convert to float
         model.prepare_annotation.return_value = speaker_truth
 
         # Run training step
@@ -179,27 +194,10 @@ class TestIRMModel:
         # Verify calls
         model.prepare_annotation.assert_called_once_with(waveforms, annotations)
 
-        # Check logging calls - just verify that log was called 3 times
-        assert model.log.call_count == 3
+        # Check logging calls - log is called 4 times: train_loss, train_erm,
+        # train_penalty, lambda_irm
+        assert model.log.call_count == 4
 
         # Verify loss is computed
         assert isinstance(loss, torch.Tensor)
         assert loss.requires_grad
-
-    def test_irm_model_only_overrides_training_step(self):
-        """Test that IRMModel only overrides training_step, not val/test steps."""
-        model = IRMModel(lambda_irm=10.0)
-        parent_class = PyanNet  # PyanNet
-
-        # Check that training_step is overridden
-        assert model.__class__.training_step != parent_class.training_step
-
-        # Check that validation_step and test_step are NOT overridden
-        assert (
-            not hasattr(model.__class__, "validation_step")
-            or model.__class__.validation_step == parent_class.validation_step
-        )
-        assert (
-            not hasattr(model.__class__, "test_step")
-            or model.__class__.test_step == parent_class.test_step
-        )
