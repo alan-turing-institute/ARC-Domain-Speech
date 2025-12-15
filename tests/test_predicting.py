@@ -196,6 +196,7 @@ class TestLoadModelEval:
             mock_create_model.assert_called_once_with(
                 model_cfg=mock_model_config,
                 trainer_cfg=mock_trainer_config,
+                data_cfg=None,
             )
 
             # Verify load_file was called with the model path

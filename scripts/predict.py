@@ -87,6 +87,7 @@ def main(
         model_path=model_path,
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
+        data_cfg=data_cfg,
     )
 
     validation_loader, test_loader, domain_loader = load_data_eval(

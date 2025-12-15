@@ -120,6 +120,7 @@ def load_model_eval(
     model_path: Path | str,
     model_cfg: dict[str, str | int | float],
     trainer_cfg: dict[str, str | int | float],
+    data_cfg: dict[str, str | int | float] | None = None,
 ) -> torch.nn.Module:
     """
     Loads a model from a safetensors file and prepares it for evaluation.
@@ -129,6 +130,8 @@ def load_model_eval(
          weights.
         model_cfg (dict): Configuration dictionary for the model architecture.
         trainer_cfg (dict): Configuration dictionary for the trainer settings.
+        data_cfg (dict, optional): Configuration dictionary for the dataset, if needed
+            for model creation. Defaults to None.
 
     Returns:
         torch.nn.Module: The model loaded with weights and set to evaluation mode.
@@ -136,6 +139,7 @@ def load_model_eval(
     weightless_model = create_model(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
+        data_cfg=data_cfg,
     )
 
     # Load the model state dict from the safetensors file
