@@ -135,9 +135,8 @@ if __name__ == "__main__":
         description="Predict using a trained model on specified dataset."
     )
     parser.add_argument(
-        "--experiment-config",
+        "experiment_config",
         type=str,
-        required=True,
         help="Experiment configuration file name located in configs/experiments/",
     )
     parser.add_argument(
