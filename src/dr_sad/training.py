@@ -8,8 +8,15 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
-from dr_sad.models import AdversarialNet
+from dr_sad.models import AdversarialNet, IRMv1Model
 from dr_sad.pyannet import PyanNet
+
+# model registry
+MODEL_DICT: dict[str, type[LightningModule]] = {
+    "default_pyannet": PyanNet,
+    "irm_model": IRMv1Model,
+    "adversarial_net": AdversarialNet,
+}
 
 
 def save_predictions(
@@ -112,17 +119,17 @@ def create_model(
     model_cfg: dict[str, Any],
     trainer_cfg: dict[str, Any],
     data_cfg: dict[str, Any] | None = None,
-    **model_kwargs: Any,
+    **extra_kwargs: Any,
 ) -> LightningModule:
     """
     Create a model instance with scheduler configuration.
 
     Args:
-        model_cfg: Model configuration dictionary.
-        trainer_cfg: Trainer configuration dictionary. Must contain a 'learning_rate'
-            key (initial learning rate, default: 1e-3).
-        data_cfg: Data configuration dictionary (optional).
-        **model_kwargs: Additional keyword arguments to pass to the model.
+        model_cfg: Model configuration dictionary. Must contain 'model_name'
+        trainer_cfg: Trainer configuration dictionary. Must contain 'learning_rate'
+            and 'scheduler' keys
+        data_cfg: Data configuration dictionary (optional, required for adversarial_net)
+        **extra_kwargs: Additional keyword arguments to pass to the model constructor
 
     Returns:
         Model instance with scheduler configuration.
@@ -135,29 +142,34 @@ def create_model(
         err_msg = "trainer_cfg must contain a 'scheduler' key"
         raise KeyError(err_msg)
 
-    for key, value in model_cfg.items():
-        if key != "model_name":
-            model_kwargs[key] = value
-
-    if model_cfg.get("model_name") == "default_pyannet":
-        ModelClass: LightningModule = PyanNet
-    elif model_cfg.get("model_name") == "adversarial_net":
-        num_domains = _get_domain_num_from_data_cfg(data_cfg)
-        model_kwargs["num_domains"] = num_domains
-        ModelClass = AdversarialNet
-    else:
-        err_msg = f"Unknown model name: {model_cfg.get('model_name')}"
+    model_name = model_cfg.get("model_name")
+    if model_name not in MODEL_DICT:
+        err_msg = f"Unknown model name: {model_name}"
         raise ValueError(err_msg)
 
-    # Create model with optional scheduler
+    ModelClass = MODEL_DICT[model_name]
+
+    # Build model constructor arguments from model_cfg (excluding 'model_name')
+    constructor_kwargs = {k: v for k, v in model_cfg.items() if k != "model_name"}
+
+    # Add adversarial_net specific arguments
+    if model_name == "adversarial_net":
+        num_domains = _get_domain_num_from_data_cfg(data_cfg)
+        constructor_kwargs["num_domains"] = num_domains
+
+    # Merge in any additional kwargs passed to this function
+    constructor_kwargs.update(extra_kwargs)
+
+    # Prepare scheduler configuration
     if trainer_cfg["scheduler"]["enabled"]:
         scheduler_config = trainer_cfg["scheduler"].copy()
         scheduler_config.pop("enabled")
-        return ModelClass(
-            scheduler_config=scheduler_config,
-            learning_rate=trainer_cfg["learning_rate"],
-            **model_kwargs,
-        )
+    else:
+        scheduler_config = None
 
-    # If there is no scheduler
-    return ModelClass(learning_rate=trainer_cfg["learning_rate"], **model_kwargs)
+    # Create and return model instance
+    return ModelClass(
+        scheduler_config=scheduler_config,
+        learning_rate=trainer_cfg["learning_rate"],
+        **constructor_kwargs,
+    )
