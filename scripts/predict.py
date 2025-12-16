@@ -87,6 +87,7 @@ def main(
         model_path=model_path,
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
+        data_cfg=data_cfg,
     )
 
     validation_loader, test_loader, domain_loader = load_data_eval(
@@ -134,9 +135,8 @@ if __name__ == "__main__":
         description="Predict using a trained model on specified dataset."
     )
     parser.add_argument(
-        "--experiment-config",
+        "experiment_config",
         type=str,
-        required=True,
         help="Experiment configuration file name located in configs/experiments/",
     )
     parser.add_argument(
