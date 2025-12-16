@@ -8,14 +8,13 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
-from dr_sad.models import AdversarialNet
-from dr_sad.models.IRM import IRMModel
+from dr_sad.models import AdversarialNet, IRMv1Model
 from dr_sad.pyannet import PyanNet
 
 # model registry
 MODEL_DICT: dict[str, type[LightningModule]] = {
     "default_pyannet": PyanNet,
-    "irm_model": IRMModel,
+    "irm_model": IRMv1Model,
     "adversarial_net": AdversarialNet,
 }
 

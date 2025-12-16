@@ -12,7 +12,7 @@ class TrainingBatch(TypedDict):
     domains: list[int]
 
 
-class IRMModel(PyanNet):
+class IRMv1Model(PyanNet):
     def __init__(
         self,
         lambda_irm: float,
@@ -21,6 +21,7 @@ class IRMModel(PyanNet):
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        self.save_hyperparameters()
 
         self.lambda_scheduling_steps = lambda_scheduling_steps
         self.target_lambda = float(lambda_irm)
@@ -41,6 +42,26 @@ class IRMModel(PyanNet):
             self.lambda_start_step = None
 
         self.dummy_w = nn.Parameter(torch.tensor(1.0))
+
+    def on_save_checkpoint(self, checkpoint):
+        """
+        Save the current state of lambda_irm and anneal_step to the checkpoint.
+
+        Args:
+            checkpoint: The checkpoint dictionary to save state into.
+        """
+        checkpoint["lambda_irm"] = self.lambda_irm
+        checkpoint["anneal_step"] = self.anneal_step
+
+    def on_load_checkpoint(self, checkpoint):
+        """
+        Load the state of lambda_irm and anneal_step from the checkpoint.
+
+        Args:
+            checkpoint: The checkpoint dictionary to load state from.
+        """
+        self.lambda_irm = checkpoint.get("lambda_irm", self.lambda_irm)
+        self.anneal_step = checkpoint.get("anneal_step", self.anneal_step)
 
     def configure_optimizers(self):
         """Override to exclude dummy_w from optimization"""
@@ -80,11 +101,11 @@ class IRMModel(PyanNet):
         else:
             self.lambda_irm = float(self.target_lambda)
 
-    def IRMLoss(
+    def irm_Loss(
         self,
         logits: torch.Tensor,
         labels: torch.Tensor,
-        env_ids: torch.Tensor,
+        domain_ids: torch.Tensor,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
         """
         Implements equation (1) from https://arxiv.org/abs/1907.02893
@@ -97,7 +118,7 @@ class IRMModel(PyanNet):
             loss: scalar
             metrics: dict with 'erm_loss' and 'irm_penalty'
         """
-        unique_envs = env_ids.unique()
+        unique_domains = domain_ids.unique()
 
         # Collect per-environment losses to avoid inefficient tensor accumulation
         env_erm_losses = []
@@ -105,19 +126,19 @@ class IRMModel(PyanNet):
 
         # Compute ERM loss and IRM penalty for each environment to capture
         # per-environment behavior
-        for env in unique_envs:
+        for domain in unique_domains:
             # Get samples from this environment
-            mask = env_ids == env
+            mask = domain_ids == domain
             env_logits = logits[mask]  # (batch, channels, frames)
             env_labels = labels[mask]  # (batch, frames)
-            _domains = env_ids[mask]
+            domains = domain_ids[mask]
 
             # Scale logits by dummy classifier
             env_logits_scaled = env_logits * self.dummy_w
 
             # Compute loss on logits (this is R^e(w·Φ)) in eq. (1)
             erm_loss = self.loss_function(
-                env_labels, _domains.tolist(), env_logits_scaled
+                env_labels, domains.tolist(), env_logits_scaled
             )
             env_erm_losses.append(erm_loss)
 
@@ -166,7 +187,7 @@ class IRMModel(PyanNet):
         speaker_truth = self.prepare_annotation(waveforms, annotations)
 
         # Compute IRM loss - IRMLoss handles the reshaping
-        loss, metrics = self.IRMLoss(outputs, speaker_truth, domains)
+        loss, metrics = self.irm_Loss(outputs, speaker_truth, domains)
 
         # Log metrics
         self.log("train_loss", loss)
@@ -204,7 +225,7 @@ class IRMModel(PyanNet):
         speaker_truth = self.prepare_annotation(waveforms, annotations)
 
         with torch.set_grad_enabled(True):  # need grad for IRM penalty
-            total_loss, metrics = self.IRMLoss(outputs, speaker_truth, _domains)
+            total_loss, metrics = self.irm_Loss(outputs, speaker_truth, _domains)
 
         erm_loss, irm_penalty = metrics["erm_loss"], metrics["irm_penalty"]
         accuracy = self.accuracy_function(speaker_truth, _domains, outputs)

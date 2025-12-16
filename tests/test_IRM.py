@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import torch
 import torch.nn.functional as F
 
-from dr_sad.models.IRM import IRMModel, TrainingBatch
+from dr_sad.models.IRM import IRMv1Model, TrainingBatch
 
 
 class TestIRMLoss:
@@ -13,7 +13,7 @@ class TestIRMLoss:
         """Test IRMLoss initialization."""
         custom_lambda = 50.0
         lambda_scheduling_steps = 200
-        model = IRMModel(
+        model = IRMv1Model(
             lambda_irm=custom_lambda,
             lambda_scheduling_steps=lambda_scheduling_steps,
         )
@@ -22,7 +22,7 @@ class TestIRMLoss:
         assert model.target_lambda == custom_lambda
 
         # test without scheduling
-        model_no_schedule = IRMModel(
+        model_no_schedule = IRMv1Model(
             lambda_irm=custom_lambda,
             lambda_scheduling_steps=None,
         )
@@ -32,7 +32,7 @@ class TestIRMLoss:
 
     def test_irm_loss_forward_single_environment(self):
         """Test IRMLoss forward pass with a single environment."""
-        model = IRMModel(lambda_irm=10.0, lambda_scheduling_steps=None)
+        model = IRMv1Model(lambda_irm=10.0, lambda_scheduling_steps=None)
 
         # Create test data: (batch=2, channels=1, frames=4) for binary classification
         batch_size, num_classes, num_frames = 2, 1, 4
@@ -44,7 +44,7 @@ class TestIRMLoss:
         env_ids = torch.zeros(batch_size, dtype=torch.long)  # Single environment
 
         # Forward pass
-        loss, metrics = model.IRMLoss(probs, labels, env_ids)
+        loss, metrics = model.irm_Loss(probs, labels, env_ids)
 
         # Check outputs
         assert isinstance(loss, torch.Tensor)
@@ -60,7 +60,7 @@ class TestIRMLoss:
 
     def test_irm_loss_forward_multiple_environments(self):
         """Test IRMLoss forward pass with multiple environments."""
-        model = IRMModel(lambda_irm=5.0, lambda_scheduling_steps=None)
+        model = IRMv1Model(lambda_irm=5.0, lambda_scheduling_steps=None)
 
         # Create test data: (batch=6, channels=1, frames=3) for binary classification
         batch_size, num_classes, num_frames = 6, 1, 3
@@ -73,7 +73,7 @@ class TestIRMLoss:
         env_ids = torch.tensor([0, 0, 1, 1, 2, 2])
 
         # Forward pass
-        loss, metrics = model.IRMLoss(probs, labels, env_ids)
+        loss, metrics = model.irm_Loss(probs, labels, env_ids)
 
         # Check outputs
         assert isinstance(loss, torch.Tensor)
@@ -87,7 +87,7 @@ class TestIRMLoss:
 
     def test_irm_loss_backward_pass(self):
         """Test that IRMLoss supports gradient computation."""
-        model = IRMModel(lambda_irm=1.0, lambda_scheduling_steps=None)
+        model = IRMv1Model(lambda_irm=1.0, lambda_scheduling_steps=None)
 
         # Create test data for binary classification
         batch_size, num_classes, num_frames = 3, 1, 5
@@ -99,7 +99,7 @@ class TestIRMLoss:
         env_ids = torch.tensor([0, 1, 1], dtype=torch.long)
 
         # Forward and backward pass
-        loss, _ = model.IRMLoss(probs, labels, env_ids)
+        loss, _ = model.irm_Loss(probs, labels, env_ids)
         loss.backward()
 
         # Check gradients exist
@@ -108,7 +108,7 @@ class TestIRMLoss:
 
     def test_erm_loss_equals_cross_entropy_when_lambda_zero(self):
         """Test that ERM loss equals standard binary cross-entropy when lambda_irm=0."""
-        model = IRMModel(lambda_irm=0.0)
+        model = IRMv1Model(lambda_irm=0.0)
 
         # Create test data with single environment for binary classification
         batch_size, num_classes, num_frames = 4, 1, 5
@@ -120,7 +120,7 @@ class TestIRMLoss:
         env_ids = torch.zeros(batch_size, dtype=torch.long)  # Single environment
 
         # Forward pass through IRMLoss
-        irm_loss, metrics = model.IRMLoss(probs, labels, env_ids)
+        irm_loss, metrics = model.irm_Loss(probs, labels, env_ids)
 
         # Compute standard binary cross-entropy manually using same format
         # IRMLoss transforms: probs.transpose(1, 2), labels.squeeze(1)
@@ -142,20 +142,20 @@ class TestIRMModel:
     def test_irm_model_initialization(self):
         """Test IRMModel initialization."""
         # Test with explicit lambda (no default)
-        model = IRMModel(lambda_irm=1e2)
+        model = IRMv1Model(lambda_irm=1e2)
         # IRMLoss is now a method, not a class instance
         # Check that IRMLoss is callable
-        assert callable(model.IRMLoss)
+        assert callable(model.irm_Loss)
         assert model.lambda_irm == 1e2
 
         # Test custom lambda
         custom_lambda = 25.0
-        model_custom = IRMModel(lambda_irm=custom_lambda)
+        model_custom = IRMv1Model(lambda_irm=custom_lambda)
         assert model_custom.lambda_irm == custom_lambda
 
     def test_irm_model_training_step(self):
         """Test IRMModel training_step method."""
-        model = IRMModel(lambda_irm=10.0)
+        model = IRMv1Model(lambda_irm=10.0)
 
         # Mock parent class methods
         model.prepare_annotation = Mock()  # type: ignore[method-assign]
