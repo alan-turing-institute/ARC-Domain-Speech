@@ -17,6 +17,7 @@ class IRMModel(PyanNet):
         self,
         lambda_irm: float,
         lambda_scheduling_steps: int | None = None,
+        lambda_start_step: int | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -30,9 +31,13 @@ class IRMModel(PyanNet):
         if lambda_scheduling_steps is not None:
             self.lambda_irm = 0.0  # Start at 0
             self.anneal_step = 0
+            self.lambda_start_step = (
+                lambda_start_step if lambda_start_step is not None else 0
+            )
         else:
             self.lambda_irm = self.target_lambda  # Use target immediately
             self.anneal_step = None
+            self.lambda_start_step = None
 
         self.dummy_w = nn.Parameter(torch.tensor(1.0))
 
@@ -48,15 +53,25 @@ class IRMModel(PyanNet):
 
     def step_linear_lambda_scheduler(self) -> None:
         """Linearly increase lambda_irm over the specified number of steps"""
-        if (
-            self.anneal_step is not None
-            and self.lambda_scheduling_steps is not None
-            and self.anneal_step < self.lambda_scheduling_steps
-        ):
-            self.lambda_irm = float(
-                self.target_lambda * (self.anneal_step / self.lambda_scheduling_steps)
-            )
-            self.anneal_step += 1
+
+        if self.anneal_step is not None and self.lambda_scheduling_steps is not None:
+            # Wait until we reach the start step
+            if self.anneal_step < self.lambda_start_step:
+                self.lambda_irm = 0.0
+                self.anneal_step += 1
+            # Linear scheduling phase
+            elif (
+                self.anneal_step < self.lambda_start_step + self.lambda_scheduling_steps
+            ):
+                steps_since_start = self.anneal_step - self.lambda_start_step
+                self.lambda_irm = float(
+                    self.target_lambda
+                    * (steps_since_start / self.lambda_scheduling_steps)
+                )
+                self.anneal_step += 1
+            # After scheduling is complete
+            else:
+                self.lambda_irm = float(self.target_lambda)
         else:
             self.lambda_irm = float(self.target_lambda)
 
@@ -95,13 +110,13 @@ class IRMModel(PyanNet):
             # Scale logits by dummy classifier
             env_logits_scaled = env_logits * self.dummy_w
 
-            # Compute loss on SCALED logits (this is R^e(w·Φ)) in eq. (1)
+            # Compute loss on logits (this is R^e(w·Φ)) in eq. (1)
             erm_loss = self.loss_function(
                 env_labels, _domains.tolist(), env_logits_scaled
             )
             env_erm_losses.append(erm_loss)
 
-            # IRM penalty: gradient of the SAME loss w.r.t. dummy_w
+            # IRM penalty: gradient of the loss w.r.t. dummy_w
             grad = torch.autograd.grad(
                 erm_loss, self.dummy_w, create_graph=True, retain_graph=True
             )[0]
@@ -191,12 +206,8 @@ class IRMModel(PyanNet):
         return total_loss, erm_loss, irm_penalty, accuracy
 
     def test_step(self, batch: Any, batch_idx: int) -> None:
-        total_loss, erm_loss, irm_penalty, accuracy = self.evaluate_batch_irm(
-            batch, batch_idx
-        )
+        total_loss, accuracy = self.evaluate_batch(batch, batch_idx)
         self.log("test_loss", total_loss)
-        self.log("test_erm", erm_loss)
-        self.log("test_irm_penalty", irm_penalty)
         self.log("test_accuracy", accuracy)
 
     def validation_step(self, batch: Any, batch_idx: int) -> None:
