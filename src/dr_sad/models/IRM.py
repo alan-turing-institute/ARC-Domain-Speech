@@ -25,8 +25,9 @@ class IRMModel(PyanNet):
         self.lambda_scheduling_steps = lambda_scheduling_steps
         self.target_lambda = float(lambda_irm)
 
-        # Type annotation for anneal_step (appeases mypy)
+        # Type annotations (appeases mypy)
         self.anneal_step: int | None
+        self.lambda_start_step: int | None
 
         if lambda_scheduling_steps is not None:
             self.lambda_irm = 0.0  # Start at 0
@@ -54,7 +55,11 @@ class IRMModel(PyanNet):
     def step_linear_lambda_scheduler(self) -> None:
         """Linearly increase lambda_irm over the specified number of steps"""
 
-        if self.anneal_step is not None and self.lambda_scheduling_steps is not None:
+        if (
+            self.anneal_step is not None
+            and self.lambda_scheduling_steps is not None
+            and self.lambda_start_step is not None
+        ):
             # Wait until we reach the start step
             if self.anneal_step < self.lambda_start_step:
                 self.lambda_irm = 0.0
