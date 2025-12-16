@@ -21,13 +21,13 @@ class TestBinarise:
     def test_on_threshold(self):
         input_array = np.array([0.1, 0.6, 0.4, 0.8, 0.2])
         expected_output = np.array([0, 1, 1, 1, 0], dtype=bool)
-        output = binarise(input_array, on_threshold=0.35)
+        output = binarise(input_array, speech_threshold=0.35)
         assert np.array_equal(output, expected_output)
 
     def test_with_off_threshold(self):
         input_array = np.array([0.1, 0.6, 0.4, 0.8, 0.2])
         expected_output = np.array([0, 1, 1, 1, 0], dtype=bool)
-        output = binarise(input_array, on_threshold=0.5, off_threshold=0.3)
+        output = binarise(input_array, speech_threshold=0.4, gap_threshold=0.2)
         assert np.array_equal(output, expected_output)
 
     def test_min_duration_off(self):
@@ -58,13 +58,13 @@ class TestBinarise:
         input_array = np.array([[0.1, 0.6], [0.4, 0.8]])
 
         with pytest.raises(ValueError, match="Input array must be 1D"):
-            binarise(input_array, on_threshold=0.5)
+            binarise(input_array, speech_threshold=0.5)
 
     def test_invalid_thresholds(self):
         input_array = np.array([0.1, 0.6, 0.4, 0.8, 0.2])
 
-        with pytest.raises(ValueError, match="On threshold must"):
-            binarise(input_array, on_threshold=0.3, off_threshold=0.5)
+        with pytest.raises(ValueError, match="gap_threshold"):
+            binarise(input_array, speech_threshold=0.5, gap_threshold=-0.2)
 
     def test_empty_array(self):
         input_array = np.array([], dtype=float)
@@ -257,8 +257,8 @@ class TestSegmentEvaluator:
 
         params = seg_eval.get_parameters()
         expected_params = {
-            "threshold_on": 0.5,
-            "threshold_off": None,
+            "speech_threshold": 0.5,
+            "gap_threshold": None,
             "min_duration_off": None,
             "min_duration_on": None,
         }
@@ -277,16 +277,16 @@ class TestSegmentEvaluator:
         )
 
         seg_eval.set_parameters(
-            threshold_on=0.6,
-            threshold_off=0.4,
+            speech_threshold=0.6,
+            gap_threshold=0.4,
             min_duration_off=0.5,
             min_duration_on=1.0,
         )
 
         params = seg_eval.get_parameters()
         expected_params = {
-            "threshold_on": 0.6,
-            "threshold_off": 0.4,
+            "speech_threshold": 0.6,
+            "gap_threshold": 0.4,
             "min_duration_off": 0.5,
             "min_duration_on": 1.0,
         }
@@ -380,7 +380,7 @@ class TestSegmentEvaluator:
         expected_f1_default = 2 / 3
         assert np.isclose(f1_default, expected_f1_default)
 
-        seg_eval.set_parameters(threshold_on=0.55, threshold_off=0.45)
+        seg_eval.set_parameters(speech_threshold=0.5, gap_threshold=0.1)
 
         f1_updated = seg_eval.f1_score()
         expected_f1_updated = 1.0

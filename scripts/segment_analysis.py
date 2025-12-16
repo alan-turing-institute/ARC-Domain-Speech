@@ -16,8 +16,8 @@ MAIN_DIR = Path(__file__).resolve().parent.parent
 
 TOLERANCE_SECONDS = 0.25
 # Evaluation parameters
-THRESHOLD_ON = 0.6
-THRESHOLD_OFF = 0.4
+SPEECH_THRESHOLD = 0.5
+GAP_THRESHOLD = 0.2
 MIN_DURATION_OFF = 0.2
 MIN_DURATION_ON = 0.3
 
@@ -67,8 +67,8 @@ def evaluate_set(
         time_start=time_start,
         time_step=time_step,
         tolerance=TOLERANCE_SECONDS,
-        threshold_on=THRESHOLD_ON,
-        threshold_off=THRESHOLD_OFF,
+        speech_threshold=SPEECH_THRESHOLD,
+        gap_threshold=GAP_THRESHOLD,
         min_duration_off=MIN_DURATION_OFF,
         min_duration_on=MIN_DURATION_ON,
     )
