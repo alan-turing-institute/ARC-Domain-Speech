@@ -1,6 +1,7 @@
 """Tools for generating and handling segments."""
 
 import numpy as np
+from scipy import optimize
 
 
 def binarise(
@@ -411,3 +412,68 @@ class SegmentEvaluator:
         reference_segments = self.references
 
         return f1_score_set(predicted_segments, reference_segments, self.tolerance)
+
+    def optimise_parameters(
+        self,
+        speech_threshold: bool = True,
+        gap_threshold: bool = True,
+        min_duration_off: bool = True,
+        min_duration_on: bool = True,
+    ) -> optimize.OptimizeResult:
+        """Optimise the threshold and duration parameters to maximise F1 score.
+
+        Args:
+            speech_threshold: Whether to optimise speech threshold.
+            gap_threshold: Whether to optimise gap threshold.
+            min_duration_off: Whether to optimise minimum off duration.
+            min_duration_on: Whether to optimise minimum on duration.
+
+        Returns:
+            result (OptimizeResult): The result of the optimisation process.
+        """
+        param_names = []
+        initial_values = []
+        bounds = []
+
+        if speech_threshold:
+            param_names.append("speech_threshold")
+            initial_values.append(self.main_speech_threshold)
+            bounds.append((0.0, 1.0))
+
+        if gap_threshold:
+            param_names.append("gap_threshold")
+            initial_values.append(
+                self.main_gap_threshold if self.main_gap_threshold is not None else 0.1
+            )
+            bounds.append((0.0, 1.0))
+
+        if min_duration_off:
+            param_names.append("min_duration_off")
+            initial_values.append(
+                self.main_min_duration_off
+                if self.main_min_duration_off is not None
+                else 0.2
+            )
+            bounds.append((0.0, 1.0))
+
+        if min_duration_on:
+            param_names.append("min_duration_on")
+            initial_values.append(
+                self.main_min_duration_on
+                if self.main_min_duration_on is not None
+                else 0.2
+            )
+            bounds.append((0.0, 1.0))
+
+        def objective(params: list[float]) -> float:
+            # for name, value in zip(param_names, params, strict=True):
+            self.set_parameters(**dict(zip(param_names, params, strict=True)))
+
+            f1 = self.f1_score()
+            return -f1
+
+        return optimize.minimize(
+            objective,
+            initial_values,
+            bounds=bounds,
+        )

@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from scipy import optimize
 
 from dr_sad.segment import (
     SegmentEvaluator,
@@ -385,3 +386,72 @@ class TestSegmentEvaluator:
         f1_updated = seg_eval.f1_score()
         expected_f1_updated = 1.0
         assert np.isclose(f1_updated, expected_f1_updated)
+
+    def test_optimize_parameters(self):
+        prediction_set = {
+            "test01": np.array([0.1, 0.8, 0.9, 0.8, 0.2]),
+            "test02": np.array([0.7, 0.2, 0.9, 0.8, 0.47]),
+        }
+        reference_set = {
+            "test01": [(1.5, 4.5)],
+            "test02": [(0.0, 1.5), (2.5, 6.0)],
+        }
+
+        seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.5,
+        )
+        original_params = seg_eval.get_parameters()
+
+        result = seg_eval.optimise_parameters(
+            speech_threshold=True,
+            gap_threshold=True,
+            min_duration_off=True,
+            min_duration_on=True,
+        )
+
+        new_params = seg_eval.get_parameters()
+
+        assert isinstance(result, optimize.OptimizeResult)
+        assert result.success
+        assert new_params != original_params
+
+    def test_optimize_one_parameter(self):
+        prediction_set = {
+            "test01": np.array([0.1, 0.8, 0.9, 0.8, 0.2]),
+            "test02": np.array([0.7, 0.2, 0.9, 0.8, 0.47]),
+        }
+        reference_set = {
+            "test01": [(1.5, 4.5)],
+            "test02": [(0.0, 1.5), (2.5, 6.0)],
+        }
+
+        seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.5,
+            speech_threshold=0.55,
+            gap_threshold=0.5,  # number too big
+        )
+        original_params = seg_eval.get_parameters()
+
+        result = seg_eval.optimise_parameters(
+            speech_threshold=False,
+            gap_threshold=True,
+            min_duration_off=False,
+            min_duration_on=False,
+        )
+
+        new_params = seg_eval.get_parameters()
+
+        assert isinstance(result, optimize.OptimizeResult)
+        assert result.success
+        assert new_params != original_params
+        assert new_params["speech_threshold"] == original_params["speech_threshold"]
+        assert new_params["gap_threshold"] != original_params["gap_threshold"]
+        assert new_params["min_duration_off"] == original_params["min_duration_off"]
