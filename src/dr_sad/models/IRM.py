@@ -1,15 +1,10 @@
-from typing import Any, TypedDict
+from typing import Any
 
 import torch
 import torch.nn as nn
 
 from dr_sad.pyannet import PyanNet
-
-
-class TrainingBatch(TypedDict):
-    waveforms: torch.Tensor
-    annotations: list[list[tuple[float, float]]]
-    domains: list[int]
+from dr_sad.training import TrainingBatch
 
 
 class IRMv1Model(PyanNet):
@@ -101,7 +96,7 @@ class IRMv1Model(PyanNet):
         else:
             self.lambda_irm = float(self.target_lambda)
 
-    def irm_Loss(
+    def irm_loss(
         self,
         logits: torch.Tensor,
         labels: torch.Tensor,
@@ -187,7 +182,7 @@ class IRMv1Model(PyanNet):
         speaker_truth = self.prepare_annotation(waveforms, annotations)
 
         # Compute IRM loss - IRMLoss handles the reshaping
-        loss, metrics = self.irm_Loss(outputs, speaker_truth, domains)
+        loss, metrics = self.irm_loss(outputs, speaker_truth, domains)
 
         # Log metrics
         self.log("train_loss", loss)
@@ -225,7 +220,7 @@ class IRMv1Model(PyanNet):
         speaker_truth = self.prepare_annotation(waveforms, annotations)
 
         with torch.set_grad_enabled(True):  # need grad for IRM penalty
-            total_loss, metrics = self.irm_Loss(outputs, speaker_truth, _domains)
+            total_loss, metrics = self.irm_loss(outputs, speaker_truth, _domains)
 
         erm_loss, irm_penalty = metrics["erm_loss"], metrics["irm_penalty"]
         accuracy = self.accuracy_function(speaker_truth, _domains, outputs)
