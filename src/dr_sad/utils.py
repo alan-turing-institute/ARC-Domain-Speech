@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import torch
+
 
 def get_experiment_name(exp_name_arg: str, exp_config_dir: Path) -> tuple[str, Path]:
     """Get experiment name and path from argument."""
@@ -22,3 +24,14 @@ def get_experiment_name(exp_name_arg: str, exp_config_dir: Path) -> tuple[str, P
         experiment_name = experiment_path.stem
 
     return experiment_name, experiment_path
+
+
+def get_device() -> str:
+    """Get the device to use for PyTorch computations."""
+    return (
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+    )
