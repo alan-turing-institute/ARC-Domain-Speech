@@ -3,6 +3,7 @@ import pytest
 from scipy import optimize
 
 from dr_sad.segment import (
+    DiffEvolOptimizer,
     SegmentEvaluator,
     binarise,
     dataset_to_segments,
@@ -488,3 +489,108 @@ class TestSegmentEvaluator:
 
         assert isinstance(result, optimize.OptimizeResult)
         assert new_params != original_params
+
+
+class TestDiffEvolOptimizer:
+    def test_init_valid_parameters(self):
+        """Test successful initialization with valid parameters."""
+        predictions = [np.array([0.1, 0.8, 0.9, 0.2])]
+        references = [[(0.5, 1.5)]]
+        start_parameters: dict[str, float | None] = {
+            "speech_threshold": 0.5,
+            "gap_threshold": 0.1,
+            "min_duration_off": 1.0,
+            "min_duration_on": 0.5,
+        }
+        optimise_parameters = ["speech_threshold", "gap_threshold"]
+
+        optimizer = DiffEvolOptimizer(
+            predictions=predictions,
+            references=references,
+            start_parameters=start_parameters,
+            optimise_parameters=optimise_parameters,
+            time_start=0.0,
+            time_step=0.5,
+            tolerance=0.1,
+        )
+
+        assert optimizer.predictions == predictions
+        assert optimizer.references == references
+        assert optimizer.parameters == start_parameters
+        assert optimizer.optimise_parameters == optimise_parameters
+        assert optimizer.time_start == 0.0
+        assert optimizer.time_step == 0.5
+        assert optimizer.tolerance == 0.1
+
+    def test_call_single_parameter(self):
+        """Test the __call__ method with a single optimization parameter."""
+        predictions = [np.array([0.1, 0.8, 0.9, 0.2, 0.3])]
+        references = [[(0.5, 1.5)]]
+        start_parameters: dict[str, float | None] = {
+            "speech_threshold": 0.5,
+            "gap_threshold": 0.1,
+            "min_duration_off": 1.0,
+            "min_duration_on": 0.5,
+        }
+        optimise_parameters = ["speech_threshold"]
+
+        optimizer = DiffEvolOptimizer(
+            predictions=predictions,
+            references=references,
+            start_parameters=start_parameters,
+            optimise_parameters=optimise_parameters,
+            time_start=0.0,
+            time_step=0.5,
+            tolerance=0.1,
+        )
+
+        # Call with new speech_threshold value
+        result = optimizer([0.7])
+
+        # Check that parameter was updated
+        assert optimizer.parameters["speech_threshold"] == 0.7
+        # Other parameters should remain unchanged
+        assert optimizer.parameters["gap_threshold"] == 0.1
+        assert optimizer.parameters["min_duration_off"] == 1.0
+        assert optimizer.parameters["min_duration_on"] == 0.5
+
+        # Result should be a float (negative F1 score)
+        assert isinstance(result, float)
+        assert result <= 0.0  # F1 score is negated for minimization
+
+    def test_call_multiple_parameters(self):
+        """Test the __call__ method with multiple optimization parameters."""
+        predictions = [np.array([0.1, 0.8, 0.9, 0.2, 0.3])]
+        references = [[(0.5, 1.5)]]
+        start_parameters: dict[str, float | None] = {
+            "speech_threshold": 0.5,
+            "gap_threshold": 0.1,
+            "min_duration_off": 1.0,
+            "min_duration_on": 0.5,
+        }
+        optimise_parameters = ["speech_threshold", "gap_threshold", "min_duration_off"]
+
+        optimizer = DiffEvolOptimizer(
+            predictions=predictions,
+            references=references,
+            start_parameters=start_parameters,
+            optimise_parameters=optimise_parameters,
+            time_start=0.0,
+            time_step=0.5,
+            tolerance=0.1,
+        )
+
+        # Call with new parameter values
+        new_values = [0.6, 0.2, 0.8]
+        result = optimizer(new_values)
+
+        # Check that all parameters were updated
+        assert optimizer.parameters["speech_threshold"] == 0.6
+        assert optimizer.parameters["gap_threshold"] == 0.2
+        assert optimizer.parameters["min_duration_off"] == 0.8
+        # Unchanged parameter should remain the same
+        assert optimizer.parameters["min_duration_on"] == 0.5
+
+        # Result should be a float (negative F1 score)
+        assert isinstance(result, float)
+        assert result <= 0.0

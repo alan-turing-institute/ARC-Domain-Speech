@@ -38,11 +38,6 @@ def binarise(
     if gap_threshold is None:
         on_threshold = speech_threshold
         off_threshold = None
-    else:
-        on_threshold = speech_threshold + gap_threshold / 2
-        off_threshold = speech_threshold - gap_threshold / 2
-
-    if gap_threshold is None:
         binary_array = input >= speech_threshold
     else:
         if gap_threshold < 0:
@@ -270,7 +265,7 @@ class DiffEvolOptimizer:
     ):
         self.predictions = predictions
         self.references = references
-        self.paramaters = start_parameters
+        self.parameters = start_parameters
         self.optimise_parameters = optimise_parameters
         self.time_start = time_start
         self.time_step = time_step
@@ -282,27 +277,27 @@ class DiffEvolOptimizer:
             "min_duration_off",
             "min_duration_on",
         ]:
-            if param_name not in self.paramaters:
+            if param_name not in self.parameters:
                 msg = f"Parameter {param_name} not found in start_parameters"
                 raise ValueError(msg)
 
-        if self.paramaters["speech_threshold"] is None:
+        if self.parameters["speech_threshold"] is None:
             # This probably shouldn't be reachable
             msg = "speech_threshold must be specified in start_parameters"
             raise ValueError(msg)
 
     def __call__(self, params: list[float]) -> float:
         for name, value in zip(self.optimise_parameters, params, strict=True):
-            self.paramaters[name] = float(value)
+            self.parameters[name] = float(value)
 
         segments = dataset_to_segments(
             self.predictions,
             self.time_start,
             self.time_step,
-            speech_threshold=self.paramaters["speech_threshold"],  # type: ignore[arg-type]
-            gap_threshold=self.paramaters["gap_threshold"],
-            min_duration_off=self.paramaters["min_duration_off"],
-            min_duration_on=self.paramaters["min_duration_on"],
+            speech_threshold=self.parameters["speech_threshold"],  # type: ignore[arg-type]
+            gap_threshold=self.parameters["gap_threshold"],
+            min_duration_off=self.parameters["min_duration_off"],
+            min_duration_on=self.parameters["min_duration_on"],
         )
 
         return -f1_score_set(segments, self.references, self.tolerance)
@@ -514,7 +509,11 @@ class SegmentEvaluator:
             param_names.append("min_duration_on")
             bounds.append((0.0, 5.0))
 
-        optimizer = DiffEvolOptimizer(
+        if not param_names:
+            msg = "No parameters selected for optimisation"
+            raise ValueError(msg)
+
+        optimiser = DiffEvolOptimizer(
             predictions=self.predictions,
             references=self.references,
             start_parameters=self.get_parameters(),
@@ -524,19 +523,19 @@ class SegmentEvaluator:
             tolerance=self.tolerance,
         )
 
-        optimize_result = optimize.differential_evolution(
-            optimizer,
+        optimise_result = optimize.differential_evolution(
+            optimiser,
             bounds=bounds,
             workers=num_workers,
             updating="deferred",
             maxiter=maxiter,
         )
 
-        self.set_parameters(**dict(zip(param_names, optimize_result.x, strict=True)))
+        self.set_parameters(**dict(zip(param_names, optimise_result.x, strict=True)))
 
-        if optimize_result.success:
+        if optimise_result.success:
             print("Differential Evolution optimisation successful.")
-            print(f"Used {optimize_result.nfev} function evaluations.")
+            print(f"Used {optimise_result.nfev} function evaluations.")
             print("Optimised parameters:")
             for name in param_names:
                 value = self.get_parameters()[name]
@@ -544,7 +543,7 @@ class SegmentEvaluator:
         else:
             print("Differential Evolution optimisation failed.")
 
-        return optimize_result
+        return optimise_result
 
     def optimise_parameters(
         self,
@@ -603,16 +602,23 @@ class SegmentEvaluator:
             )
             bounds.append((0.0, 5.0))
 
+        if not param_names:
+            msg = "No parameters selected for optimisation"
+            raise ValueError(msg)
+
         def objective(params: list[float]) -> float:
-            # for name, value in zip(param_names, params, strict=True):
             self.set_parameters(**dict(zip(param_names, params, strict=True)))
             f1 = self.f1_score()
             return -f1
 
-        return optimize.minimize(
+        optimise_result = optimize.minimize(
             objective,
             initial_values,
             bounds=bounds,
             method=optimise_method,
             options={"maxiter": maxiter} if maxiter is not None else None,
         )
+
+        self.set_parameters(**dict(zip(param_names, optimise_result.x, strict=True)))
+
+        return optimise_result
