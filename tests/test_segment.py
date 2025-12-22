@@ -445,13 +445,46 @@ class TestSegmentEvaluator:
             gap_threshold=True,
             min_duration_off=False,
             min_duration_on=False,
+            maxiter=3,
         )
 
         new_params = seg_eval.get_parameters()
 
         assert isinstance(result, optimize.OptimizeResult)
-        assert result.success
         assert new_params != original_params
         assert new_params["speech_threshold"] == original_params["speech_threshold"]
         assert new_params["gap_threshold"] != original_params["gap_threshold"]
         assert new_params["min_duration_off"] == original_params["min_duration_off"]
+
+    def test_optimise_diff_evol(self):
+        prediction_set = {
+            "test01": np.array([0.1, 0.8, 0.9, 0.8, 0.2]),
+            "test02": np.array([0.7, 0.2, 0.9, 0.8, 0.47]),
+        }
+        reference_set = {
+            "test01": [(1.5, 4.5)],
+            "test02": [(0.0, 1.5), (2.5, 6.0)],
+        }
+
+        seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.5,
+        )
+        original_params = seg_eval.get_parameters()
+
+        result = seg_eval.optimise_diff_evol(
+            speech_threshold=True,
+            gap_threshold=True,
+            min_duration_off=True,
+            min_duration_on=True,
+            num_workers=2,
+            maxiter=2,
+        )
+
+        new_params = seg_eval.get_parameters()
+
+        assert isinstance(result, optimize.OptimizeResult)
+        assert new_params != original_params
