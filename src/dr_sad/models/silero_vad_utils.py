@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 from torch.jit._script import RecursiveScriptModule
 
@@ -40,7 +42,7 @@ def get_probs(
 
 def load_silerovad_model(
     sampling_rate: int,
-    cache_dir: None | str = None,
+    cache_dir: None | str | Path = None,
 ) -> tuple[RecursiveScriptModule, dict[str, int | float]]:
     """
     Load the Silero VAD model using torch.hub.
