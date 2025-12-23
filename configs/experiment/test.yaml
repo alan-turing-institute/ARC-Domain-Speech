@@ -1,4 +1,4 @@
-data_config: test_dataset_config.yaml
+data_config: callhome_all.yaml
 training_config: test_trainer_config.yaml
 model_config: default_pyannet.yaml
 random_seed: 42

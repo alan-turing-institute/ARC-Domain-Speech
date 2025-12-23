@@ -1,0 +1,4 @@
+# Dataset configuration
+name: dihard
+split_name: datasplit.yaml
+domain_type: all
