@@ -12,6 +12,7 @@ from dr_sad.utils import get_experiment_name
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
 EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
+TORCH_HUB_CACHE_DIR = MAIN_DIR.parent / "torch_hub_cache"
 
 
 def main(
@@ -41,6 +42,16 @@ def main(
     with open(data_cfg_pth) as f:
         data_cfg = yaml.safe_load(f)
 
+    model_cfg_pth = Path(CONFIG_DIR) / "model" / exp_config["model_config"]
+    with open(model_cfg_pth) as f:
+        model_cfg = yaml.safe_load(f)
+        if model_cfg["model_name"] != "silerovad":
+            err_msg = (
+                "The model_config in the experiment config must be set to 'silerovad' "
+                "to use silerovad_predict.py."
+            )
+            raise ValueError(err_msg)
+
     # set batch size to 1 for SileroVAD
     with open(trainer_cfg_pth) as f:
         trainer_cfg = yaml.safe_load(f)
@@ -49,11 +60,7 @@ def main(
     # Create prediction directory
     domain_name = f"domain_{exclude_domain}" if exclude_domain is not None else ""
     prediction_dir = (
-        MAIN_DIR
-        / "outputs"
-        / f"{experiment_name}_silerovad"
-        / domain_name
-        / "saved_predictions"
+        MAIN_DIR / "outputs" / f"{experiment_name}" / domain_name / "saved_predictions"
     )
     prediction_dir.mkdir(parents=True, exist_ok=True)
 
@@ -76,7 +83,7 @@ def main(
         # Load SileroVAD model and defined prediction parameters
         sample_rate = loader.dataset.sample_rate
         model, model_metadata = load_silerovad_model(
-            sample_rate, cache_dir="../torch_hub_cache/"
+            sample_rate, cache_dir=TORCH_HUB_CACHE_DIR
         )
 
         predictions = {}
