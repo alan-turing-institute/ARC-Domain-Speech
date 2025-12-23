@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from dr_sad.pyannet import PyanNet
-from dr_sad.training import TrainingBatch
+from dr_sad.utils import TrainingBatch
 
 
 class IRMv1Model(PyanNet):

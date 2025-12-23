@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 
 from dr_sad.pyannet import PyanNet
-from dr_sad.training import TrainingBatch
+from dr_sad.utils import TrainingBatch
 
 
 class VRExModel(PyanNet):
@@ -56,7 +56,13 @@ class VRExModel(PyanNet):
 
         # Stack domain losses and compute variance
         domain_losses_tensor = torch.stack(domain_losses)
-        penalty = domain_losses_tensor.var()
+        if len(domain_losses_tensor) > 1:
+            penalty = domain_losses_tensor.var()
+        else:
+            # No variance with a single domain, prevents pytorch warning
+            penalty = torch.zeros(
+                1, device=domain_losses_tensor.device, dtype=domain_losses_tensor.dtype
+            )
 
         # Total VREx loss
         total_loss = erm_loss + self.lambda_vrex * penalty
@@ -93,7 +99,7 @@ class VRExModel(PyanNet):
 
         # Log metrics
         self.log("train_loss", loss)
-        self.log("train_vrex", metrics["vrex_loss"])
+        self.log("train_erm", metrics["erm_loss"])
         self.log("train_vrex_penalty", metrics["vrex_penalty"])
         self.log("lambda_vrex", self.lambda_vrex)
 
@@ -128,9 +134,9 @@ class VRExModel(PyanNet):
 
         total_loss, metrics = self.vrex_loss(outputs, speaker_truth, _domains)
 
-        vrex_loss, vrex_penalty = metrics["erm_loss"], metrics["vrex_penalty"]
+        erm_loss, vrex_penalty = metrics["erm_loss"], metrics["vrex_penalty"]
         accuracy = self.accuracy_function(speaker_truth, _domains, outputs)
-        return total_loss, vrex_loss, vrex_penalty, accuracy
+        return total_loss, erm_loss, vrex_penalty, accuracy
 
     def test_step(self, batch: Any, batch_idx: int) -> None:
         total_loss, accuracy = self.evaluate_batch(batch, batch_idx)
@@ -138,10 +144,10 @@ class VRExModel(PyanNet):
         self.log("test_accuracy", accuracy)
 
     def validation_step(self, batch: Any, batch_idx: int) -> None:
-        total_loss, vrex_loss, vrex_penalty, accuracy = self.evaluate_batch_vrex(
+        total_loss, erm_loss, vrex_penalty, accuracy = self.evaluate_batch_vrex(
             batch, batch_idx
         )
         self.log("val_loss", total_loss)
-        self.log("val_vrex", vrex_loss)
+        self.log("val_erm", erm_loss)
         self.log("val_vrex_penalty", vrex_penalty)
         self.log("val_accuracy", accuracy)

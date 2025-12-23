@@ -1,4 +1,4 @@
-from typing import Any, TypedDict
+from typing import Any
 
 import torch
 from lightning.pytorch import LightningModule, Trainer
@@ -17,12 +17,6 @@ MODEL_DICT: dict[str, type[LightningModule]] = {
     "irm_model": IRMv1Model,
     "adversarial_net": AdversarialNet,
 }
-
-
-class TrainingBatch(TypedDict):
-    waveforms: torch.Tensor
-    annotations: list[list[tuple[float, float]]]
-    domains: list[int]
 
 
 def save_predictions(
