@@ -5,7 +5,7 @@ import yaml
 from safetensors.torch import save_file
 from tqdm import tqdm
 
-from dr_sad.models.SileroVAD_utils import get_probs, load_silerovad_model
+from dr_sad.models.silero_vad_utils import get_probs, load_silerovad_model
 from dr_sad.predicting import load_data_eval
 from dr_sad.utils import get_experiment_name
 
@@ -23,10 +23,8 @@ def main(
     exclusion.
 
     Args:
-        model_path (str): Path to the trained model file (safetensors format).
         experiment_config (str): Name of the experiment configuration file located in
         configs/experiment/.
-        data_config (str): Name of the data configuration file located in configs/data/.
         exclude_domain (int | None, optional): Domain to exclude when domain_type is
         'exclude_one'. Defaults to None.
     """
@@ -59,13 +57,6 @@ def main(
     )
     prediction_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load SileroVAD model and defined prediction parameters
-    sample_rate = 16000
-    model, vad_iterator, model_metadata = load_silerovad_model(sample_rate)
-    metadata_path = prediction_dir.parent / "model_metadata.yaml"
-    with open(metadata_path, "w") as f:
-        yaml.dump(model_metadata, f)
-
     # Load data loaders for evaluation
     validation_loader, test_loader, domain_loader = load_data_eval(
         data_cfg=data_cfg,
@@ -82,6 +73,11 @@ def main(
         strict=True,
     ):
         print(f"Processing {split} set...")
+        # Load SileroVAD model and defined prediction parameters
+        sample_rate = loader.dataset.sample_rate
+        model, model_metadata = load_silerovad_model(
+            sample_rate, cache_dir="../torch_hub_cache/"
+        )
 
         predictions = {}
 
@@ -91,7 +87,6 @@ def main(
             waveform = batch["waveforms"][0]
             probs = get_probs(
                 model,
-                vad_iterator,
                 waveform,
                 int(model_metadata["frame_hop_samples"]),
                 int(model_metadata["sample_rate"]),
@@ -102,6 +97,11 @@ def main(
         prediction_path = prediction_dir / f"{split}.safetensors"
         prediction_path.parent.mkdir(parents=True, exist_ok=True)
         save_file(predictions, prediction_path)
+
+    # save model metadata
+    metadata_path = prediction_dir.parent / "model_metadata.yaml"
+    with open(metadata_path, "w") as f:
+        yaml.dump(model_metadata, f)
 
 
 if __name__ == "__main__":

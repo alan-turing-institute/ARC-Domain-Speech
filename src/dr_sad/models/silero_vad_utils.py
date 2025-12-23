@@ -1,12 +1,9 @@
-# for type hints
 import torch
-from silero_vad.utils_vad import VADIterator
 from torch.jit._script import RecursiveScriptModule
 
 
 def get_probs(
     model: RecursiveScriptModule,
-    vad_iterator: VADIterator,
     waveform: torch.Tensor,
     window_size_samples: int,
     sampling_rate: int,
@@ -15,7 +12,7 @@ def get_probs(
     Get speech probabilities from a waveform using a Silero VAD model.
 
     Args:
-        model: silerovad model
+        model: The Silero VAD TorchScript model for voice activity detection.
         vad_iterator: Silero VAD iterator
         waveform: torch tensor of shape (num_samples,) or (1, num_samples)
         window_size_samples: int, size of the window in samples
@@ -30,45 +27,64 @@ def get_probs(
     for i in range(0, len(waveform), window_size_samples):
         chunk = waveform[i : i + window_size_samples]
         if len(chunk) < window_size_samples:
-            break
+            # Pad the last chunk with zeros
+            pad_size = window_size_samples - len(chunk)
+            chunk = torch.cat(
+                [chunk, torch.zeros(pad_size, dtype=chunk.dtype, device=chunk.device)]
+            )
         speech_prob: torch.Tensor = model(chunk, sampling_rate)
         speech_probs.append(speech_prob.item())
-    vad_iterator.reset_states()
+    model.reset_states()
     return speech_probs
 
 
 def load_silerovad_model(
-    sampling_rate,
-) -> tuple[RecursiveScriptModule, VADIterator, dict[str, int | float]]:
+    sampling_rate: int,
+    cache_dir: None | str = None,
+) -> tuple[RecursiveScriptModule, dict[str, int | float]]:
     """
-    Using torch hub load the silerovad model
+    Load the Silero VAD model using torch.hub.
 
     Args:
         sampling_rate: sampling rate of the audio data
+        cache_dir: Optional path to cache the model
 
     Returns:
         tuple containing the model, VAD iterator, and metadata dictionary
     """
-    model, (_, _, _, VADIterator, _) = torch.hub.load(
-        repo_or_dir="snakers4/silero-vad", model="silero_vad"
+    if cache_dir is not None:
+        torch.hub.set_dir(cache_dir)
+
+    model, _ = torch.hub.load(
+        repo_or_dir="snakers4/silero-vad",
+        model="silero_vad",
+        trust_repo=True,
     )
 
-    vad_iterator = VADIterator(model, sampling_rate=sampling_rate)
-
-    return model, vad_iterator, get_silerovad_metadata(sampling_rate)
+    return model, get_silerovad_metadata(sampling_rate)
 
 
 def get_silerovad_metadata(sample_rate: int) -> dict[str, int | float]:
     """
-    given data sample rate generate silerovad metadata dict
+    Given data sample rate, generate silerovad metadata dict.
 
     Args:
         sample_rate: int, the sampling rate of the audio data
 
+    Raises:
+        ValueError: if ``sample_rate`` is not one of the supported values {16000, 8000}.
+
     Returns:
         dict containing metadata for SileroVAD model
     """
-    window_size_samples = 512 if sample_rate == 16000 else 256
+    if sample_rate == 16000:
+        window_size_samples = 512
+    elif sample_rate == 8000:
+        window_size_samples = 256
+    else:
+        err_msg = f"Unsupported sample rate for SileroVAD: {sample_rate}"
+        raise ValueError(err_msg)
+
     window_length = window_size_samples / sample_rate
 
     # Save model metadata
