@@ -2,6 +2,7 @@ from pathlib import Path
 
 import torch
 import yaml
+from safetensors.torch import save_file
 from tqdm import tqdm
 
 from dr_sad.models.SileroVAD_utils import get_probs, load_silerovad_model
@@ -100,7 +101,7 @@ def main(
         # save predictions
         prediction_path = prediction_dir / f"{split}.safetensors"
         prediction_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(predictions, prediction_path)
+        save_file(predictions, prediction_path)
 
 
 if __name__ == "__main__":
