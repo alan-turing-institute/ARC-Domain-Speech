@@ -46,7 +46,7 @@ def main(args) -> None:
             raise ValueError(msg)
         domain_idx = int(domain_re.group(1))
         with open(result_file) as f:
-            results[domain_idx] = yaml.safe_load(f)
+            results[domain_idx] = yaml.safe_load(f)["f1_scores"]
 
     df = pd.DataFrame.from_dict(results, orient="index")
 

@@ -92,6 +92,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
 
         else:
             self.data = data
+        self.sample_rate = int(sample_rate)
         self.domain = domain
         self.time_slice = time_slice
         self.key_list = list(data.index)
