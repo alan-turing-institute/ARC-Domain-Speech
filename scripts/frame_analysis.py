@@ -62,11 +62,13 @@ def run_analysis(
 
     all_results = {}
 
+    data_dir = MAIN_DIR / "data" / data_name
+
     # Analyze all files
     for file_id in tqdm(list(predictions.keys()), desc=f"Analysing {split_name} files"):
         numpy_predictions = predictions[file_id].numpy().squeeze()
         evaluation_metrics = evaluate_file(
-            data_name,
+            data_dir,
             file_id,
             numpy_predictions,
             model_metadata,
