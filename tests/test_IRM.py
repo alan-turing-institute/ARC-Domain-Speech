@@ -3,7 +3,8 @@ from unittest.mock import Mock
 import torch
 import torch.nn.functional as F
 
-from dr_sad.models.IRM import IRMv1Model, TrainingBatch
+from dr_sad.models.IRM import IRMv1Model
+from dr_sad.utils import TrainingBatch
 
 
 class TestIRMLoss:
