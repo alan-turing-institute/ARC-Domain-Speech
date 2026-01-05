@@ -1,0 +1,4 @@
+model_name: "irm_model"
+lambda_irm: 100
+lambda_scheduling_steps: 5000
+lambda_start_step: 2500
