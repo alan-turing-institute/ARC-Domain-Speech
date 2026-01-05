@@ -37,7 +37,7 @@ class VRExModel(PyanNet):
             - A dictionary with 'erm_loss' and 'vrex_penalty' metrics.
         """
         # Compute base ERM loss across all samples
-        erm_loss: Tensor = self.loss_function(logits, labels)
+        erm_loss: Tensor = self.loss_function(labels, domain_ids, logits)
 
         # Get unique domains in this batch
         unique_domains = torch.unique(domain_ids)
@@ -51,7 +51,9 @@ class VRExModel(PyanNet):
             # Compute loss for this domain
             domain_logits = logits[domain_mask]
             domain_labels = labels[domain_mask]
-            domain_loss = self.loss_function(domain_logits, domain_labels)
+            domain_loss = self.loss_function(
+                domain_labels, domain_ids[domain_mask], domain_logits
+            )
             domain_losses.append(domain_loss)
 
         # Stack domain losses and compute variance

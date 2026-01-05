@@ -17,12 +17,11 @@ class TestVRExLoss:
         """Test VREx loss forward pass with a single domain."""
         model = VRExModel(lambda_vrex=5.0)
         batch_size, num_classes, num_frames = 3, 1, 4
-        logits = torch.randn(batch_size, num_classes, num_frames, requires_grad=True)
+        logits = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
         labels = torch.randint(0, 2, (batch_size, 1, num_frames)).float()
         domain_ids = torch.zeros(batch_size, dtype=torch.long)
 
         # Use BCE as model.loss_function
-        model.loss_function = lambda x, y: F.binary_cross_entropy_with_logits(x, y)
         loss, metrics = model.vrex_loss(logits, labels, domain_ids)
         assert isinstance(loss, torch.Tensor)
         assert loss.requires_grad
@@ -35,10 +34,9 @@ class TestVRExLoss:
         """Test VREx loss forward pass with multiple domains."""
         model = VRExModel(lambda_vrex=2.0)
         batch_size, num_classes, num_frames = 6, 1, 3
-        logits = torch.randn(batch_size, num_classes, num_frames, requires_grad=True)
+        logits = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
         labels = torch.randint(0, 2, (batch_size, 1, num_frames)).float()
         domain_ids = torch.tensor([0, 0, 1, 1, 2, 2])
-        model.loss_function = lambda x, y: F.binary_cross_entropy_with_logits(x, y)
         loss, metrics = model.vrex_loss(logits, labels, domain_ids)
         assert isinstance(loss, torch.Tensor)
         assert loss.requires_grad
@@ -49,10 +47,9 @@ class TestVRExLoss:
         """Test that VREx loss supports gradient computation."""
         model = VRExModel(lambda_vrex=1.0)
         batch_size, num_classes, num_frames = 4, 1, 5
-        logits = torch.randn(batch_size, num_classes, num_frames, requires_grad=True)
+        logits = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
         labels = torch.randint(0, 2, (batch_size, 1, num_frames)).float()
         domain_ids = torch.tensor([0, 1, 1, 0], dtype=torch.long)
-        model.loss_function = lambda x, y: F.binary_cross_entropy_with_logits(x, y)
         loss, _ = model.vrex_loss(logits, labels, domain_ids)
         loss.backward()
         assert logits.grad is not None
@@ -61,11 +58,10 @@ class TestVRExLoss:
         """Test that ERM loss equals BCE when lambda_vrex=0."""
         model = VRExModel(lambda_vrex=0.0)
         batch_size, num_classes, num_frames = 3, 1, 6
-        logits = torch.randn(batch_size, num_classes, num_frames, requires_grad=True)
+        logits = torch.rand(batch_size, num_classes, num_frames, requires_grad=True)
         labels = torch.randint(0, 2, (batch_size, 1, num_frames)).float()
         domain_ids = torch.zeros(batch_size, dtype=torch.long)
-        model.loss_function = lambda x, y: F.binary_cross_entropy_with_logits(x, y)
         vrex_loss, metrics = model.vrex_loss(logits, labels, domain_ids)
-        expected_loss = F.binary_cross_entropy_with_logits(logits, labels)
+        expected_loss = F.binary_cross_entropy(logits, labels)
         assert torch.allclose(vrex_loss, expected_loss, atol=1e-6)
         assert torch.allclose(metrics["erm_loss"], expected_loss, atol=1e-6)
