@@ -119,7 +119,7 @@ class TestLSTMNet:
         """Test that the same input produces the same output."""
         model = LSTMNet(input_size=5, hidden_size=16, num_layers=1)
 
-        # Set model to evaluation mode for deterministic behaviors
+        # Set model to evaluation mode for deterministic behaviours
         model.eval()
 
         x = torch.randn(1, 5, 10)

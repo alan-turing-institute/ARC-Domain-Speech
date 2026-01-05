@@ -101,7 +101,7 @@ class TestSincNet:
     def test_forward_deterministic(self):
         """Test that forward pass is deterministic with same input."""
         sincnet = SincNet()
-        sincnet.eval()  # Set to eval mode to ensure deterministic behavior
+        sincnet.eval()  # Set to eval mode to ensure deterministic behaviour
 
         # Create input - use larger size to avoid conv size issues
         torch.manual_seed(42)

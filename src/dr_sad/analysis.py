@@ -117,7 +117,7 @@ def plot_analysis(
     Create a single plot with audio background, ground truth, and predictions overlaid.
 
     Args:
-        file_id: ID of the file being analyzed
+        file_id: ID of the file being analysed
         audio: Raw audio samples
         ground_truth_mask: Binary mask for ground truth speech activity
         predictions: Model predictions
@@ -211,10 +211,10 @@ def evaluate_file(
     output_dir: None | Path = None,
     plot_figures: bool = False,
 ) -> EvaluationMetrics:
-    """Analyze a single file with audio, ground truth, and predictions.
+    """Analyse a single file with audio, ground truth, and predictions.
 
     Args:
-        file_id: ID of the file to analyze
+        file_id: ID of the file to analyse
         predictions: Model predictions for this file
         model_metadata: Metadata dictionary for the model
         output_dir: Directory to save plots (only required if plot_figures is True)
