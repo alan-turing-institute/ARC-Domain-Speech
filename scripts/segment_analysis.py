@@ -143,7 +143,7 @@ def evaluate_set(
 def main(experiment_config_path: str, exclude_domain: int | None):
     # load experiment config to get data name
     _, experiment_path = get_experiment_name(
-        experiment_config_path, MAIN_DIR / "configs" / "experiments"
+        experiment_config_path, MAIN_DIR / "configs" / "experiment"
     )
     with open(experiment_path) as f:
         exp_config = yaml.safe_load(f)
