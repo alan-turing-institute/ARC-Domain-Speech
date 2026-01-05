@@ -11,11 +11,26 @@ class VRExModel(PyanNet):
     def __init__(
         self,
         lambda_vrex: float,
+        lambda_scheduling_steps: int | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.lambda_vrex = lambda_vrex
+        self.lambda_scheduling_steps = lambda_scheduling_steps
         self.save_hyperparameters()
+
+        # Type annotations (appeases mypy)
+        self.anneal_step: int | None
+
+        if lambda_scheduling_steps is not None:
+            self.target_lambda = lambda_vrex  # Store the target value
+            self.lambda_vrex = 0.0  # Start at 0
+            self.anneal_step = 0
+        else:
+            self.target_lambda = lambda_vrex
+            self.lambda_vrex = lambda_vrex  # Use target immediately
+            self.anneal_step = None
+            self.lambda_scheduling_steps = None
 
     def vrex_loss(
         self,
@@ -76,6 +91,17 @@ class VRExModel(PyanNet):
 
         return total_loss, metrics
 
+    # The authors in https://www.arxiv.org/abs/2003.00688 propose a waterfall scheduler
+    def step_waterfall_scheduler(self) -> None:
+        """Step lambda, every lambda_scheduling_steps steps, if it exists"""
+        if self.anneal_step is not None and self.lambda_scheduling_steps is not None:
+            if self.anneal_step < self.lambda_scheduling_steps:
+                self.lambda_vrex = 0.0
+                self.anneal_step += 1
+            elif self.anneal_step >= self.lambda_scheduling_steps:
+                self.lambda_vrex = self.target_lambda
+                self.anneal_step += 1
+
     def training_step(
         self,
         batch: TrainingBatch,
@@ -87,6 +113,9 @@ class VRExModel(PyanNet):
             batch["annotations"],
             batch["domains"],
         )
+        # Update lambda_vrex if using scheduling
+        if self.anneal_step is not None:
+            self.step_waterfall_scheduler()
 
         # Forward pass
         outputs = self(waveforms)
