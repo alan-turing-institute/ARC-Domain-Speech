@@ -214,12 +214,8 @@ def evaluate_file(
     """Analyse a single file with audio, ground truth, and predictions.
 
     Args:
-<<<<<<< HEAD
-        file_id: ID of the file to analyse
-=======
         data_dir: Directory containing audio and annotation files
         file_id: ID of the file to analyze
->>>>>>> main
         predictions: Model predictions for this file
         model_metadata: Metadata dictionary for the model
         output_dir: Directory to save plots (only required if plot_figures is True)
