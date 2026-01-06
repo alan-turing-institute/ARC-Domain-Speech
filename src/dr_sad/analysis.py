@@ -203,7 +203,7 @@ def plot_analysis(
 
 
 def evaluate_file(
-    data_name: str,
+    data_dir: Path | str,
     file_id: str,
     predictions: np.ndarray,
     model_metadata: dict[str, Any],
@@ -214,6 +214,7 @@ def evaluate_file(
     """Analyze a single file with audio, ground truth, and predictions.
 
     Args:
+        data_dir: Directory containing audio and annotation files
         file_id: ID of the file to analyze
         predictions: Model predictions for this file
         model_metadata: Metadata dictionary for the model
@@ -239,7 +240,7 @@ def evaluate_file(
 
     audio, _, speech_segments = load_audio_and_annotations(
         file_id,
-        f"data/{data_name}",
+        data_dir,
     )
 
     # get model frame parameters
