@@ -194,7 +194,7 @@ def main(experiment_config_path: str, exclude_domain: int | None):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="Analyze model predictions")
+    parser = ArgumentParser(description="Analyse model predictions")
     parser.add_argument(
         "experiment_config",
         type=str,

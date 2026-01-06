@@ -150,7 +150,7 @@ class TestSpeakingMap:
             an.speaking_map(timestamps, annotations)
 
     def test_unsorted_timestamps(self):
-        """Test behavior with unsorted timestamps."""
+        """Test behaviour with unsorted timestamps."""
         timestamps = [3.0, 1.0, 4.0, 2.0]
         annotations = [(1.5, 3.5)]
 
