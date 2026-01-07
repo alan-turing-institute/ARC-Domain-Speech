@@ -31,9 +31,8 @@ def main(experiment_name: str, dataset_name: str | None = None):
             err_msg = f"Dataset '{dataset_name}' not found in DOMAIN_SETTINGS"
             raise ValueError(err_msg)
         # Reverse mapping: idx -> name
-        domain_names = {
-            v: k for k, v in DOMAIN_SETTINGS[dataset_name]["domains_idx"].items()
-        }
+        domains_idx = DOMAIN_SETTINGS[dataset_name]["domains_idx"]
+        domain_names = {v: k for k, v in domains_idx.items()}
 
     # Process frame_metrics.yaml
     print(f"\nProcessing {FRAME_METRIC_FILE}...")
@@ -84,7 +83,7 @@ def main(experiment_name: str, dataset_name: str | None = None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "experiment-name",
+        "experiment_name",
         type=str,
         help="Experiment directory name (e.g. callhome_domain_10)",
     )

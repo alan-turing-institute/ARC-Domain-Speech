@@ -12,17 +12,14 @@ EXPECTED_SPLITS = [
 ]
 
 
-def map_domain_indices(df_index: list, domain_names: dict) -> list:
+def map_domain_indices(df_index: list[int], domain_names: dict[int, str]) -> list[str]:
     """Map numeric domain indices to names, keeping non-numeric indices as-is."""
-    return [
-        domain_names.get(idx, str(idx)) if isinstance(idx, int) else idx
-        for idx in df_index
-    ]
+    return [domain_names.get(idx, str(idx)) for idx in df_index]
 
 
 def load_domain_metrics(
     experiment_dir: Path, metric_file: str = "frame_metrics.yaml"
-) -> dict:
+) -> dict[int, dict[str, dict[str, float]]]:
     """
     Load metrics from all domain subdirectories.
 
@@ -61,7 +58,9 @@ def load_domain_metrics(
     return domain_metrics
 
 
-def create_metrics_dataframe(domain_metrics: dict, split: str) -> pd.DataFrame:
+def create_metrics_dataframe(
+    domain_metrics: dict[int, dict[str, dict[str, float]]], split: str
+) -> pd.DataFrame:
     """
     Create a DataFrame from domain metrics for a specific split.
 
