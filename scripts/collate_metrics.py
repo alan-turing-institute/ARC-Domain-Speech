@@ -12,12 +12,12 @@ from dr_sad.collating import (
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
 
 FRAME_METRIC_FILE = "frame_metrics.yaml"
+MAIN_DIR = Path(__file__).resolve().parent.parent
+OUTPUTS_DIR = MAIN_DIR / "outputs"
 
 
 def main(experiment_name: str, dataset_name: str | None = None):
-    outputs_dir = Path(__file__).resolve().parent.parent / "outputs"
-    experiment_dir = outputs_dir / experiment_name
-
+    experiment_dir = OUTPUTS_DIR / experiment_name
     if not experiment_dir.exists():
         err_msg = f"Experiment directory not found: {experiment_dir}"
         raise FileNotFoundError(err_msg)
@@ -84,7 +84,7 @@ def main(experiment_name: str, dataset_name: str | None = None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "experiment_name",
+        "experiment-name",
         type=str,
         help="Experiment directory name (e.g. callhome_domain_10)",
     )
