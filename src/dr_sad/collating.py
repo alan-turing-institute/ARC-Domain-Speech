@@ -66,7 +66,7 @@ def create_metrics_dataframe(
 
     Args:
         domain_metrics: Dictionary mapping domain indices to their split metrics
-        split: The split to extract ('test' or 'out_of_domain')
+        split: The split to extract; must be one of EXPECTED_SPLITS
 
     Returns:
         DataFrame with domains as rows, metrics as columns, plus mean/std rows
@@ -85,7 +85,7 @@ def create_metrics_dataframe(
 
     # Calculate mean and std
     mean_row = df.mean()
-    std_row = df.std()
+    std_row = df.std(ddof=0)
 
     # Add mean and std as new rows
     df.loc["mean"] = mean_row

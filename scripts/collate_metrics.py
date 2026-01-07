@@ -62,6 +62,8 @@ def main(experiment_name: str, dataset_name: str | None = None):
         output_path = experiment_dir / output_name
 
         df.to_csv(output_path, float_format="%.4f")
+        print(f"Saved split metrics for '{split}': {output_path}")
+        print(f"Shape: {df.shape[0]} rows x {df.shape[1]} columns")
 
         # Store mean row for aggregated table
         aggregated_means[split] = df.loc["mean"]
