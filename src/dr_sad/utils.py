@@ -30,4 +30,4 @@ def get_experiment_name(exp_name_arg: str, exp_config_dir: Path) -> tuple[str, P
 class TrainingBatch(TypedDict):
     waveforms: torch.Tensor
     annotations: list[list[tuple[float, float]]]
-    domains: list[int]
+    domains: torch.Tensor

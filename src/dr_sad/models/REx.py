@@ -77,8 +77,10 @@ class VRExModel(PyanNet):
             penalty = domain_losses_tensor.var()
         else:
             # No variance with a single domain, prevents pytorch warning
-            penalty = torch.zeros(
-                1, device=domain_losses_tensor.device, dtype=domain_losses_tensor.dtype
+            penalty = torch.tensor(
+                0.0,
+                device=domain_losses_tensor.device,
+                dtype=domain_losses_tensor.dtype,
             )
 
         # Total VREx loss
