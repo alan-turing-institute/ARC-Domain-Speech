@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 from dr_sad.collating import (
-    EXPECTED_SPLITS,
+    EXPECTED_EVALUATIONS,
     create_metrics_dataframe,
     load_domain_metrics,
     map_domain_indices,
@@ -42,7 +42,7 @@ def main(experiment_name: str, dataset_name: str | None = None):
     # Create separate DataFrames for each split
     aggregated_means = {}
 
-    for split in EXPECTED_SPLITS:
+    for split in EXPECTED_EVALUATIONS:
         df = create_metrics_dataframe(domain_metrics, split)
 
         if df.empty:

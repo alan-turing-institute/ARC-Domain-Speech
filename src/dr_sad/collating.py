@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-EXPECTED_SPLITS = [
+EXPECTED_EVALUATIONS = [
     "test",
     "test_with_collar",
     "out_of_domain",
@@ -49,7 +49,7 @@ def load_domain_metrics(
             metrics = yaml.safe_load(f)
             # Extract all relevant splits
             filtered_metrics = {}
-            for split_name in EXPECTED_SPLITS:
+            for split_name in EXPECTED_EVALUATIONS:
                 if split_name in metrics:
                     filtered_metrics[split_name] = metrics[split_name]
 
