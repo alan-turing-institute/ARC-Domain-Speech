@@ -155,8 +155,8 @@ class TestDownsampleToPredictionFrames:
         assert not np.any(np.isnan(downsampled))
         assert not np.any(np.isinf(downsampled))
 
-    def test_upsampling_behavior(self):
-        """Test behavior when target length is larger than input."""
+    def test_upsampling_behaviour(self):
+        """Test behaviour when target length is larger than input."""
         # Small signal upsampled to larger
         signal = np.array([0, 1, 0, 1, 0], dtype=float)
         prediction_length = 20

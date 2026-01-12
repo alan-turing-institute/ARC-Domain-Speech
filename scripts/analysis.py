@@ -41,9 +41,9 @@ def run_analysis(
         predictions: Dictionary mapping file IDs to prediction tensors
         evaluator: SpeechDetectionEvaluator instance for computing metrics
         model_metadata: Dictionary containing model frame rate and other metadata
-        data_name: Name of the dataset being analyzed
+        data_name: Name of the dataset being analysed
         analysis_dir: Directory to save analysis plots (None if no plotting)
-        split_name: Name of the data split being analyzed (e.g., 'test', 'validation')
+        split_name: Name of the data split being analysed (e.g., 'test', 'validation')
         results_filepath: Path to save YAML file with aggregated results
         plot_figures: Whether to generate and save analysis plots
     """
@@ -162,7 +162,7 @@ def main(prediction_path: Path, experiment_config_path: str, plot_figures: bool)
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="Analyze model predictions")
+    parser = ArgumentParser(description="Analyse model predictions")
     parser.add_argument(
         "--experiment-config",
         type=str,

@@ -120,7 +120,7 @@ class IRMv1Model(PyanNet):
         env_penalties = []
 
         # Compute ERM loss and IRM penalty for each environment to capture
-        # per-environment behavior
+        # per-environment behaviour
         for domain in unique_domains:
             # Get samples from this environment
             mask = domain_ids == domain
