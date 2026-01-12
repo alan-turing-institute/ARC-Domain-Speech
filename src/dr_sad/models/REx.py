@@ -1,3 +1,11 @@
+"""
+Loss functions from the REx paper:
+Out-of-Distribution Generalization via Risk Extrapolation
+https://arxiv.org/abs/2003.00688
+
+Namely, the Variance Risk Extrapolation (V-REx) loss.
+"""
+
 from typing import Any
 
 import torch
@@ -39,7 +47,15 @@ class VRExModel(PyanNet):
         domain_ids: Tensor,
     ) -> tuple[Tensor, dict[str, Tensor]]:
         """
-        Compute the VREx loss.
+        Compute the VREx loss. This model combines the standard ERM loss with a variance
+        penalty across domains/environments. The loss function is defined as:
+
+        L_vrex = L_erm + λ * Var(L_e),
+
+        where L_e is the loss for each environment/domain. ERM loss is computed using
+        the model's existing loss function, averaged over all samples. The variance
+        penalty encourages the model to perform consistently across different
+        domains/environments.
 
         Args:
             logits: Model output logits of shape (batch_size, num_classes, num_frames).
