@@ -1,4 +1,7 @@
 from pathlib import Path
+from typing import TypedDict
+
+import torch
 
 
 def get_experiment_name(exp_name_arg: str, exp_config_dir: Path) -> tuple[str, Path]:
@@ -22,3 +25,9 @@ def get_experiment_name(exp_name_arg: str, exp_config_dir: Path) -> tuple[str, P
         experiment_name = experiment_path.stem
 
     return experiment_name, experiment_path
+
+
+class TrainingBatch(TypedDict):
+    waveforms: torch.Tensor
+    annotations: list[list[tuple[float, float]]]
+    domains: torch.Tensor

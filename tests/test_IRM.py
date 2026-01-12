@@ -3,7 +3,8 @@ from unittest.mock import Mock
 import torch
 import torch.nn.functional as F
 
-from dr_sad.models.IRM import IRMv1Model, TrainingBatch
+from dr_sad.models.IRM import IRMv1Model
+from dr_sad.utils import TrainingBatch
 
 
 class TestIRMLoss:
@@ -44,7 +45,7 @@ class TestIRMLoss:
         env_ids = torch.zeros(batch_size, dtype=torch.long)  # Single environment
 
         # Forward pass
-        loss, metrics = model.irm_Loss(probs, labels, env_ids)
+        loss, metrics = model.irm_loss(probs, labels, env_ids)
 
         # Check outputs
         assert isinstance(loss, torch.Tensor)
@@ -73,7 +74,7 @@ class TestIRMLoss:
         env_ids = torch.tensor([0, 0, 1, 1, 2, 2])
 
         # Forward pass
-        loss, metrics = model.irm_Loss(probs, labels, env_ids)
+        loss, metrics = model.irm_loss(probs, labels, env_ids)
 
         # Check outputs
         assert isinstance(loss, torch.Tensor)
@@ -99,7 +100,7 @@ class TestIRMLoss:
         env_ids = torch.tensor([0, 1, 1], dtype=torch.long)
 
         # Forward and backward pass
-        loss, _ = model.irm_Loss(probs, labels, env_ids)
+        loss, _ = model.irm_loss(probs, labels, env_ids)
         loss.backward()
 
         # Check gradients exist
@@ -120,7 +121,7 @@ class TestIRMLoss:
         env_ids = torch.zeros(batch_size, dtype=torch.long)  # Single environment
 
         # Forward pass through IRMLoss
-        irm_loss, metrics = model.irm_Loss(probs, labels, env_ids)
+        irm_loss, metrics = model.irm_loss(probs, labels, env_ids)
 
         # Compute standard binary cross-entropy manually using same format
         # IRMLoss transforms: probs.transpose(1, 2), labels.squeeze(1)
@@ -145,7 +146,7 @@ class TestIRMModel:
         model = IRMv1Model(lambda_irm=1e2)
         # IRMLoss is now a method, not a class instance
         # Check that IRMLoss is callable
-        assert callable(model.irm_Loss)
+        assert callable(model.irm_loss)
         assert model.lambda_irm == 1e2
 
         # Test custom lambda
