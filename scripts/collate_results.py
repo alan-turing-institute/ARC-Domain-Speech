@@ -60,8 +60,7 @@ def main(args) -> None:
             raise ValueError(msg)
 
         domain_names: dict[int, str] = {
-            v: k
-            for k, v in DOMAIN_SETTINGS[data_name]["domains_idx"].items()  # type: ignore[attr-defined]
+            v: k for k, v in DOMAIN_SETTINGS[data_name]["domains_idx"].items()
         }
 
         df["domain"] = [domain_names[int(idx)] for idx in df.index]

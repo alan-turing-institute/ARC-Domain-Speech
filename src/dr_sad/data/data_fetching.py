@@ -3,13 +3,22 @@ __all__ = ("load_data", "remove_overlap")
 import csv
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
+from typing import TypedDict
 
 import pandas as pd
 import soundfile
 from tqdm import tqdm
 
 DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
-DOMAIN_SETTINGS = {
+
+
+class DomainSetting(TypedDict):
+    file_name: str
+    domain_column: str
+    domains_idx: dict[str, int]
+
+
+DOMAIN_SETTINGS: dict[str, DomainSetting] = {
     "callhome": {
         "file_name": "callhome",
         "domain_column": "lang",
@@ -181,7 +190,7 @@ def load_data(
         settings = DOMAIN_SETTINGS[data_choice]
         data_dir = DATA_DIR / str(settings["file_name"])
         d_column = str(settings["domain_column"])
-        d_idx_map = settings["domains_idx"]  # type: ignore[assignment]
+        d_idx_map = settings["domains_idx"]
 
     if not data_dir.exists():
         msg = f"Data directory {data_dir} does not exist."
