@@ -10,6 +10,7 @@ from dr_sad.data.dataloaders import (
     domain_split_dataloaders,
     from_keys_dataloaders,
     one_test_dataloader,
+    single_domain_dataloaders,
 )
 from dr_sad.training import DrSadTrainer, create_model
 from dr_sad.utils import get_experiment_name
@@ -83,6 +84,30 @@ def main(args) -> None:
             time_slice=time_slice,
             random_seed=exp_config["random_seed"],
         )
+    elif data_cfg["domain_type"] == "single_domain":
+        if args.train_domain is None:
+            err_msg = "Must specify --train_domain when domain_type is 'single_domain'."
+            raise ValueError(err_msg)
+        if args.exclude_domain is not None:
+            err_msg = "Cannot exclude domain when domain_type is 'single_domain'."
+            raise ValueError(err_msg)
+
+        save_dir = (
+            MAIN_DIR / "outputs" / experiment_name / f"domain_{args.train_domain}"
+        )
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        train_loader, val_loader, test_loader = single_domain_dataloaders(
+            data,
+            train_keys=data_split["train"],
+            val_keys=data_split["val"],
+            test_keys=data_split["test"],
+            domain=args.train_domain,
+            batch_size=batch_size,
+            time_slice=time_slice,
+            random_seed=exp_config["random_seed"],
+        )
+
     elif data_cfg["domain_type"] == "exclude_one":
         save_dir = (
             MAIN_DIR / "outputs" / experiment_name / f"domain_{args.exclude_domain}"
@@ -165,6 +190,17 @@ def main(args) -> None:
             )
             results["in_domain_test_full"] = trainer.test(model, full_test_loader)[0]
             results["out_of_domain_test_full"] = None
+
+        elif data_cfg["domain_type"] == "single_domain":
+            target_keys = data[data["domains"] == args.train_domain].index.to_list()
+            test_only_target_keys = list(set(data_split["test"]) & set(target_keys))
+            full_test_loader = one_test_dataloader(
+                data,
+                data_keys=test_only_target_keys,
+                batch_size=full_batch_size,
+            )
+            results["in_domain_test_full"] = trainer.test(model, full_test_loader)[0]
+
         elif data_cfg["domain_type"] == "exclude_one":
             domain_keys = data[data["domains"] == args.exclude_domain].index.to_list()
             test_without_domain_keys = list(set(data_split["test"]) - set(domain_keys))
@@ -209,7 +245,13 @@ if __name__ == "__main__":
         "--exclude-domain",
         type=int,
         default=None,
-        help="Domain to exclude from training/validation/test (for domain adaptation)",
+        help="Domain to exclude from training/validation/test (for OOD evaluation)",
+    )
+    parser.add_argument(
+        "--train-domain",
+        type=int,
+        default=None,
+        help="Domain to train on. Only used if domain_type is 'single_domain'",
     )
     args = parser.parse_args()
     main(args)

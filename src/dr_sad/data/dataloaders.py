@@ -98,6 +98,66 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         self.key_list = list(data.index)
 
     @classmethod
+    def from_target_domain(
+        cls,
+        data: pd.DataFrame,
+        train_keys: list[str],
+        val_keys: list[str],
+        test_keys: list[str],
+        domain: int,
+        time_slice: float | None = None,
+        sample_rate: int = 16_000,
+    ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset"]:
+        """
+        Create a DrSadDataset for the target domain.
+
+        Args:
+            data (pd.DataFrame): The full dataset to filter.
+            target_domain (int): The domain index to filter by.
+            time_slice (float, optional): Cut the waveforms to this length in seconds.
+            sample_rate (int, optional): The sample rate of the waveforms.
+                Defaults to 16_000 Hz.
+        Returns:
+            train (DrSadDataset): Training dataset of the specified domain.
+            val (DrSadDataset): Validation dataset of the specified domain.
+            test (DrSadDataset): Test dataset of the specified domain.
+        """
+
+        domain_keys = data[data["domains"] == domain].index.to_list()
+
+        if len(domain_keys) == 0:
+            available_domains = sorted(data["domains"].unique().tolist())
+            msg = (
+                f"Domain {domain} has no associated data. "
+                f"Available domains: {available_domains}"
+            )
+            raise ValueError(msg)
+
+        train_data = data.loc[list(set(train_keys) & set(domain_keys))]
+        val_data = data.loc[list(set(val_keys) & set(domain_keys))]
+        test_data = data.loc[list(set(test_keys) & set(domain_keys))]
+        return (
+            cls(
+                train_data,
+                domain=domain,
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+            ),
+            cls(
+                val_data,
+                domain=domain,
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+            ),
+            cls(
+                test_data,
+                domain=domain,
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+            ),
+        )
+
+    @classmethod
     def from_split_domain(
         cls,
         data: pd.DataFrame,
@@ -410,6 +470,82 @@ def from_keys_dataloaders(
         train_keys,
         val_keys,
         test_keys,
+        time_slice=time_slice,
+        sample_rate=sample_rate,
+    )
+    if random_seed is None:
+        random_seed = np.random.randint(0, 1_000_000)
+    train_rng = np.random.default_rng(random_seed)
+
+    # Create dataloaders
+    train_loader = make_dataloader(
+        train,
+        batch_size=batch_size,
+        shuffle=True,
+        random_state=train_rng,
+        **dataloader_kwargs,
+    )
+    val_loader = make_dataloader(
+        val,
+        batch_size=batch_size,
+        shuffle=False,
+        **dataloader_kwargs,
+    )
+    test_loader = make_dataloader(
+        test,
+        batch_size=batch_size,
+        shuffle=False,
+        **dataloader_kwargs,
+    )
+
+    return train_loader, val_loader, test_loader
+
+
+def single_domain_dataloaders(
+    data: pd.DataFrame,
+    train_keys: list[str],
+    val_keys: list[str],
+    test_keys: list[str],
+    domain: int,
+    batch_size: int = 4,
+    random_seed: int | None = None,
+    time_slice: float | None = None,
+    sample_rate: int = 16_000,
+    dataloader_kwargs: dict[str, Any] | None = None,
+) -> tuple[DataLoader, DataLoader, DataLoader]:
+    """Create dataloaders for training, validation, testing, and a specific domain.
+
+    Args:
+        data (pd.DataFrame): The full dataset to split and load.
+            This must contain "waveforms", "annotations", and "domains" columns.
+        train_keys (list): List of keys for the training set.
+        val_keys (list): List of keys for the validation set.
+        test_keys (list): List of keys for the test set.
+        domain (int): The domain index to filter by.
+        batch_size (int, optional): Batch size for the dataloaders.
+            Defaults to 4.
+        random_seed (int, optional): Random seed for reproducibility.
+            Defaults to None (no seed).
+        time_slice (float, optional): Cut the waveforms to this length in seconds.
+        sample_rate (int, optional): The sample rate of the waveforms.
+            Defaults to 16_000 Hz.
+        dataloader_kwargs (dict, optional): Additional keyword arguments to pass
+            to the DataLoader constructor. Defaults to {}.
+
+    Returns:
+        train_loader (DataLoader): DataLoader for training from target domain.
+        val_loader (DataLoader): DataLoader for validation from target domain.
+        test_loader (DataLoader): DataLoader for testing from target domain.
+    """
+    if dataloader_kwargs is None:
+        dataloader_kwargs = {}
+
+    train, val, test = DrSadDataset.from_target_domain(
+        data,
+        train_keys,
+        val_keys,
+        test_keys,
+        domain,
         time_slice=time_slice,
         sample_rate=sample_rate,
     )

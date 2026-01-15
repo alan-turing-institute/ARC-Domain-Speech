@@ -224,6 +224,81 @@ class TestDrSadDataset:
         assert train_indices.isdisjoint(test_indices)
         assert val_indices.isdisjoint(test_indices)
 
+    def test_from_target_domain(self, test_dataset):
+        """Test that DrSadDataset.from_target_domain correctly creates datasets."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        target_domain = 1
+
+        train, val, test = DrSadDataset.from_target_domain(
+            data, train_keys, val_keys, test_keys, target_domain
+        )
+        # Check that only data from the target domain is returned
+        train_indices = set(train.data.index)
+        val_indices = set(val.data.index)
+        test_indices = set(test.data.index)
+
+        # Check that splits are non-overlapping
+        assert train_indices.isdisjoint(val_indices)
+        assert train_indices.isdisjoint(test_indices)
+        assert val_indices.isdisjoint(test_indices)
+
+        # Check that all returned datasets contain only target domain data
+        for idx in train_indices:
+            assert int(data.loc[idx, "domains"]) == target_domain
+        for idx in val_indices:
+            assert int(data.loc[idx, "domains"]) == target_domain
+        for idx in test_indices:
+            assert int(data.loc[idx, "domains"]) == target_domain
+
+        # Check that returned datasets have the correct domain attribute
+        assert train.domain == target_domain
+        assert val.domain == target_domain
+        assert test.domain == target_domain
+
+        # Check that returned indices are subsets of provided keys filtered by domain
+        domain_keys = set(data[data["domains"] == target_domain].index.tolist())
+        expected_train = set(train_keys) & domain_keys
+        expected_val = set(val_keys) & domain_keys
+        expected_test = set(test_keys) & domain_keys
+
+        assert train_indices == expected_train
+        assert val_indices == expected_val
+        assert test_indices == expected_test
+
+    def test_from_target_domain_raises_error_for_invalid_domain(self, test_dataset):
+        """Test that from_target_domain raises ValueError for domain with no data."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        # Use a domain that doesn't exist in the data
+        invalid_domain = 99
+
+        # Should raise ValueError
+        with pytest.raises(ValueError, match=r"Domain 99 has no associated data"):
+            DrSadDataset.from_target_domain(
+                data, train_keys, val_keys, test_keys, invalid_domain
+            )
+
     def test_from_split_domain(self, test_dataset):
         data = load_data(
             data_choice=None,
