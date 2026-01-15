@@ -10,6 +10,7 @@ from dr_sad.data.dataloaders import (
     from_keys_dataloaders,
     make_dataloader,
     one_test_dataloader,
+    single_domain_dataloaders,
     train_test_split_dataloaders,
 )
 from dr_sad.data.sampler import StratifiedSampler
@@ -886,6 +887,208 @@ class TestDomainSplitDataloaders:
                 for start, end in anno:
                     assert start >= 0.0
                     assert end <= time_slice
+
+
+class TestSingleDomainDataloaders:
+    def test_single_domain_dataloaders_basic(self, test_dataset):
+        """Test basic functionality of single_domain_dataloaders."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        target_domain = 1
+
+        train_loader, val_loader, test_loader = single_domain_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            target_domain,
+            batch_size=2,
+            random_seed=42,
+        )
+
+        # Check that all returned objects are DataLoaders
+        assert isinstance(train_loader, DataLoader)
+        assert isinstance(val_loader, DataLoader)
+        assert isinstance(test_loader, DataLoader)
+
+        # Check batch sizes
+        assert train_loader.batch_size == 2
+        assert val_loader.batch_size == 2
+        assert test_loader.batch_size == 2
+
+        # Check that all have StratifiedSampler
+        assert isinstance(train_loader.sampler, StratifiedSampler)
+        assert isinstance(val_loader.sampler, StratifiedSampler)
+        assert isinstance(test_loader.sampler, StratifiedSampler)
+
+    def test_single_domain_dataloaders_custom_params(self, test_dataset):
+        """Test single_domain_dataloaders with custom parameters."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        target_domain = 1
+        custom_kwargs = {"num_workers": 0}
+
+        train_loader, val_loader, test_loader = single_domain_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            target_domain,
+            batch_size=3,
+            random_seed=123,
+            dataloader_kwargs=custom_kwargs,
+        )
+
+        # Check custom batch size
+        assert train_loader.batch_size == 3
+        assert val_loader.batch_size == 3
+        assert test_loader.batch_size == 3
+
+        # Check custom dataloader kwargs were applied
+        assert train_loader.num_workers == 0
+        assert val_loader.num_workers == 0
+        assert test_loader.num_workers == 0
+
+    def test_single_domain_dataloaders_iteration(self, test_dataset):
+        """Test that we can iterate through the created dataloaders."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        target_domain = 1
+
+        train_loader, val_loader, test_loader = single_domain_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            target_domain,
+            batch_size=2,
+            random_seed=42,
+        )
+
+        # Test that we can get batches from each loader
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch]:
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+
+        # Verify all batches contain only the target domain
+        assert all(d == target_domain for d in train_batch["domains"])
+        assert all(d == target_domain for d in val_batch["domains"])
+        assert all(d == target_domain for d in test_batch["domains"])
+
+    def test_single_domain_dataloaders_raises_error_for_invalid_domain(
+        self, test_dataset
+    ):
+        """Test that single_domain_dataloaders raises ValueError for invalid domain."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        # Use a domain that doesn't exist
+        invalid_domain = 999
+
+        # Should raise ValueError
+        with pytest.raises(ValueError, match=r"Domain 999 has no associated data"):
+            single_domain_dataloaders(
+                data,
+                train_keys,
+                val_keys,
+                test_keys,
+                invalid_domain,
+                batch_size=2,
+                random_seed=42,
+            )
+
+    def test_single_domain_dataloaders_time_slice(self, test_dataset):
+        """Test single_domain_dataloaders with time_slice parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=test_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        target_domain = 1
+
+        time_slice = 1.0  # seconds
+
+        train_loader, val_loader, test_loader = single_domain_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            target_domain,
+            batch_size=2,
+            random_seed=42,
+            time_slice=time_slice,
+        )
+
+        # Test that we can get batches from each loader
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch]:
+            assert "file_id" in batch
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+            assert len(batch["waveforms"]) == 2
+            assert batch["waveforms"].shape[1] <= int(time_slice * 16000)
+            for anno in batch["annotations"]:
+                for start, end in anno:
+                    assert start >= 0.0
+                    assert end <= time_slice
+
+        # Verify all batches contain only the target domain
+        assert all(d == target_domain for d in train_batch["domains"])
+        assert all(d == target_domain for d in val_batch["domains"])
+        assert all(d == target_domain for d in test_batch["domains"])
 
 
 class TestOneTestDataloader:

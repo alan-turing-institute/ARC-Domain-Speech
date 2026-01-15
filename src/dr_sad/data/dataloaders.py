@@ -3,6 +3,7 @@ __all__ = (
     "domain_split_dataloaders",
     "from_keys_dataloaders",
     "make_dataloader",
+    "single_domain_dataloaders",
     "train_test_split_dataloaders",
 )
 
