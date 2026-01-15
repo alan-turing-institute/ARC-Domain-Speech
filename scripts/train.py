@@ -86,7 +86,7 @@ def main(args) -> None:
         )
     elif data_cfg["domain_type"] == "single_domain":
         if args.train_domain is None:
-            err_msg = "Must specify --train_domain when domain_type is 'single_domain'."
+            err_msg = "Must specify --train-domain when domain_type is 'single_domain'."
             raise ValueError(err_msg)
         if args.exclude_domain is not None:
             err_msg = "Cannot exclude domain when domain_type is 'single_domain'."

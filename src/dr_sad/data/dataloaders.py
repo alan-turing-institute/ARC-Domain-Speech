@@ -113,7 +113,10 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
 
         Args:
             data (pd.DataFrame): The full dataset to filter.
-            target_domain (int): The domain index to filter by.
+            train_keys (list[str]): Indices/keys defining the training subset.
+            val_keys (list[str]): Indices/keys defining the validation subset.
+            test_keys (list[str]): Indices/keys defining the test subset.
+            domain (int): The domain index to filter by.
             time_slice (float, optional): Cut the waveforms to this length in seconds.
             sample_rate (int, optional): The sample rate of the waveforms.
                 Defaults to 16_000 Hz.
