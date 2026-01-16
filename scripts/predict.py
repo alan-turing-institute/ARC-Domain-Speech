@@ -41,6 +41,7 @@ def save_model_metadata(model: PyanNet, prediction_dir: Path) -> None:
 def main(
     experiment_config: str,
     exclude_domain: int | None = None,
+    train_domain: int | None = None,
 ) -> None:
     """
     Runs prediction using a trained model on a specified dataset, with optional domain
@@ -73,7 +74,12 @@ def main(
     with open(model_cfg_pth) as f:
         model_cfg = yaml.safe_load(f)
 
-    domain_name = f"domain_{exclude_domain}" if exclude_domain is not None else ""
+    if exclude_domain is not None:
+        domain_name = f"domain_{exclude_domain}"
+    elif train_domain is not None:
+        domain_name = f"domain_{train_domain}"
+    else:
+        domain_name = ""
 
     model_path = (
         MAIN_DIR
@@ -96,6 +102,7 @@ def main(
         trainer_cfg=trainer_cfg,
         exp_config=exp_config,
         exclude_domain=exclude_domain,
+        train_domain=train_domain,
     )
 
     prediction_dir = Path(model_path).parent / "saved_predictions"
@@ -145,10 +152,17 @@ if __name__ == "__main__":
         default=None,
         help="Domain to exclude when domain_type is 'exclude_one'",
     )
+    parser.add_argument(
+        "--train-domain",
+        type=int,
+        default=None,
+        help="Domain to use when domain_type is 'single_domain'",
+    )
 
     args = parser.parse_args()
 
     main(
         experiment_config=args.experiment_config,
         exclude_domain=args.exclude_domain,
+        train_domain=args.train_domain,
     )
