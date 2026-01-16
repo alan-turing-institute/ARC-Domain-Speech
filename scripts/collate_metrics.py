@@ -95,6 +95,16 @@ if __name__ == "__main__":
         default=None,
         help="Dataset name for domain mapping (optional)",
     )
+    parser.add_argument(
+        "--expected-evaluations",
+        type=str,
+        nargs="+",
+        default=EXPECTED_EVALUATIONS,
+        help=(
+            "List of expected evaluation splits to process, defaults to "
+            "EXPECTED_EVALUATIONS in dr_sad.collating.py"
+        ),
+    )
     args = parser.parse_args()
     experiment_name = args.experiment_name
     dataset_name = args.dataset_name

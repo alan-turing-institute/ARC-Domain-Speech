@@ -7,7 +7,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dr_sad.data.data_fetching import load_data
-from dr_sad.data.dataloaders import domain_split_dataloaders, from_keys_dataloaders
+from dr_sad.data.dataloaders import (
+    domain_split_dataloaders,
+    from_keys_dataloaders,
+    single_domain_dataloaders,
+)
 from dr_sad.training import create_model
 
 MAIN_DIR = Path(__file__).resolve().parent.parent.parent
@@ -156,6 +160,7 @@ def load_data_eval(
     trainer_cfg: dict[str, str | int | float],
     exp_config: dict[str, str | int | float],
     exclude_domain: int | None = None,
+    train_domain: int | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader | None]:
     """
     Load evaluation DataLoaders based on the provided configuration and data split.
@@ -191,19 +196,38 @@ def load_data_eval(
 
     assert data_split is not None, "data_split must not be None"
 
-    if data_cfg["domain_type"] == "all":
+    if data_cfg["domain_type"] != "exclude_one":
         if exclude_domain is not None:
-            err_msg = "Cannot exclude domain when domain_type is set to 'all'."
+            err_msg = (
+                "Cannot exclude domain when domain_type is set to 'all'"
+                " or 'single_domain'."
+            )
             raise ValueError(err_msg)
 
-        _, validation_loader, test_loader = from_keys_dataloaders(
-            data,
-            train_keys=data_split["train"],
-            val_keys=data_split["val"],
-            test_keys=data_split["test"],
-            batch_size=int(trainer_cfg["batch_size"]),
-            random_seed=int(exp_config["random_seed"]),
-        )
+        if data_cfg["domain_type"] == "all" and train_domain is not None:
+            err_msg = "Cannot specify train_domain when domain_type is set to 'all'."
+            raise ValueError(err_msg)
+
+        if data_cfg["domain_type"] == "single_domain":
+            _, validation_loader, test_loader = single_domain_dataloaders(
+                data,
+                train_keys=data_split["train"],
+                val_keys=data_split["val"],
+                test_keys=data_split["test"],
+                domain=train_domain,
+                batch_size=int(trainer_cfg["batch_size"]),
+                random_seed=int(exp_config["random_seed"]),
+            )
+
+        if data_cfg["domain_type"] == "all":
+            _, validation_loader, test_loader = from_keys_dataloaders(
+                data,
+                train_keys=data_split["train"],
+                val_keys=data_split["val"],
+                test_keys=data_split["test"],
+                batch_size=int(trainer_cfg["batch_size"]),
+                random_seed=int(exp_config["random_seed"]),
+            )
         return validation_loader, test_loader, None
 
     if data_cfg["domain_type"] == "exclude_one":
