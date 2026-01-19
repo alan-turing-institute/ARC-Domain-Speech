@@ -18,6 +18,7 @@ TORCH_HUB_CACHE_DIR = MAIN_DIR.parent / "torch_hub_cache"
 def main(
     experiment_config: str,
     exclude_domain: int | None = None,
+    split_idx: int = 0,
 ) -> None:
     """
     Runs prediction using a trained model on a specified dataset, with optional domain
@@ -28,6 +29,8 @@ def main(
         configs/experiment/.
         exclude_domain (int | None, optional): Domain to exclude when domain_type is
         'exclude_one'. Defaults to None.
+        split_idx (int, optional): Index of the data split to use, read from data
+            config file. Defaults to 0.
     """
     # Load experiment config
     experiment_name, experiment_config_path = get_experiment_name(
@@ -41,6 +44,8 @@ def main(
     data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
     with open(data_cfg_pth) as f:
         data_cfg = yaml.safe_load(f)
+
+    split_name = data_cfg["split_names"][split_idx].strip(".yaml")
 
     model_cfg_pth = Path(CONFIG_DIR) / "model" / exp_config["model_config"]
     with open(model_cfg_pth) as f:
@@ -60,7 +65,12 @@ def main(
     # Create prediction directory
     domain_name = f"domain_{exclude_domain}" if exclude_domain is not None else ""
     prediction_dir = (
-        MAIN_DIR / "outputs" / f"{experiment_name}" / domain_name / "saved_predictions"
+        MAIN_DIR
+        / "outputs"
+        / f"{experiment_name}"
+        / split_name
+        / domain_name
+        / "saved_predictions"
     )
     prediction_dir.mkdir(parents=True, exist_ok=True)
 
@@ -123,6 +133,11 @@ if __name__ == "__main__":
         help="Experiment configuration file name located in configs/experiments/",
     )
     parser.add_argument(
+        "split_idx",
+        type=int,
+        help="Index of the data split to use, read from data config file",
+    )
+    parser.add_argument(
         "--exclude-domain",
         type=int,
         default=None,
@@ -134,4 +149,5 @@ if __name__ == "__main__":
     main(
         experiment_config=args.experiment_config,
         exclude_domain=args.exclude_domain,
+        split_idx=args.split_idx,
     )

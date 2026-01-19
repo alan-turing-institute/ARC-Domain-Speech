@@ -140,7 +140,7 @@ def evaluate_set(
     return set_name, f1_score
 
 
-def main(experiment_config_path: str, exclude_domain: int | None):
+def main(experiment_config_path: str, exclude_domain: int | None, split_idx: int):
     # load experiment config to get data name
     _, experiment_path = get_experiment_name(
         experiment_config_path, MAIN_DIR / "configs" / "experiment"
@@ -151,6 +151,7 @@ def main(experiment_config_path: str, exclude_domain: int | None):
     with open(data_cfg_pth) as f:
         data_cfg = yaml.safe_load(f)
     data_name = data_cfg["name"]
+    split_name = data_cfg["split_names"][split_idx].strip(".yaml")
 
     if data_cfg.get("domain_type") == "exclude_one" and exclude_domain is None:
         msg = (
@@ -160,9 +161,13 @@ def main(experiment_config_path: str, exclude_domain: int | None):
         raise ValueError(msg)
 
     output_path = (
-        MAIN_DIR / "outputs" / experiment_path.stem
+        MAIN_DIR / "outputs" / experiment_path.stem / split_name
         if exclude_domain is None
-        else MAIN_DIR / "outputs" / experiment_path.stem / f"domain_{exclude_domain}"
+        else MAIN_DIR
+        / "outputs"
+        / experiment_path.stem
+        / split_name
+        / f"domain_{exclude_domain}"
     )
     predictions_paths = list(output_path.glob("saved_predictions/*.safetensors"))
 
@@ -201,6 +206,11 @@ if __name__ == "__main__":
         help="Path to or name of the experiment configuration file.",
     )
     parser.add_argument(
+        "split_idx",
+        type=int,
+        help="Index of the data split to use, read from data config file",
+    )
+    parser.add_argument(
         "--exclude-domain",
         type=int,
         default=None,
@@ -210,4 +220,5 @@ if __name__ == "__main__":
     main(
         args.experiment_config,
         exclude_domain=args.exclude_domain,
+        split_idx=args.split_idx,
     )
