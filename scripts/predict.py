@@ -40,6 +40,7 @@ def save_model_metadata(model: PyanNet, prediction_dir: Path) -> None:
 
 def main(
     experiment_config: str,
+    data_config: str | None = None,
     exclude_domain: int | None = None,
     train_domain: int | None = None,
 ) -> None:
@@ -64,6 +65,8 @@ def main(
     # load other configs from experiment config
     trainer_cfg_pth = Path(CONFIG_DIR) / "training" / exp_config["training_config"]
 
+    if data_config is not None:
+        exp_config["data_config"] = data_config
     data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
     model_cfg_pth = Path(CONFIG_DIR) / "model" / exp_config["model_config"]
 
@@ -147,6 +150,15 @@ if __name__ == "__main__":
         help="Experiment configuration file name located in configs/experiments/",
     )
     parser.add_argument(
+        "--data-config",
+        type=str,
+        default=None,
+        help=(
+            "Dataset configuration file name located in configs/data/. Overrides"
+            " the one specified in the experiment configuration."
+        ),
+    )
+    parser.add_argument(
         "--exclude-domain",
         type=int,
         default=None,
@@ -163,6 +175,7 @@ if __name__ == "__main__":
 
     main(
         experiment_config=args.experiment_config,
+        data_config=args.data_config,
         exclude_domain=args.exclude_domain,
         train_domain=args.train_domain,
     )

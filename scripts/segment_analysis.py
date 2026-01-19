@@ -140,7 +140,11 @@ def evaluate_set(
     return set_name, f1_score
 
 
-def main(experiment_config_path: str, exclude_domain: int | None):
+def main(
+    experiment_config_path: str,
+    exclude_domain: int | None,
+    train_domain: int | None,
+) -> None:
     # load experiment config to get data name
     _, experiment_path = get_experiment_name(
         experiment_config_path, MAIN_DIR / "configs" / "experiment"
@@ -159,10 +163,19 @@ def main(experiment_config_path: str, exclude_domain: int | None):
         )
         raise ValueError(msg)
 
+    if data_cfg.get("domain_type") == "single_domain" and train_domain is None:
+        msg = (
+            "Error: When data domain_type is 'single_domain', "
+            "--train-domain argument must be provided."
+        )
+        raise ValueError(msg)
+
+    # should be None if neither are defined
+    domain_identifier = exclude_domain if exclude_domain is not None else train_domain
     output_path = (
         MAIN_DIR / "outputs" / experiment_path.stem
-        if exclude_domain is None
-        else MAIN_DIR / "outputs" / experiment_path.stem / f"domain_{exclude_domain}"
+        if domain_identifier is None
+        else MAIN_DIR / "outputs" / experiment_path.stem / f"domain_{domain_identifier}"
     )
     predictions_paths = list(output_path.glob("saved_predictions/*.safetensors"))
 
@@ -206,8 +219,15 @@ if __name__ == "__main__":
         default=None,
         help="Domain to exclude when domain_type is 'exclude_one'",
     )
+    parser.add_argument(
+        "--train-domain",
+        type=int,
+        default=None,
+        help="Domain to train when domain_type is 'single_domain'",
+    )
     args = parser.parse_args()
     main(
         args.experiment_config,
         exclude_domain=args.exclude_domain,
+        train_domain=args.train_domain,
     )

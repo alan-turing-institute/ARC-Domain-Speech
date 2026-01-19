@@ -16,7 +16,11 @@ MAIN_DIR = Path(__file__).resolve().parent.parent
 OUTPUTS_DIR = MAIN_DIR / "outputs"
 
 
-def main(experiment_name: str, dataset_name: str | None = None):
+def main(
+    experiment_name: str,
+    expected_evaluations: list[str],
+    dataset_name: str | None = None,
+) -> None:
     experiment_dir = OUTPUTS_DIR / experiment_name
     if not experiment_dir.exists():
         err_msg = f"Experiment directory not found: {experiment_dir}"
@@ -37,12 +41,14 @@ def main(experiment_name: str, dataset_name: str | None = None):
     # Process frame_metrics.yaml
     print(f"\nProcessing {FRAME_METRIC_FILE}...")
 
-    domain_metrics = load_domain_metrics(experiment_dir, FRAME_METRIC_FILE)
+    domain_metrics = load_domain_metrics(
+        experiment_dir, FRAME_METRIC_FILE, expected_evaluations
+    )
 
     # Create separate DataFrames for each split
     aggregated_means = {}
 
-    for split in EXPECTED_EVALUATIONS:
+    for split in expected_evaluations:
         df = create_metrics_dataframe(domain_metrics, split)
 
         if df.empty:
@@ -90,12 +96,6 @@ if __name__ == "__main__":
         help="Experiment directory name (e.g. callhome_domain_10)",
     )
     parser.add_argument(
-        "--dataset-name",
-        type=str,
-        default=None,
-        help="Dataset name for domain mapping (optional)",
-    )
-    parser.add_argument(
         "--expected-evaluations",
         type=str,
         nargs="+",
@@ -105,7 +105,14 @@ if __name__ == "__main__":
             "EXPECTED_EVALUATIONS in dr_sad.collating.py"
         ),
     )
+    parser.add_argument(
+        "--dataset-name",
+        type=str,
+        default=None,
+        help="Dataset name for domain mapping (optional)",
+    )
     args = parser.parse_args()
     experiment_name = args.experiment_name
     dataset_name = args.dataset_name
-    main(experiment_name, dataset_name)
+    expected_evaluations = args.expected_evaluations
+    main(experiment_name, expected_evaluations, dataset_name)
