@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import torch
-import yaml
 from safetensors.torch import load_file, save_file
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -163,7 +162,7 @@ def load_data_eval(
     Args:
         data_cfg (dict[str, str]): Configuration dictionary for the dataset,
             must include 'name', 'split_name', and 'domain_type' keys.
-        data_split (dict[str, list[str]] | None): Optional pre-loaded data split
+        data_split (dict[str, list[str]]): Pre-loaded data split
             dictionary. If None, the split will be loaded from file.
         trainer_cfg (dict[str, str | int | float]): Trainer configuration dictionary,
             must include 'num_workers' and 'batch_size' keys.
@@ -183,13 +182,13 @@ def load_data_eval(
     """
     # load data
     data = load_data(data_cfg["name"], num_workers=int(trainer_cfg["num_workers"]))
-    if data_split is None:
-        with open(
-            MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]
-        ) as file:
-            data_split = yaml.safe_load(file)
 
-    assert data_split is not None, "data_split must not be None"
+    if not isinstance(data_split, dict):
+        msg = (
+            "data_split must be provided as a dictionary with "
+            "'train', 'val', and 'test' keys."
+        )
+        raise ValueError(msg)
 
     if data_cfg["domain_type"] == "all":
         if exclude_domain is not None:
