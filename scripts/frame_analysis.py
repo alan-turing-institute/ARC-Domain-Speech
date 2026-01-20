@@ -105,9 +105,7 @@ def run_analysis(
             yaml.dump(all_split_results, f)
 
 
-def main(
-    experiment_config_path: str, exclude_domain: int | None, use_collar: bool
-) -> None:
+def main(experiment_config_path: str, domain: int | None, use_collar: bool) -> None:
     # load experiment config to get data name
     _, experiment_path = get_experiment_name(experiment_config_path, EXP_CONFIG_DIR)
     with open(experiment_path) as f:
@@ -117,17 +115,20 @@ def main(
         data_cfg = yaml.safe_load(f)
     data_name = data_cfg["name"]
 
-    if data_cfg.get("domain_type") == "exclude_one" and exclude_domain is None:
+    if (
+        data_cfg.get("domain_type") == "exclude_one"
+        or data_cfg.get("domain_type") == "single_domain"
+    ) and domain is None:
         msg = (
             "Error: When data domain_type is 'exclude_one', "
-            "--exclude-domain argument must be provided."
+            "--domain argument must be provided."
         )
         raise ValueError(msg)
 
     output_path = (
         MAIN_DIR / "outputs" / experiment_path.stem
-        if exclude_domain is None
-        else MAIN_DIR / "outputs" / experiment_path.stem / f"domain_{exclude_domain}"
+        if domain is None
+        else MAIN_DIR / "outputs" / experiment_path.stem / f"domain_{domain}"
     )
     predictions_paths = list(output_path.glob("saved_predictions/*.safetensors"))
     if not predictions_paths:
@@ -159,10 +160,13 @@ if __name__ == "__main__":
         help="Path or name to the experiment configuration file.",
     )
     parser.add_argument(
-        "--exclude-domain",
+        "--domain",
         type=int,
         default=None,
-        help="Domain to exclude when domain_type is 'exclude_one'",
+        help=(
+            "Domain to exclude when domain_type is 'exclude_one', OR"
+            " target domain when domain_type is 'single_domain'."
+        ),
     )
     parser.add_argument(
         "--use-collar",
@@ -172,6 +176,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(
         args.experiment_config,
-        args.exclude_domain,
+        args.domain,
         args.use_collar,
     )

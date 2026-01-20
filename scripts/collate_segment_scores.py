@@ -63,7 +63,7 @@ def main(args) -> None:
     else:
         df["domain"] = df.index.astype(str)
 
-    df = df[["domain", "validation", "test", "out_of_domain"]]
+    df = df[["domain", *args.expected_domains]]
 
     df.loc["mean"] = df.mean(numeric_only=True)
     df.loc["std"] = df.std(numeric_only=True)
@@ -80,6 +80,12 @@ if __name__ == "__main__":
         "experiment_name",
         type=str,
         help="Location of the experiment directory to collate results from",
+    )
+    parser.add_argument(
+        "--expected-domains",
+        type=str,
+        nargs="+",
+        default=["validation", "test", "out_of_domain"],
     )
     args = parser.parse_args()
     main(args)

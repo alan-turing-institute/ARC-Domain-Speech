@@ -142,8 +142,7 @@ def evaluate_set(
 
 def main(
     experiment_config_path: str,
-    exclude_domain: int | None,
-    train_domain: int | None,
+    domain: int | None,
 ) -> None:
     # load experiment config to get data name
     _, experiment_path = get_experiment_name(
@@ -156,22 +155,22 @@ def main(
         data_cfg = yaml.safe_load(f)
     data_name = data_cfg["name"]
 
-    if data_cfg.get("domain_type") == "exclude_one" and exclude_domain is None:
+    if data_cfg.get("domain_type") == "exclude_one" and domain is None:
         msg = (
             "Error: When data domain_type is 'exclude_one', "
-            "--exclude-domain argument must be provided."
+            "--domain argument must be provided."
         )
         raise ValueError(msg)
 
-    if data_cfg.get("domain_type") == "single_domain" and train_domain is None:
+    if data_cfg.get("domain_type") == "single_domain" and domain is None:
         msg = (
             "Error: When data domain_type is 'single_domain', "
-            "--train-domain argument must be provided."
+            "--domain argument must be provided."
         )
         raise ValueError(msg)
 
     # should be None if neither are defined
-    domain_identifier = exclude_domain if exclude_domain is not None else train_domain
+    domain_identifier = domain
     output_path = (
         MAIN_DIR / "outputs" / experiment_path.stem
         if domain_identifier is None
@@ -214,16 +213,13 @@ if __name__ == "__main__":
         help="Path to or name of the experiment configuration file.",
     )
     parser.add_argument(
-        "--exclude-domain",
+        "--domain",
         type=int,
         default=None,
-        help="Domain to exclude when domain_type is 'exclude_one'",
-    )
-    parser.add_argument(
-        "--train-domain",
-        type=int,
-        default=None,
-        help="Domain to train when domain_type is 'single_domain'",
+        help=(
+            "Domain to exclude when domain_type is 'exclude_one' OR target domain"
+            " when domain_type is 'single_domain'."
+        ),
     )
     args = parser.parse_args()
     main(
