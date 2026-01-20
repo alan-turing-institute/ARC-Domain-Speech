@@ -8,6 +8,17 @@ from dr_sad.data.splitting import cross_validation_splitter
 
 
 def main(args: argparse.Namespace):
+    if not pathlib.Path(args.input_table).is_file():
+        msg = f"Input table file '{args.input_table}' does not exist."
+        raise FileNotFoundError(msg)
+
+    if args.n_splits < 2:
+        msg = "Number of splits must be at least 2."
+        raise ValueError(msg)
+    if args.n_splits > 26:
+        msg = "Number of splits cannot exceed 26 (A-Z)."
+        raise ValueError(msg)
+
     data = pd.read_csv(args.input_table, sep="\t", index_col=0, header=0)
     print(f"Loaded {len(data)} rows from {args.input_table}")
 

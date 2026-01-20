@@ -108,7 +108,7 @@ def train_split_after_test(
         domains (pd.Series): A pandas Series where the index represents item identifiers
             and the values represent domain identifiers.
         test_keys (list[str]): List of item identifiers for the test set.
-        val_ratio (float): Proportion of the remaining dataset to include in the
+        val_ratio (float): Proportion of the dataset to include in the
             validation split. Defaults to 0.1.
         random_seed (int | np.random.Generator, optional): Seed for the random number
             generator or a Generator instance. Defaults to 42.
@@ -130,22 +130,22 @@ def train_split_after_test(
     for domain in unique_domains:
         domain_keys = remaining[remaining == domain].index.to_list()
         all_domain_keys = domains[domains == domain].index.to_list()
-        k = int(np.ceil(len(all_domain_keys) * val_ratio))
-        if k == 0:
+        k_num = int(np.ceil(len(all_domain_keys) * val_ratio))
+        if k_num == 0:
             continue
-        if k >= len(domain_keys):
+        if k_num >= len(domain_keys):
             msg = (
-                f"Not enough items in domain '{domain}' to allocate {k} "
+                f"Not enough items in domain '{domain}' to allocate {k_num} "
                 f"to validation set after test split. "
                 f"The validation ratio may be too high."
             )
             raise ValueError(msg)
 
-        chosen = rng.choice(domain_keys, size=k, replace=False)
-        val_keys.extend([str(k) for k in chosen])
+        chosen = rng.choice(domain_keys, size=k_num, replace=False)
+        val_keys.extend([str(key) for key in chosen])
 
     train_keys = list(remaining.drop(index=val_keys).index)
-    train_keys = [str(k) for k in train_keys]
+    train_keys = [str(key) for key in train_keys]
 
     train_keys.sort()
     val_keys.sort()
@@ -165,15 +165,19 @@ def cross_validation_splitter(
         domains (pd.Series): A pandas Series where the index represents item identifiers
             and the values represent domain identifiers.
         n_splits (int): Number of cross-validation splits.
-        val_ratio (float): Proportion of the training dataset to include in the
+        val_ratio (float): Proportion of the dataset to include in the
             validation split. Defaults to 0.1.
         random_seed (int | np.random.Generator, optional): Seed for the random number
             generator or a Generator instance. Defaults to 42.
 
     Returns:
         splits (list[dict[str, list[str]]]): A list containing n_splits dictionaries,
-            each with 'train', 'test', and 'val' keys mapping to lists of item
-            identifiers.
+            each with
+                - 'train': List of item identifiers for the training set.
+                - 'val': List of item identifiers for the validation set.
+                - 'test': List of item identifiers for the test set.
+            The test sets are mutually exclusive across the splits and together
+            cover the entire dataset.
     """
 
     if isinstance(random_seed, int):

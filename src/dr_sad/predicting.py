@@ -151,7 +151,7 @@ def load_model_eval(
 
 def load_data_eval(
     data_cfg: dict[str, str],
-    data_split: dict[str, list[str]] | None,
+    data_split: dict[str, list[str]],
     trainer_cfg: dict[str, str | int | float],
     exp_config: dict[str, str | int | float],
     exclude_domain: int | None = None,
@@ -163,7 +163,7 @@ def load_data_eval(
         data_cfg (dict[str, str]): Configuration dictionary for the dataset,
             must include 'name', 'split_name', and 'domain_type' keys.
         data_split (dict[str, list[str]]): Pre-loaded data split
-            dictionary. If None, the split will be loaded from file.
+            dictionary.
         trainer_cfg (dict[str, str | int | float]): Trainer configuration dictionary,
             must include 'num_workers' and 'batch_size' keys.
         exp_config (dict[str, str | int | float]): Experiment configuration dictionary,
@@ -184,7 +184,7 @@ def load_data_eval(
     data = load_data(data_cfg["name"], num_workers=int(trainer_cfg["num_workers"]))
 
     if not isinstance(data_split, dict):
-        msg = (
+        msg = (  # type: ignore[unreachable]
             "data_split must be provided as a dictionary with "
             "'train', 'val', and 'test' keys."
         )

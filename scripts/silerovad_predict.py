@@ -45,7 +45,13 @@ def main(
     with open(data_cfg_pth) as f:
         data_cfg = yaml.safe_load(f)
 
-    split_name = data_cfg["split_names"][split_idx].strip(".yaml")
+    split_file = (
+        MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_names"][split_idx]
+    )
+    split_name = split_file.stem
+
+    with split_file.open() as file:
+        data_split = yaml.safe_load(file)
 
     model_cfg_pth = Path(CONFIG_DIR) / "model" / exp_config["model_config"]
     with open(model_cfg_pth) as f:
@@ -77,7 +83,7 @@ def main(
     # Load data loaders for evaluation
     validation_loader, test_loader, domain_loader = load_data_eval(
         data_cfg=data_cfg,
-        data_split=None,
+        data_split=data_split,
         trainer_cfg=trainer_cfg,
         exp_config=exp_config,
         exclude_domain=exclude_domain,
