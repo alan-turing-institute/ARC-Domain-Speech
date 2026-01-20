@@ -63,8 +63,20 @@ def main(args) -> None:
     else:
         df["domain"] = df.index.astype(str)
 
-    df = df[["domain", *args.expected_domains]]
+    # Check if expected_evaluations exist in the DataFrame
+    missing_domains = [
+        domain for domain in args.expected_evaluations if domain not in df.columns
+    ]
+    if missing_domains:
+        available_domains = [col for col in df.columns if col != "domain"]
+        msg = (
+            f"Expected domain(s) {missing_domains} not found in segment analysis"
+            f" results. Available domains: {available_domains}. Please specify the "
+            "correct expected domains using --expected-evaluations."
+        )
+        raise ValueError(msg)
 
+    df = df[["domain", *args.expected_evaluations]]
     df.loc["mean"] = df.mean(numeric_only=True)
     df.loc["std"] = df.std(numeric_only=True)
 
@@ -82,7 +94,7 @@ if __name__ == "__main__":
         help="Location of the experiment directory to collate results from",
     )
     parser.add_argument(
-        "--expected-domains",
+        "--expected-evaluations",
         type=str,
         nargs="+",
         default=["validation", "test", "out_of_domain"],

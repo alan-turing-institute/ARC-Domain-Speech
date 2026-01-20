@@ -10,6 +10,7 @@ from dr_sad.collating import (
     map_domain_indices,
 )
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
+from dr_sad.utils import get_experiment_name
 
 FRAME_METRIC_FILE = "frame_metrics.yaml"
 MAIN_DIR = Path(__file__).resolve().parent.parent
@@ -21,7 +22,11 @@ def main(
     expected_evaluations: list[str],
     dataset_name: str | None = None,
 ) -> None:
-    experiment_dir = OUTPUTS_DIR / experiment_name
+    exp_name, _ = get_experiment_name(
+        exp_name_arg=experiment_name,
+        exp_config_dir=MAIN_DIR / "configs" / "experiment",
+    )
+    experiment_dir = OUTPUTS_DIR / exp_name
     if not experiment_dir.exists():
         err_msg = f"Experiment directory not found: {experiment_dir}"
         raise FileNotFoundError(err_msg)
@@ -93,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "experiment_name",
         type=str,
-        help="Experiment directory name (e.g. callhome_domain_10)",
+        help="Experiment directory name (e.g. callhome_domain_10.yaml)",
     )
     parser.add_argument(
         "--expected-evaluations",
