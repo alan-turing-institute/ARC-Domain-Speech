@@ -176,6 +176,8 @@ def load_data_eval(
             must include 'random_seed' key.
         exclude_domain (int | None, optional): Domain index to exclude from evaluation.
             Only used if 'domain_type' is 'exclude_one'. Defaults to None.
+        train_domain (int | None, optional): Domain index to use for training when
+            'domain_type' is 'single_domain'. Defaults to None.
 
     Returns:
         tuple[DataLoader, DataLoader | None]: A tuple containing:
@@ -224,7 +226,7 @@ def load_data_eval(
                 random_seed=int(exp_config["random_seed"]),
             )
 
-        if data_cfg["domain_type"] == "all":
+        elif data_cfg["domain_type"] == "all":
             _, validation_loader, test_loader = from_keys_dataloaders(
                 data,
                 train_keys=data_split["train"],
@@ -233,6 +235,11 @@ def load_data_eval(
                 batch_size=int(trainer_cfg["batch_size"]),
                 random_seed=int(exp_config["random_seed"]),
             )
+
+        else:
+            err_msg = f"Unknown domain_type option: {data_cfg['domain_type']}"
+            raise ValueError(err_msg)
+
         return validation_loader, test_loader, None
 
     if data_cfg["domain_type"] == "exclude_one":

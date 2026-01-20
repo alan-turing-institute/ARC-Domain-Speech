@@ -120,7 +120,7 @@ def main(experiment_config_path: str, domain: int | None, use_collar: bool) -> N
         or data_cfg.get("domain_type") == "single_domain"
     ) and domain is None:
         msg = (
-            "Error: When data domain_type is 'exclude_one', "
+            "Error: When data domain_type is 'exclude_one' or 'single_domain', "
             "--domain argument must be provided."
         )
         raise ValueError(msg)

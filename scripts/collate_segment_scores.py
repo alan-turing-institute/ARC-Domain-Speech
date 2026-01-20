@@ -86,6 +86,10 @@ if __name__ == "__main__":
         type=str,
         nargs="+",
         default=["validation", "test", "out_of_domain"],
+        help=(
+            "Names of the expected domain columns (in order) in the segment analysis "
+            "results; used to select and order the domain metrics in the output."
+        ),
     )
     args = parser.parse_args()
     main(args)
