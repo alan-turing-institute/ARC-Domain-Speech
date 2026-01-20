@@ -209,6 +209,11 @@ def load_data_eval(
             raise ValueError(err_msg)
 
         if data_cfg["domain_type"] == "single_domain":
+            if train_domain is None:
+                err_msg = (
+                    "Must specify --train_domain when domain_type is 'single_domain'."
+                )
+                raise ValueError(err_msg)
             _, validation_loader, test_loader = single_domain_dataloaders(
                 data,
                 train_keys=data_split["train"],

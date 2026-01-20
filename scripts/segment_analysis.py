@@ -224,6 +224,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(
         args.experiment_config,
-        exclude_domain=args.exclude_domain,
-        train_domain=args.train_domain,
+        domain=args.domain,
     )
