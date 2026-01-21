@@ -1,6 +1,9 @@
 import re
+from collections.abc import Hashable, Iterable, Iterator
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -92,3 +95,147 @@ def create_metrics_dataframe(
     df.loc["std"] = std_row
 
     return df
+
+
+def iter_leaves(
+    obj: Any, path: tuple[Hashable, ...] = ()
+) -> Iterator[tuple[tuple[Hashable, ...], Any]]:
+    """
+    Yield (path, value) for each non-dict leaf in a nested mapping.
+
+    Args:
+        obj: The object to traverse. If it is a dict, it is traversed recursively.
+        path: Current path of keys to the object being visited.
+
+    Yields:
+        Tuples of (path, value), where `path` is a tuple of keys leading to `value`.
+    """
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from iter_leaves(v, (*path, k))
+    else:
+        yield path, obj
+
+
+def set_in_tree(
+    tree: dict[Hashable, Any], path: Iterable[Hashable], value: Any
+) -> None:
+    """
+    Set a value in a nested dict, creating intermediate dicts as needed.
+
+    This is equivalent to:
+      tree[path[0]][path[1]]...[path[-1]] = value
+
+    Args:
+        tree: Root dictionary to mutate.
+        path: Sequence of keys describing the nested location.
+        value: Value to assign at the target path.
+    """
+    path_tuple = tuple(path)
+    if len(path_tuple) == 0:
+        msg = "Path must contain at least one key."
+        raise ValueError(msg)
+
+    cur: dict[Hashable, Any] = tree
+    for k in path_tuple[:-1]:
+        cur = cur.setdefault(k, {})
+    cur[path_tuple[-1]] = value
+
+
+def pivot_top_keys_to_leaves(data: dict[Hashable, Any]) -> dict[Hashable, Any]:
+    """
+    Pivot a nested mapping so top-level keys become leaf-level keys.
+
+    Transforms:
+        data[top][...path...] = leaf
+    into:
+        out[...path...][top] = leaf
+
+    Args:
+        data: Mapping of top-level keys to nested mappings.
+
+    Returns:
+        A new nested mapping with the top-level keys moved to the leaves.
+    """
+    out: dict[Hashable, Any] = {}
+    for top_key, subtree in data.items():
+        for path, leaf_value in iter_leaves(subtree):
+            set_in_tree(out, (*path, top_key), leaf_value)
+    return out
+
+
+def add_mean_std_to_tree(
+    data: dict[Hashable, Any],
+) -> dict[Hashable, Any]:
+    """
+    Add 'mean' and 'std' entries to the innermost dictionaries of a nested mapping.
+
+    Args:
+        data: Nested mapping where innermost values are dictionaries of numeric metrics.
+
+    Returns:
+        New nested mapping with 'mean' and 'std' added to innermost dictionaries.
+    """
+    new_data: dict[Hashable, Any] = {}
+    if all(isinstance(v, int | float) for v in data.values()):
+        # Innermost dictionary with numeric values
+        mean_value = float(np.mean(list(data.values())))
+        std_value = float(np.std(list(data.values())))
+        new_data = {**data, "mean": mean_value, "std": std_value}
+
+    for key, value in data.items():
+        if isinstance(value, dict):
+            new_data[key] = add_mean_std_to_tree(value)
+        else:
+            new_data[key] = value
+
+    return new_data
+
+
+def collate_submetrics(
+    results_dir: Path | str,
+    folder_pattern: str,
+    metric_file: str,
+):
+    """
+    Collate metrics across subdirectories matching a pattern into nested dictionaries.
+
+    Args:
+        results_dir (Path | str): Path containing subdirectories matching the pattern.
+        folder_pattern (str): Pattern to identify subdirectories (e.g., 'domain_*').
+        metric_file: Metric filename to read from each subdirectory.
+
+    Returns:
+        Nested dictionary keyed by split -> metric -> subdirectory/mean/std.
+    """
+    if not isinstance(results_dir, Path):
+        results_path = Path(results_dir)
+    else:
+        results_path = results_dir
+
+    metric_paths = sorted(results_path.glob(f"{folder_pattern}/{metric_file}"))
+
+    if len(metric_paths) == 0:
+        msg = (
+            f"No metric files named '{metric_file}' found in any "
+            f"{folder_pattern} subdirectories of {results_path}"
+        )
+        raise FileNotFoundError(msg)
+    if len(metric_paths) == 1:
+        print(
+            f"Warning: Only one metric file named '{metric_file}' found in "
+            f"{results_path}. Did you mean to use collate_metrics instead?"
+        )
+
+    loaded_metrics: dict[Hashable, Any] = {}
+    this_name: str = ""
+    this_metrics: dict[str, Any] = {}
+    for metric_path in metric_paths:
+        this_name = metric_path.parent.name
+        with open(metric_path) as f:
+            this_metrics = yaml.safe_load(f)
+
+        loaded_metrics[this_name] = this_metrics
+
+    pivoted_metrics = pivot_top_keys_to_leaves(loaded_metrics)
+    return add_mean_std_to_tree(pivoted_metrics)
