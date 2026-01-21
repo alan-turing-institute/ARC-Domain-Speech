@@ -20,6 +20,19 @@ def map_domain_indices(df_index: list[int], domain_names: dict[int, str]) -> lis
     return [domain_names.get(idx, str(idx)) for idx in df_index]
 
 
+def check_splits_consistency(frame_splits: set[str], segment_splits: set[str]) -> None:
+    # Check if split names match
+    if frame_splits != segment_splits:
+        missing_in_frame = segment_splits - frame_splits
+        missing_in_segment = frame_splits - segment_splits
+        error_msg = "Split names don't match between frame and segment metrics."
+        if missing_in_frame:
+            error_msg += f" Missing in frame_metrics: {missing_in_frame}."
+        if missing_in_segment:
+            error_msg += f" Missing in segment_metrics: {missing_in_segment}."
+        raise ValueError(error_msg)
+
+
 def load_domain_metrics(
     experiment_dir: Path, metric_file: str = "frame_metrics.yaml"
 ) -> dict[int, dict[str, dict[str, float]]]:
@@ -246,3 +259,83 @@ def collate_submetrics(
 
     pivoted_metrics = pivot_top_keys_to_leaves(loaded_metrics)
     return add_mean_std_to_tree(pivoted_metrics)
+
+
+def table_from_results(
+    results_dictionary: dict[str, dict[str, dict[str, float]]],
+    table_keys: list[str],
+    extract_values: list[str] | str = "mean",
+) -> pd.DataFrame:
+    """
+    Extract specified metrics from nested results dictionary into a DataFrame.
+
+    Args:
+        results_dictionary: Nested dictionary from collate_submetrics
+        table_keys: List of metric names to extract
+        extract_keys: Which key(s) to extract from innermost dict (default: "mean")
+
+    Returns:
+        DataFrame with splits as rows and metric_extract_key combinations as columns
+    """
+    # Convert single extract_key to list for consistency
+    if isinstance(extract_values, str):
+        extract_values = [extract_values]
+
+    table_data = {}
+
+    for split_name, split_data in results_dictionary.items():
+        row_data = {}
+        for metric in table_keys:
+            if metric in split_data and isinstance(split_data[metric], dict):
+                for extract_key in extract_values:
+                    if extract_key in split_data[metric]:
+                        # Create column name like "der_mean" or "der_std"
+                        column_name = f"{metric}_{extract_key}"
+                        row_data[column_name] = split_data[metric][extract_key][
+                            extract_key
+                        ]
+
+        if row_data:
+            table_data[split_name] = row_data
+
+    return pd.DataFrame.from_dict(table_data, orient="index")
+
+
+def remove_unwanted_keys(
+    data: dict[Hashable, Any],
+    key_pattern: list[None | str],
+) -> dict[Hashable, Any]:
+    """
+    Pivot a nested mapping so top-level keys become leaf-level keys.
+
+    Transforms:
+        data[top][...path...] = leaf
+    into:
+        out[...path...][top] = leaf
+
+    Args:
+        data: Mapping of top-level keys to nested mappings.
+
+    Returns:
+        A new nested mapping with the top-level keys moved to the leaves.
+    """
+    if all(isinstance(k, str) for k in key_pattern):
+        value: any = data
+        for key in key_pattern:
+            value = value.get(key, {})
+        return {None: value}
+
+    out: dict[Hashable, Any] = {}
+    new_path: tuple[Hashable, ...]
+    skip: bool
+    for path, value in iter_leaves(data):
+        skip = False
+        for i, key in enumerate(key_pattern):
+            if key is not None and path[i] != key:
+                skip = True
+                break
+        if skip:
+            continue
+        new_path = tuple(k for i, k in enumerate(path) if key_pattern[i] is None)
+        set_in_tree(out, new_path, value)
+    return out
