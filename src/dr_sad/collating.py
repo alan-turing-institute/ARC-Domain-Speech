@@ -213,6 +213,13 @@ def collate_submetrics(
     else:
         results_path = results_dir
 
+    if not results_path.is_dir():
+        msg = (
+            f"Results directory does not exist: {results_path}. Current working"
+            f" directory: {Path.cwd()}"
+        )
+        raise NotADirectoryError(msg)
+
     metric_paths = sorted(results_path.glob(f"{folder_pattern}/{metric_file}"))
 
     if len(metric_paths) == 0:
