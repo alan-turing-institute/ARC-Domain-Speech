@@ -1,5 +1,4 @@
 from argparse import ArgumentParser
-from dataclasses import dataclass
 from glob import glob
 from pathlib import Path
 
@@ -14,11 +13,6 @@ from dr_sad.collating import (
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 RESULTS_DIR = MAIN_DIR / "outputs"
-
-
-@dataclass
-class CollateAllMetricsArgs:
-    experiment_name: str
 
 
 def main(experiment_name: str) -> None:
@@ -80,5 +74,5 @@ if __name__ == "__main__":
         required=True,
         help="Name of the experiment to collate metrics for.",
     )
-    args: CollateAllMetricsArgs = parser.parse_args()
+    args = parser.parse_args()
     main(args.experiment_name)

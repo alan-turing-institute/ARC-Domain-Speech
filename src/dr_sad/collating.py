@@ -262,7 +262,7 @@ def collate_submetrics(
 
 
 def table_from_results(
-    results_dictionary: dict[str, dict[str, dict[str, float]]],
+    results_dictionary: dict[str, dict[str, dict[str, dict[str, float]]]],
     table_keys: list[str],
     extract_values: list[str] | str = "mean",
 ) -> pd.DataFrame:
@@ -320,7 +320,7 @@ def remove_unwanted_keys(
         A new nested mapping with the top-level keys moved to the leaves.
     """
     if all(isinstance(k, str) for k in key_pattern):
-        value: any = data
+        value: dict[Hashable, Any] = data
         for key in key_pattern:
             value = value.get(key, {})
         return {None: value}
