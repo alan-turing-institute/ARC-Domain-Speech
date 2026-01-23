@@ -210,6 +210,13 @@ def add_mean_std_to_tree(
     """
     new_data: dict[Hashable, Any] = {}
     if all(isinstance(v, int | float) for v in data.values()):
+        if "mean" in data or "std" in data:
+            print(
+                "+++++++\n"
+                "Warning: 'mean' or 'std' key already exists in innermost dictionary."
+                " Overwriting existing values.\n"
+                "+++++++"
+            )
         # Innermost dictionary with numeric values
         mean_value = float(np.mean(list(data.values())))
         std_value = float(np.std(list(data.values())))
@@ -280,63 +287,27 @@ def collate_submetrics(
     return add_mean_std_to_tree(pivoted_metrics)
 
 
-def table_from_results(
-    results_dictionary: dict[str, dict[str, dict[str, dict[str, float]]]],
-    table_keys: list[str],
-    extract_values: list[str] | str = "mean",
-) -> pd.DataFrame:
-    """
-    Extract specified metrics from nested results dictionary into a DataFrame.
-
-    Args:
-        results_dictionary: Nested dictionary from collate_submetrics
-        table_keys: List of metric names to extract
-        extract_keys: Which key(s) to extract from innermost dict (default: "mean")
-
-    Returns:
-        DataFrame with splits as rows and metric_extract_key combinations as columns
-    """
-    # Convert single extract_key to list for consistency
-    if isinstance(extract_values, str):
-        extract_values = [extract_values]
-
-    table_data = {}
-
-    for split_name, split_data in results_dictionary.items():
-        row_data = {}
-        for metric in table_keys:
-            if metric in split_data and isinstance(split_data[metric], dict):
-                for extract_key in extract_values:
-                    if extract_key in split_data[metric]:
-                        # Create column name like "der_mean" or "der_std"
-                        column_name = f"{metric}_{extract_key}"
-                        row_data[column_name] = split_data[metric][extract_key][
-                            extract_key
-                        ]
-
-        if row_data:
-            table_data[split_name] = row_data
-
-    return pd.DataFrame.from_dict(table_data, orient="index")
-
-
 def remove_unwanted_keys(
     data: dict[Hashable, Any],
     key_pattern: list[None | str],
 ) -> dict[Hashable, Any]:
     """
-    Pivot a nested mapping so top-level keys become leaf-level keys.
+    Filters a nested dictionary by removing keys that do not match a specified pattern.
 
-    Transforms:
-        data[top][...path...] = leaf
-    into:
-        out[...path...][top] = leaf
+    This function traverses a nested dictionary and removes keys that do not align
+    with the provided `key_pattern`. The `key_pattern` is a list where each element
+    corresponds to a level in the nested dictionary. A `None` in the `key_pattern`
+    acts as a wildcard, allowing any key at that level.
 
     Args:
-        data: Mapping of top-level keys to nested mappings.
+        data (dict[Hashable, Any]): The input nested dictionary to filter.
+        key_pattern (list[None | str]): A list specifying the key pattern to match.
+            - `None` acts as a wildcard, allowing any key at that level.
+            - A `str` specifies an exact key to match at that level.
 
     Returns:
-        A new nested mapping with the top-level keys moved to the leaves.
+        dict[Hashable, Any]: A filtered dictionary containing only the keys and values
+        that match the specified `key_pattern`.
     """
     if all(k is None for k in key_pattern):
         # No filtering needed; return original data
@@ -344,12 +315,10 @@ def remove_unwanted_keys(
 
     if all(isinstance(k, str) for k in key_pattern):
         # Can handle as a direct lookup
-        value: dict[Hashable, Any] = data
+        value: Any = data
         for key in key_pattern:
             if not isinstance(value, dict):
-                msg = (  # type: ignore[unreachable]
-                    "Invalid key pattern; cannot index into non-dict value."
-                )
+                msg = "Invalid key pattern; cannot index into non-dict value."
                 raise ValueError(msg)
             if key not in value:
                 msg = f"Key '{key}' not found in data during direct lookup."
@@ -367,7 +336,7 @@ def remove_unwanted_keys(
                 msg = (
                     "Key pattern is longer than path in data; cannot match."
                     f"Found path: {path}, key_pattern: {key_pattern}, which "
-                    "matches up to index {i}."
+                    f"matches up to index {i}."
                 )
                 raise ValueError(msg)
             if key is not None and path[i] != key:

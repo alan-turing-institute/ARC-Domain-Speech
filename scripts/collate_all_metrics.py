@@ -61,7 +61,7 @@ def main(experiment_config_path: str) -> None:
         with open(out_path, "w") as out_file:
             yaml.safe_dump(frame_metrics, out_file)
 
-    experiment_metrics = frame_metrics = collate_submetrics(
+    experiment_metrics = collate_submetrics(
         results_dir=experiment_results_dir,
         folder_pattern="split_*",
         metric_file="all_metrics.yaml",
