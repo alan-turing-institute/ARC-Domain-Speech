@@ -1,26 +1,37 @@
 from argparse import ArgumentParser
-from glob import glob
 from pathlib import Path
 
-import pandas as pd
 import yaml
 
 from dr_sad.collating import (
     check_splits_consistency,
     collate_submetrics,
-    remove_unwanted_keys,
+    metrics_to_table,
 )
+from dr_sad.data.data_fetching import DOMAIN_SETTINGS
+from dr_sad.utils import get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
-RESULTS_DIR = MAIN_DIR / "outputs"
 
 
-def main(experiment_name: str) -> None:
-    print(f"Collating all metrics for experiment: {experiment_name}")
+def main(experiment_config_path: str) -> None:
+    print(f"Collating all metrics for experiment: {experiment_config_path}")
 
-    experiment_results_dir = RESULTS_DIR / experiment_name
+    experiment_name, experiment_path = get_experiment_name(
+        experiment_config_path, MAIN_DIR / "configs" / "experiment"
+    )
+    experiment_results_dir = MAIN_DIR / "outputs" / experiment_name
 
-    splits = glob(str(experiment_results_dir / "split_*"))
+    with open(experiment_path) as f:
+        exp_config = yaml.safe_load(f)
+    data_cfg_pth = MAIN_DIR / "configs" / "data" / exp_config["data_config"]
+    with open(data_cfg_pth) as f:
+        data_cfg = yaml.safe_load(f)
+    data_name = data_cfg["name"]
+
+    domain_names = {v: k for k, v in DOMAIN_SETTINGS[data_name]["domains_idx"].items()}
+
+    splits = sorted(experiment_results_dir.glob("split_*"))
 
     for split_path in splits:
         frame_metrics = collate_submetrics(
@@ -55,24 +66,48 @@ def main(experiment_name: str) -> None:
         folder_pattern="split_*",
         metric_file="all_metrics.yaml",
     )
-    # Save everything(!)
-    out_path = experiment_results_dir / "full_experiment_results.yaml"
+
+    # Save all the experiment metrics to the top file
+    out_path = experiment_results_dir / "all_metrics.yaml"
     with open(out_path, "w") as out_file:
         yaml.safe_dump(experiment_metrics, out_file)
 
-    # EXAMPLE CSV OUTPUT
-    csv_value = remove_unwanted_keys(experiment_metrics, [None, "der", "mean", "mean"])
-    df = pd.DataFrame.from_dict(csv_value, orient="index", columns=["der"])
-    df.to_csv(experiment_results_dir / "full_experiment_result.csv")
+    der_df = metrics_to_table(
+        all_metrics=experiment_metrics,
+        metric_name="der",
+        domain_names=domain_names,
+    )
+    der_df.to_csv(experiment_results_dir / "der_table.csv")
+    print("DER RESULTS")
+    print(der_df)
+
+    frame_f1 = metrics_to_table(
+        all_metrics=experiment_metrics,
+        metric_name="f1_speech",
+        domain_names=domain_names,
+    )
+    frame_f1.to_csv(experiment_results_dir / "frame_f1_table.csv")
+    print("")
+    print("FRAME F1 RESULTS")
+    print(frame_f1)
+
+    segment_f1 = metrics_to_table(
+        all_metrics=experiment_metrics,
+        metric_name="segment_f1_scores",
+        domain_names=domain_names,
+    )
+    segment_f1.to_csv(experiment_results_dir / "segment_f1_table.csv")
+    print("")
+    print("SEGMENT F1 RESULTS")
+    print(segment_f1)
 
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Collate all metrics across domains and splits")
     parser.add_argument(
-        "--experiment-name",
+        "experiment_config_path",
         type=str,
-        required=True,
-        help="Name of the experiment to collate metrics for.",
+        help="Path to the experiment configuration file.",
     )
     args = parser.parse_args()
-    main(args.experiment_name)
+    main(args.experiment_config_path)
