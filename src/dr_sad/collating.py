@@ -16,12 +16,31 @@ EXPECTED_EVALUATIONS = [
 
 
 def map_domain_indices(df_index: list[int], domain_names: dict[int, str]) -> list[str]:
-    """Map numeric domain indices to names, keeping non-numeric indices as-is."""
+    """Map numeric domain indices to their string names.
+
+    Converts domain indices to human-readable names using the provided mapping.
+    If an index is not found in the mapping, it is converted to a string as-is.
+
+    Args:
+        df_index: List of numeric domain indices to map.
+        domain_names: Dictionary mapping domain indices (int) to domain names (str).
+
+    Returns:
+        List of domain names in the same order as df_index.
+    """
     return [domain_names.get(idx, str(idx)) for idx in df_index]
 
 
 def check_splits_consistency(frame_splits: set[str], segment_splits: set[str]) -> None:
-    # Check if split names match
+    """Validate that split names match between frame and segment metrics.
+
+    Ensures that both frame_metrics and segment_analysis contain the same splits.
+    Raises a ValueError with details about any missing or mismatched splits.
+
+    Args:
+        frame_splits: Set of split names from frame-level metrics.
+        segment_splits: Set of split names from segment-level metrics.
+    """
     if frame_splits != segment_splits:
         missing_in_frame = segment_splits - frame_splits
         missing_in_segment = frame_splits - segment_splits
@@ -319,10 +338,23 @@ def remove_unwanted_keys(
     Returns:
         A new nested mapping with the top-level keys moved to the leaves.
     """
+    if all(k is None for k in key_pattern):
+        # No filtering needed; return original data
+        return data
+
     if all(isinstance(k, str) for k in key_pattern):
+        # Can handle as a direct lookup
         value: dict[Hashable, Any] = data
         for key in key_pattern:
-            value = value.get(key, {})
+            if not isinstance(value, dict):
+                msg = (  # type: ignore[unreachable]
+                    "Invalid key pattern; cannot index into non-dict value."
+                )
+                raise ValueError(msg)
+            if key not in value:
+                msg = f"Key '{key}' not found in data during direct lookup."
+                raise KeyError(msg)
+            value = value[key]
         return {None: value}
 
     out: dict[Hashable, Any] = {}
@@ -331,10 +363,19 @@ def remove_unwanted_keys(
     for path, value in iter_leaves(data):
         skip = False
         for i, key in enumerate(key_pattern):
+            if i >= len(path):
+                msg = (
+                    "Key pattern is longer than path in data; cannot match."
+                    f"Found path: {path}, key_pattern: {key_pattern}, which "
+                    "matches up to index {i}."
+                )
+                raise ValueError(msg)
             if key is not None and path[i] != key:
                 skip = True
                 break
         if skip:
+            continue
+        if len(path) > len(key_pattern):
             continue
         new_path = tuple(k for i, k in enumerate(path) if key_pattern[i] is None)
         set_in_tree(out, new_path, value)

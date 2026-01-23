@@ -16,6 +16,7 @@ from dr_sad.collating import (
     load_domain_metrics,
     map_domain_indices,
     pivot_top_keys_to_leaves,
+    remove_unwanted_keys,
     set_in_tree,
 )
 
@@ -374,3 +375,109 @@ class TestCollateSubmetrics:
 
         captured = capsys.readouterr()
         assert "Only one metric file named" in captured.out
+
+
+class TestRemoveUnwantedKeys:
+    def test_all_none_pattern_returns_original(self):
+        """Test that all-None pattern returns the original data unchanged."""
+        data: dict[Hashable, Any] = {
+            "split": {"metric": {"domain_0": 1.0, "domain_1": 2.0}}
+        }
+        key_pattern: list[str | None] = [None, None, None]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert result == data
+
+    def test_all_string_pattern_direct_lookup(self):
+        """Test that all-string pattern performs direct nested lookup."""
+        data: dict[Hashable, Any] = {
+            "split": {"metric": {"domain_0": 1.0, "domain_1": 2.0}}
+        }
+        key_pattern: list[str | None] = ["split", "metric"]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert result == {None: {"domain_0": 1.0, "domain_1": 2.0}}
+
+    def test_all_string_pattern_missing_keys(self):
+        """Test all-string pattern with missing keys returns empty dict under None."""
+        data: dict[Hashable, Any] = {"split": {"metric": {"domain_0": 1.0}}}
+        key_pattern: list[str | None] = ["split", "missing"]
+
+        with pytest.raises(KeyError, match="not found in data"):
+            remove_unwanted_keys(data, key_pattern)
+
+    def test_mixed_pattern_selective_matching(self):
+        """Test mixed None/string pattern filters paths selectively."""
+        data: dict[Hashable, Any] = {
+            "split": {
+                "m1": {"domain_0": 1.0, "domain_1": 2.0},
+                "m2": {"domain_0": 3.0, "domain_1": 4.0},
+            }
+        }
+        key_pattern: list[str | None] = ["split", "m1", None]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert result == {"domain_0": 1.0, "domain_1": 2.0}
+
+    def test_mixed_pattern_with_trailing_none(self):
+        """Test mixed pattern with trailing None keeps remaining path levels."""
+        data: dict[Hashable, Any] = {
+            "split": {"metric": {"domain_0": 1.0, "domain_1": 2.0}}
+        }
+        key_pattern: list[str | None] = ["split", None, None]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert result == {"metric": {"domain_0": 1.0, "domain_1": 2.0}}
+
+    def test_invalid_pattern__raises_error(self):
+        """Test that pattern longer than path raises ValueError."""
+        data: dict[Hashable, Any] = {"split": {"metric": 1.0}}
+        key_pattern: list[str | None] = ["split", "metric", "extra"]
+
+        with pytest.raises(ValueError, match="Invalid key pattern"):
+            remove_unwanted_keys(data, key_pattern)
+
+    def test_pattern_longer_than_path_raises_error(self):
+        """Test that pattern longer than path raises ValueError."""
+        data: dict[Hashable, Any] = {"split": {"metric": 1.0}}
+        key_pattern: list[str | None] = ["split", None, "extra"]
+
+        with pytest.raises(ValueError, match="Key pattern is longer than path"):
+            remove_unwanted_keys(data, key_pattern)
+
+    def test_pattern_mismatch_excludes_path(self):
+        """Test that non-matching paths are excluded from result."""
+        data: dict[Hashable, Any] = {
+            "split1": {"metric": 1.0},
+            "split2": {"metric": 2.0},
+        }
+        key_pattern: list[str | None] = ["split1", None]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert "split2" not in str(result)
+        assert result == {"metric": 1.0}
+
+    def test_complex_nested_with_selective_filter(self):
+        """Test complex nested structure with selective filtering."""
+        data: dict[Hashable, Any] = {
+            "train": {
+                "accuracy": {"d0": 0.9, "d1": 0.85},
+                "loss": {"d0": 0.1, "d1": 0.15},
+            },
+            "test": {
+                "accuracy": {"d0": 0.8, "d1": 0.75},
+                "loss": {"d0": 0.2, "d1": 0.25},
+            },
+        }
+        key_pattern: list[str | None] = ["train", None, "d0"]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert result == {"accuracy": 0.9, "loss": 0.1}
+        assert "test" not in str(result)
+        assert "d1" not in str(result)
