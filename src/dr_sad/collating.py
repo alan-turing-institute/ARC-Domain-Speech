@@ -380,3 +380,57 @@ def remove_unwanted_keys(
         new_path = tuple(k for i, k in enumerate(path) if key_pattern[i] is None)
         set_in_tree(out, new_path, value)
     return out
+
+
+def format_mean_std(mean_value: float, std_value: float) -> str:
+    """Format mean and std as a string like '84.24(35)'."""
+    # Round mean to 2 decimal places and convert to percentage
+    mean_pct = mean_value * 100
+
+    # Extract the last 2 digits of std when scaled to same decimal places
+    std_scaled = round(std_value * 10000)
+
+    return f"{mean_pct:.2f}({std_scaled:d})"
+
+
+def metrics_to_table(
+    all_metrics: dict[Hashable, Any],
+    metric_name: str,
+    domain_names: dict[int, str],
+) -> pd.DataFrame:
+    # MEAN
+    mean_metrics = pd.DataFrame(
+        remove_unwanted_keys(
+            all_metrics,
+            [None, metric_name, None, "mean"],
+        ),
+    )
+    # STD
+    std_metrics = pd.DataFrame(
+        remove_unwanted_keys(
+            all_metrics,
+            [None, metric_name, None, "std"],
+        ),
+    )
+
+    if mean_metrics.empty or std_metrics.empty:
+        msg = (
+            f"Could not find metric '{metric_name}' in all_metrics for mean/std"
+            " extraction."
+        )
+        raise KeyError(msg)
+
+    # COMBINED
+    combined_metrics = pd.DataFrame(
+        np.vectorize(format_mean_std)(mean_metrics.values, std_metrics.values),
+        index=mean_metrics.index,
+        columns=mean_metrics.columns,
+    )
+
+    # MAP DOMAIN INDICES TO NAMES
+    domain_map = {f"domain_{idx}": name for idx, name in domain_names.items()}
+    domain_map["mean"], domain_map["std"] = "mean", "std"
+
+    combined_metrics = combined_metrics.rename(mapper=domain_map, axis=0)
+    combined_metrics.index.name = "held_domain"
+    return combined_metrics

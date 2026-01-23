@@ -12,9 +12,11 @@ from dr_sad.collating import (
     add_mean_std_to_tree,
     collate_submetrics,
     create_metrics_dataframe,
+    format_mean_std,
     iter_leaves,
     load_domain_metrics,
     map_domain_indices,
+    metrics_to_table,
     pivot_top_keys_to_leaves,
     remove_unwanted_keys,
     set_in_tree,
@@ -481,3 +483,171 @@ class TestRemoveUnwantedKeys:
         assert result == {"accuracy": 0.9, "loss": 0.1}
         assert "test" not in str(result)
         assert "d1" not in str(result)
+
+
+class TestFormatMeanStd:
+    def test_format_mean_std_basic(self):
+        """Test basic formatting of mean and std values."""
+        result = format_mean_std(0.8424, 0.0035)
+        assert result == "84.24(35)"
+
+    def test_format_mean_std_zero_std(self):
+        """Test formatting when std is zero."""
+        result = format_mean_std(0.5, 0.0)
+        assert result == "50.00(0)"
+
+    def test_format_mean_std_high_std(self):
+        """Test formatting with larger std value."""
+        result = format_mean_std(0.75, 0.1)
+        assert result == "75.00(1000)"
+
+
+class TestMetricsToTable:
+    def test_metrics_to_table_basic(self):
+        """Test basic metrics_to_table functionality."""
+        all_metrics: dict[Hashable, Any] = {
+            "test": {
+                "der": {
+                    "domain_0": {
+                        "split_A": 0.01312,
+                        "split_B": 0.1212,
+                        "mean": 0.08725,
+                        "std": 0.0012,
+                    },
+                    "domain_1": {
+                        "split_A": 0.0565,
+                        "split_B": 0.0546,
+                        "mean": 0.0435,
+                        "std": 0.0012,
+                    },
+                    "mean": {
+                        "split_A": 0.05467,
+                        "split_B": 0.05465,
+                        "mean": 0.07687,
+                        "std": 0.0012,
+                    },
+                    "std": {
+                        "split_A": 0.001,
+                        "split_B": 0.001,
+                        "mean": 0.001,
+                        "std": 0.0001,
+                    },
+                }
+            }
+        }
+        domain_names = {0: "domain_a", 1: "domain_b"}
+
+        result = metrics_to_table(all_metrics, "der", domain_names)
+
+        assert isinstance(result, pd.DataFrame)
+        assert "domain_a" in result.index
+        assert "domain_b" in result.index
+        assert "mean" in result.index
+
+    def test_metrics_to_table_formatting(self):
+        """Test that metrics are formatted with mean(std) notation."""
+        all_metrics: dict[Hashable, Any] = {
+            "test": {
+                "der": {
+                    "domain_0": {
+                        "split_A": 0.15,
+                        "mean": 0.15,
+                        "std": 0.02,
+                    },
+                    "domain_1": {
+                        "split_A": 0.12,
+                        "mean": 0.12,
+                        "std": 0.01,
+                    },
+                    "mean": {
+                        "split_A": 0.135,
+                        "mean": 0.135,
+                        "std": 0.015,
+                    },
+                    "std": {
+                        "split_A": 0.015,
+                        "mean": 0.015,
+                        "std": 0.005,
+                    },
+                }
+            }
+        }
+        domain_names = {0: "domain_a", 1: "domain_b"}
+
+        result = metrics_to_table(all_metrics, "der", domain_names)
+
+        # Check that values are formatted strings like "15.00(200)"
+        assert isinstance(result.loc["domain_a", "test"], str)
+        assert "(" in result.loc["domain_a", "test"]
+        assert ")" in result.loc["domain_a", "test"]
+
+    def test_metrics_to_table_missing_metric_raises(self):
+        """Test that missing metric raises KeyError."""
+        all_metrics: dict[Hashable, Any] = {
+            "test": {
+                "f1_speech": {
+                    "domain_0": {
+                        "split_A": 0.85,
+                        "mean": 0.85,
+                        "std": 0.05,
+                    }
+                }
+            }
+        }
+        domain_names = {0: "domain_a"}
+
+        with pytest.raises(KeyError, match="Could not find metric"):
+            metrics_to_table(all_metrics, "nonexistent_metric", domain_names)
+
+    def test_metrics_to_table_empty_mean_raises(self):
+        """Test that empty mean metrics raises KeyError."""
+        all_metrics: dict[Hashable, Any] = {
+            "test": {
+                "der": {
+                    "domain_0": {
+                        "split_A": 0.10,
+                    }
+                }
+            }
+        }
+        domain_names = {0: "domain_a"}
+
+        with pytest.raises(KeyError, match="Could not find metric"):
+            metrics_to_table(all_metrics, "der", domain_names)
+
+    def test_metrics_to_table_domain_name_mapping(self):
+        """Test that domain indices are correctly mapped to domain names."""
+        all_metrics: dict[Hashable, Any] = {
+            "test": {
+                "der": {
+                    "domain_0": {
+                        "split_A": 0.10,
+                        "mean": 0.10,
+                        "std": 0.01,
+                    },
+                    "domain_1": {
+                        "split_A": 0.12,
+                        "mean": 0.12,
+                        "std": 0.02,
+                    },
+                    "mean": {
+                        "split_A": 0.11,
+                        "mean": 0.11,
+                        "std": 0.015,
+                    },
+                    "std": {
+                        "split_A": 0.01,
+                        "mean": 0.01,
+                        "std": 0.005,
+                    },
+                }
+            }
+        }
+        domain_names = {0: "english", 1: "spanish"}
+
+        result = metrics_to_table(all_metrics, "der", domain_names)
+
+        assert "english" in result.index
+        assert "spanish" in result.index
+        assert "domain_0" not in result.index
+        assert "domain_1" not in result.index
