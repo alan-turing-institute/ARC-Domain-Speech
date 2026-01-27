@@ -41,6 +41,7 @@ def save_model_metadata(model: PyanNet, prediction_dir: Path) -> None:
 def main(
     experiment_config: str,
     exclude_domain: int | None = None,
+    split_idx: int = 0,
 ) -> None:
     """
     Runs prediction using a trained model on a specified dataset, with optional domain
@@ -75,10 +76,19 @@ def main(
 
     domain_name = f"domain_{exclude_domain}" if exclude_domain is not None else ""
 
+    split_file = (
+        MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_names"][split_idx]
+    )
+    split_name = split_file.stem
+
+    with split_file.open() as file:
+        data_split = yaml.safe_load(file)
+
     model_path = (
         MAIN_DIR
         / "outputs"
         / experiment_name
+        / split_name
         / domain_name
         / "trained_model_weights.safetensors"
     )
@@ -92,7 +102,7 @@ def main(
 
     validation_loader, test_loader, domain_loader = load_data_eval(
         data_cfg=data_cfg,
-        data_split=None,
+        data_split=data_split,
         trainer_cfg=trainer_cfg,
         exp_config=exp_config,
         exclude_domain=exclude_domain,
@@ -140,6 +150,11 @@ if __name__ == "__main__":
         help="Experiment configuration file name located in configs/experiments/",
     )
     parser.add_argument(
+        "split_idx",
+        type=int,
+        help="Index of the data split to use, read from data config file",
+    )
+    parser.add_argument(
         "--exclude-domain",
         type=int,
         default=None,
@@ -151,4 +166,5 @@ if __name__ == "__main__":
     main(
         experiment_config=args.experiment_config,
         exclude_domain=args.exclude_domain,
+        split_idx=args.split_idx,
     )

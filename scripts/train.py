@@ -64,12 +64,18 @@ def main(args) -> None:
         batch_size = trainer_cfg["batch_size"]
         full_batch_size = None
 
-    data = load_data(data_cfg["name"], num_workers=trainer_cfg["num_workers"])
-    with open(MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_name"]) as file:
+    data_split_file = (
+        MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_names"][args.split_idx]
+    )
+    with data_split_file.open() as file:
         data_split = yaml.safe_load(file)
 
+    split_name = data_split_file.stem
+
+    data = load_data(data_cfg["name"], num_workers=trainer_cfg["num_workers"])
+
     if data_cfg["domain_type"] == "all":
-        save_dir = MAIN_DIR / "outputs" / experiment_name
+        save_dir = MAIN_DIR / "outputs" / experiment_name / split_name
         save_dir.mkdir(parents=True, exist_ok=True)
         if args.exclude_domain is not None:
             err_msg = "Cannot exclude domain when domain_type is set to 'all'."
@@ -93,7 +99,11 @@ def main(args) -> None:
             raise ValueError(err_msg)
 
         save_dir = (
-            MAIN_DIR / "outputs" / experiment_name / f"domain_{args.train_domain}"
+            MAIN_DIR
+            / "outputs"
+            / experiment_name
+            / split_name
+            / f"domain_{args.train_domain}"
         )
         save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -110,7 +120,11 @@ def main(args) -> None:
 
     elif data_cfg["domain_type"] == "exclude_one":
         save_dir = (
-            MAIN_DIR / "outputs" / experiment_name / f"domain_{args.exclude_domain}"
+            MAIN_DIR
+            / "outputs"
+            / experiment_name
+            / split_name
+            / f"domain_{args.exclude_domain}"
         )
         save_dir.mkdir(parents=True, exist_ok=True)
         if args.exclude_domain is None:
@@ -238,8 +252,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "experiment_name",
         type=str,
-        default="test",
         help="Name of the experiment config YAML file (without .yaml extension)",
+    )
+    parser.add_argument(
+        "split_idx",
+        type=int,
+        help="Index of the data split to use, read from data config file",
     )
     parser.add_argument(
         "--exclude-domain",

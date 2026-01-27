@@ -1,4 +1,4 @@
-data_config: callhome_domain.yaml
+data_config: dihard_domain.yaml
 training_config: test_trainer_config.yaml
 model_config: silerovad.yaml
 random_seed: 42
