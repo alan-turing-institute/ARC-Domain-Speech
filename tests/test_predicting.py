@@ -322,7 +322,7 @@ class TestLoadDataEval:
             # Load data
             validation_loader, test_loader, domain_loader = load_data_eval(
                 data_cfg=data_cfg,
-                data_split=None,
+                data_split=split_data,
                 trainer_cfg=trainer_cfg,
                 exp_config=exp_config,
                 exclude_domain=None,
@@ -383,7 +383,7 @@ class TestLoadDataEval:
             # Load data with excluded domain
             validation_loader, test_loader, domain_loader = load_data_eval(
                 data_cfg=data_cfg,
-                data_split=None,
+                data_split=split_data,
                 trainer_cfg=trainer_cfg,
                 exp_config=exp_config,
                 exclude_domain=0,

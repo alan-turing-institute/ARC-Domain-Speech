@@ -105,7 +105,12 @@ def run_analysis(
             yaml.dump(all_split_results, f)
 
 
-def main(experiment_config_path: str, domain: int | None, use_collar: bool) -> None:
+def main(
+    experiment_config_path: str,
+    domain: int | None,
+    use_collar: bool,
+    split_idx: int,
+) -> None:
     # load experiment config to get data name
     _, experiment_path = get_experiment_name(experiment_config_path, EXP_CONFIG_DIR)
     with open(experiment_path) as f:
@@ -114,6 +119,7 @@ def main(experiment_config_path: str, domain: int | None, use_collar: bool) -> N
     with open(data_cfg_pth) as f:
         data_cfg = yaml.safe_load(f)
     data_name = data_cfg["name"]
+    split_name = data_cfg["split_names"][split_idx].strip(".yaml")
 
     if (
         data_cfg.get("domain_type") == "exclude_one"
@@ -126,9 +132,13 @@ def main(experiment_config_path: str, domain: int | None, use_collar: bool) -> N
         raise ValueError(msg)
 
     output_path = (
-        MAIN_DIR / "outputs" / experiment_path.stem
+        MAIN_DIR / "outputs" / experiment_path.stem / split_name
         if domain is None
-        else MAIN_DIR / "outputs" / experiment_path.stem / f"domain_{domain}"
+        else MAIN_DIR
+        / "outputs"
+        / experiment_path.stem
+        / split_name
+        / f"domain_{domain}"
     )
     predictions_paths = list(output_path.glob("saved_predictions/*.safetensors"))
     if not predictions_paths:
@@ -169,6 +179,11 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
+        "split_idx",
+        type=int,
+        help="Index of the data split to use, read from data config file",
+    )
+    parser.add_argument(
         "--use-collar",
         action="store_true",
         help="Whether to use collar frames in the analysis",
@@ -178,4 +193,5 @@ if __name__ == "__main__":
         args.experiment_config,
         args.domain,
         args.use_collar,
+        args.split_idx,
     )

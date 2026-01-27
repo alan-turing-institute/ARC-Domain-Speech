@@ -1,13 +1,25 @@
 import tempfile
+from collections.abc import Hashable
 from pathlib import Path
+from typing import Any
 from unittest.mock import mock_open, patch
 
 import pandas as pd
+import pytest
+import yaml
 
 from dr_sad.collating import (
+    add_mean_std_to_tree,
+    collate_submetrics,
     create_metrics_dataframe,
+    format_mean_std,
+    iter_leaves,
     load_domain_metrics,
     map_domain_indices,
+    metrics_to_table,
+    pivot_top_keys_to_leaves,
+    remove_unwanted_keys,
+    set_in_tree,
 )
 
 
@@ -156,3 +168,486 @@ class TestCreateMetricsDataframe:
         # Mean and std should be based only on domain 0
         assert result.loc["mean", "accuracy"] == 0.85
         assert result.loc["std", "accuracy"] == 0.0  # Only one value, so std is 0
+
+
+class TestIterLeaves:
+    def test_iter_leaves_simple(self):
+        data = {"a": 1, "b": {"c": 2}}
+
+        result = sorted(iter_leaves(data))
+
+        assert result == [(("a",), 1), (("b", "c"), 2)]
+
+    def test_iter_leaves_nested(self):
+        data = {"x": {"y": {"z": 3}}, "w": 4}
+
+        result = sorted(iter_leaves(data))
+
+        assert result == [(("w",), 4), (("x", "y", "z"), 3)]
+
+    def test_iter_leaves_non_dict(self):
+        result = list(iter_leaves(5))
+
+        assert result == [((), 5)]
+
+
+class TestSetInTree:
+    def test_set_in_tree_creates_paths(self):
+        tree: dict[Hashable, Any] = {}
+
+        set_in_tree(tree, ("a", "b", "c"), 1)
+
+        assert tree == {"a": {"b": {"c": 1}}}
+
+    def test_set_in_tree_overwrites_value(self):
+        tree: dict[Hashable, Any] = {"a": {"b": {"c": 1}}}
+
+        set_in_tree(tree, ("a", "b", "c"), 2)
+
+        assert tree["a"]["b"]["c"] == 2
+
+    def test_set_in_tree_empty_path_raises(self):
+        with pytest.raises(ValueError, match="at least one key"):
+            set_in_tree({}, (), 1)
+
+
+class TestPivotTopKeysToLeaves:
+    def test_pivot_top_keys_to_leaves_basic(self):
+        data: dict[Hashable, Any] = {
+            "domain_0": {"split": {"metric": 0.1}},
+            "domain_1": {"split": {"metric": 0.2}},
+        }
+
+        result = pivot_top_keys_to_leaves(data)
+
+        assert result == {"split": {"metric": {"domain_0": 0.1, "domain_1": 0.2}}}
+
+    def test_pivot_top_keys_to_leaves_multiple_metrics(self):
+        data: dict[Hashable, Any] = {
+            "domain_0": {"split": {"m1": 1.0, "m2": 2.0}},
+            "domain_1": {"split": {"m1": 3.0, "m2": 4.0}},
+        }
+
+        result = pivot_top_keys_to_leaves(data)
+
+        assert result["split"]["m1"] == {"domain_0": 1.0, "domain_1": 3.0}
+        assert result["split"]["m2"] == {"domain_0": 2.0, "domain_1": 4.0}
+
+
+class TestAddMeanStdToTree:
+    def test_add_mean_std_single_level(self):
+        data: dict[Hashable, Any] = {"metric": {"domain_0": 1.0, "domain_1": 3.0}}
+
+        result = add_mean_std_to_tree(data)
+
+        assert result["metric"]["mean"] == pytest.approx(2.0)
+        assert result["metric"]["std"] == pytest.approx(1.0)
+
+    def test_add_mean_std_nested(self):
+        data: dict[Hashable, Any] = {
+            "split": {"metric": {"domain_0": 2.0, "domain_1": 4.0, "domain_2": 6.0}}
+        }
+
+        result = add_mean_std_to_tree(data)
+
+        assert result["split"]["metric"]["mean"] == pytest.approx(4.0)
+        assert result["split"]["metric"]["std"] == pytest.approx(1.632993)
+
+    def test_add_mean_std_preserves_values(self):
+        data: dict[Hashable, Any] = {"metric": {"domain_0": 1.0, "domain_1": 2.0}}
+
+        result = add_mean_std_to_tree(data)
+
+        assert result["metric"]["domain_0"] == 1.0
+        assert result["metric"]["domain_1"] == 2.0
+
+    def test_add_mean_std_multiple_metrics(self):
+        data: dict[Hashable, Any] = {
+            "split": {
+                "m1": {"domain_0": 1.0, "domain_1": 3.0},
+                "m2": {"domain_0": 2.0, "domain_1": 4.0},
+            }
+        }
+
+        result = add_mean_std_to_tree(data)
+
+        assert result["split"]["m1"]["mean"] == pytest.approx(2.0)
+        assert result["split"]["m1"]["std"] == pytest.approx(1.0)
+        assert result["split"]["m2"]["mean"] == pytest.approx(3.0)
+        assert result["split"]["m2"]["std"] == pytest.approx(1.0)
+
+    def test_add_mean_std_mixed_types_no_aggregate(self):
+        data: dict[Hashable, Any] = {"metric": {"domain_0": 1.0, "note": "skip"}}
+
+        result = add_mean_std_to_tree(data)
+
+        assert "mean" not in result["metric"]
+        assert "std" not in result["metric"]
+        assert result["metric"]["domain_0"] == 1.0
+        assert result["metric"]["note"] == "skip"
+
+
+class TestCollateSubmetrics:
+    @pytest.fixture()
+    def temp_metrics(self, tmp_path):
+        domain_0 = tmp_path / "domain_0"
+        domain_1 = tmp_path / "domain_1"
+        domain_2 = tmp_path / "domain_2"
+        domain_0.mkdir()
+        domain_1.mkdir()
+        domain_2.mkdir()
+
+        metrics_0 = {
+            "in_domain_test": {"test_accuracy": 0.9, "test_loss": 0.1},
+            "out_of_domain_test": {"test_accuracy": 0.8, "test_loss": 0.2},
+        }
+        metrics_1 = {
+            "in_domain_test": {"test_accuracy": 0.7, "test_loss": 0.3},
+            "out_of_domain_test": {"test_accuracy": 0.6, "test_loss": 0.4},
+        }
+        metrics_2 = {
+            "in_domain_test": {"test_accuracy": 0.8, "test_loss": 0.15},
+            "out_of_domain_test": {"test_accuracy": 0.65, "test_loss": 0.35},
+        }
+
+        with open(domain_0 / "metrics.yaml", "w") as f:
+            yaml.safe_dump(metrics_0, f)
+        with open(domain_1 / "metrics.yaml", "w") as f:
+            yaml.safe_dump(metrics_1, f)
+        with open(domain_2 / "metrics.yaml", "w") as f:
+            yaml.safe_dump(metrics_2, f)
+
+        expected = {
+            "domain_0": metrics_0,
+            "domain_1": metrics_1,
+            "domain_2": metrics_2,
+        }
+
+        return tmp_path, expected
+
+    def test_collate_reads_metrics(self, temp_metrics):
+        results_dir, expected = temp_metrics
+
+        result = collate_submetrics(results_dir, "domain_*", "metrics.yaml")
+
+        for split_name, split_metrics in expected["domain_0"].items():
+            assert split_name in result
+            for metric_name in split_metrics:
+                assert metric_name in result[split_name]
+
+    def test_collate_values_match_inputs(self, temp_metrics):
+        results_dir, expected = temp_metrics
+
+        result = collate_submetrics(results_dir, "domain_*", "metrics.yaml")
+
+        for domain_name, domain_metrics in expected.items():
+            for split_name, split_metrics in domain_metrics.items():
+                for metric_name, metric_value in split_metrics.items():
+                    assert result[split_name][metric_name][domain_name] == metric_value
+
+    def test_collate_adds_mean_std(self, temp_metrics):
+        results_dir, _ = temp_metrics
+
+        result = collate_submetrics(results_dir, "domain_*", "metrics.yaml")
+
+        for split_name in result:
+            for _, metric_values in result[split_name].items():
+                domain_values = [
+                    value
+                    for key, value in metric_values.items()
+                    if key.startswith("domain_")
+                ]
+                mean_expected = float(pd.Series(domain_values).mean())
+                std_expected = float(pd.Series(domain_values).std(ddof=0))
+
+                assert metric_values["mean"] == pytest.approx(mean_expected)
+                assert metric_values["std"] == pytest.approx(std_expected)
+
+    def test_collate_raises_on_missing_metrics(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            collate_submetrics(tmp_path, "domain_*", "metrics.yaml")
+
+    def test_collate_warns_single_domain(self, tmp_path, capsys):
+        domain_0 = tmp_path / "domain_0"
+        domain_0.mkdir()
+        with open(domain_0 / "metrics.yaml", "w") as f:
+            yaml.safe_dump({"split": {"metric": 1.0}}, f)
+
+        collate_submetrics(tmp_path, "domain_*", "metrics.yaml")
+
+        captured = capsys.readouterr()
+        assert "Only one metric file named" in captured.out
+
+
+class TestRemoveUnwantedKeys:
+    def test_all_none_pattern_returns_original(self):
+        """Test that all-None pattern returns the original data unchanged."""
+        data: dict[Hashable, Any] = {
+            "split": {"metric": {"domain_0": 1.0, "domain_1": 2.0}}
+        }
+        key_pattern: list[str | None] = [None, None, None]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert result == data
+
+    def test_all_string_pattern_direct_lookup(self):
+        """Test that all-string pattern performs direct nested lookup."""
+        data: dict[Hashable, Any] = {
+            "split": {"metric": {"domain_0": 1.0, "domain_1": 2.0}}
+        }
+        key_pattern: list[str | None] = ["split", "metric"]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert result == {None: {"domain_0": 1.0, "domain_1": 2.0}}
+
+    def test_all_string_pattern_missing_keys(self):
+        """Test all-string pattern with missing keys returns empty dict under None."""
+        data: dict[Hashable, Any] = {"split": {"metric": {"domain_0": 1.0}}}
+        key_pattern: list[str | None] = ["split", "missing"]
+
+        with pytest.raises(KeyError, match="not found in data"):
+            remove_unwanted_keys(data, key_pattern)
+
+    def test_mixed_pattern_selective_matching(self):
+        """Test mixed None/string pattern filters paths selectively."""
+        data: dict[Hashable, Any] = {
+            "split": {
+                "m1": {"domain_0": 1.0, "domain_1": 2.0},
+                "m2": {"domain_0": 3.0, "domain_1": 4.0},
+            }
+        }
+        key_pattern: list[str | None] = ["split", "m1", None]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert result == {"domain_0": 1.0, "domain_1": 2.0}
+
+    def test_mixed_pattern_with_trailing_none(self):
+        """Test mixed pattern with trailing None keeps remaining path levels."""
+        data: dict[Hashable, Any] = {
+            "split": {"metric": {"domain_0": 1.0, "domain_1": 2.0}}
+        }
+        key_pattern: list[str | None] = ["split", None, None]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert result == {"metric": {"domain_0": 1.0, "domain_1": 2.0}}
+
+    def test_invalid_pattern__raises_error(self):
+        """Test that pattern longer than path raises ValueError."""
+        data: dict[Hashable, Any] = {"split": {"metric": 1.0}}
+        key_pattern: list[str | None] = ["split", "metric", "extra"]
+
+        with pytest.raises(ValueError, match="Invalid key pattern"):
+            remove_unwanted_keys(data, key_pattern)
+
+    def test_pattern_longer_than_path_raises_error(self):
+        """Test that pattern longer than path raises ValueError."""
+        data: dict[Hashable, Any] = {"split": {"metric": 1.0}}
+        key_pattern: list[str | None] = ["split", None, "extra"]
+
+        with pytest.raises(ValueError, match="Key pattern is longer than path"):
+            remove_unwanted_keys(data, key_pattern)
+
+    def test_pattern_mismatch_excludes_path(self):
+        """Test that non-matching paths are excluded from result."""
+        data: dict[Hashable, Any] = {
+            "split1": {"metric": 1.0},
+            "split2": {"metric": 2.0},
+        }
+        key_pattern: list[str | None] = ["split1", None]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert "split2" not in str(result)
+        assert result == {"metric": 1.0}
+
+    def test_complex_nested_with_selective_filter(self):
+        """Test complex nested structure with selective filtering."""
+        data: dict[Hashable, Any] = {
+            "train": {
+                "accuracy": {"d0": 0.9, "d1": 0.85},
+                "loss": {"d0": 0.1, "d1": 0.15},
+            },
+            "test": {
+                "accuracy": {"d0": 0.8, "d1": 0.75},
+                "loss": {"d0": 0.2, "d1": 0.25},
+            },
+        }
+        key_pattern: list[str | None] = ["train", None, "d0"]
+
+        result = remove_unwanted_keys(data, key_pattern)
+
+        assert result == {"accuracy": 0.9, "loss": 0.1}
+        assert "test" not in str(result)
+        assert "d1" not in str(result)
+
+
+class TestFormatMeanStd:
+    def test_format_mean_std_basic(self):
+        """Test basic formatting of mean and std values."""
+        result = format_mean_std(0.8424, 0.0035)
+        assert result == "84.24(35)"
+
+    def test_format_mean_std_zero_std(self):
+        """Test formatting when std is zero."""
+        result = format_mean_std(0.5, 0.0)
+        assert result == "50.00(0)"
+
+    def test_format_mean_std_high_std(self):
+        """Test formatting with larger std value."""
+        result = format_mean_std(0.75, 0.1)
+        assert result == "75.00(1000)"
+
+
+class TestMetricsToTable:
+    def test_metrics_to_table_basic(self):
+        """Test basic metrics_to_table functionality."""
+        all_metrics: dict[Hashable, Any] = {
+            "test": {
+                "der": {
+                    "domain_0": {
+                        "split_A": 0.01312,
+                        "split_B": 0.1212,
+                        "mean": 0.08725,
+                        "std": 0.0012,
+                    },
+                    "domain_1": {
+                        "split_A": 0.0565,
+                        "split_B": 0.0546,
+                        "mean": 0.0435,
+                        "std": 0.0012,
+                    },
+                    "mean": {
+                        "split_A": 0.05467,
+                        "split_B": 0.05465,
+                        "mean": 0.07687,
+                        "std": 0.0012,
+                    },
+                    "std": {
+                        "split_A": 0.001,
+                        "split_B": 0.001,
+                        "mean": 0.001,
+                        "std": 0.0001,
+                    },
+                }
+            }
+        }
+        domain_names = {0: "domain_a", 1: "domain_b"}
+
+        result = metrics_to_table(all_metrics, "der", domain_names)
+
+        assert isinstance(result, pd.DataFrame)
+        assert "domain_a" in result.index
+        assert "domain_b" in result.index
+        assert "mean" in result.index
+
+    def test_metrics_to_table_formatting(self):
+        """Test that metrics are formatted with mean(std) notation."""
+        all_metrics: dict[Hashable, Any] = {
+            "test": {
+                "der": {
+                    "domain_0": {
+                        "split_A": 0.15,
+                        "mean": 0.15,
+                        "std": 0.02,
+                    },
+                    "domain_1": {
+                        "split_A": 0.12,
+                        "mean": 0.12,
+                        "std": 0.01,
+                    },
+                    "mean": {
+                        "split_A": 0.135,
+                        "mean": 0.135,
+                        "std": 0.015,
+                    },
+                    "std": {
+                        "split_A": 0.015,
+                        "mean": 0.015,
+                        "std": 0.005,
+                    },
+                }
+            }
+        }
+        domain_names = {0: "domain_a", 1: "domain_b"}
+
+        result = metrics_to_table(all_metrics, "der", domain_names)
+
+        # Check that values are formatted strings like "15.00(200)"
+        assert isinstance(result.loc["domain_a", "test"], str)
+        assert "(" in result.loc["domain_a", "test"]
+        assert ")" in result.loc["domain_a", "test"]
+
+    def test_metrics_to_table_missing_metric_raises(self):
+        """Test that missing metric raises KeyError."""
+        all_metrics: dict[Hashable, Any] = {
+            "test": {
+                "f1_speech": {
+                    "domain_0": {
+                        "split_A": 0.85,
+                        "mean": 0.85,
+                        "std": 0.05,
+                    }
+                }
+            }
+        }
+        domain_names = {0: "domain_a"}
+
+        with pytest.raises(KeyError, match="Could not find metric"):
+            metrics_to_table(all_metrics, "nonexistent_metric", domain_names)
+
+    def test_metrics_to_table_empty_mean_raises(self):
+        """Test that empty mean metrics raises KeyError."""
+        all_metrics: dict[Hashable, Any] = {
+            "test": {
+                "der": {
+                    "domain_0": {
+                        "split_A": 0.10,
+                    }
+                }
+            }
+        }
+        domain_names = {0: "domain_a"}
+
+        with pytest.raises(KeyError, match="Could not find metric"):
+            metrics_to_table(all_metrics, "der", domain_names)
+
+    def test_metrics_to_table_domain_name_mapping(self):
+        """Test that domain indices are correctly mapped to domain names."""
+        all_metrics: dict[Hashable, Any] = {
+            "test": {
+                "der": {
+                    "domain_0": {
+                        "split_A": 0.10,
+                        "mean": 0.10,
+                        "std": 0.01,
+                    },
+                    "domain_1": {
+                        "split_A": 0.12,
+                        "mean": 0.12,
+                        "std": 0.02,
+                    },
+                    "mean": {
+                        "split_A": 0.11,
+                        "mean": 0.11,
+                        "std": 0.015,
+                    },
+                    "std": {
+                        "split_A": 0.01,
+                        "mean": 0.01,
+                        "std": 0.005,
+                    },
+                }
+            }
+        }
+        domain_names = {0: "english", 1: "spanish"}
+
+        result = metrics_to_table(all_metrics, "der", domain_names)
+
+        assert "english" in result.index
+        assert "spanish" in result.index
+        assert "domain_0" not in result.index
+        assert "domain_1" not in result.index
