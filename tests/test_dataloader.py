@@ -62,11 +62,11 @@ class TestDrSadDataset:
             assert "file_id" in item
             assert isinstance(item["file_id"], str)
 
-    def test_load_example_dataset(self, test_dataset):
+    def test_load_example_dataset(self, example_dataset):
         """Test loading the test dataset using DrSadDataset."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -84,6 +84,10 @@ class TestDrSadDataset:
         assert "file_id" in first_item
 
         assert first_item["file_id"] == "TEST_0001"
+
+        assert isinstance(first_item["waveforms"], np.ndarray)
+        assert first_item["waveforms"].ndim == 1  # Mono audio
+        assert isinstance(first_item["waveforms"][0], np.float32 | np.float64)
 
         # Check that annotations are correct for the first file
         first_annotations = first_item["annotations"]
@@ -156,11 +160,11 @@ class TestDrSadDataset:
         )
         assert fourth_segment["domains"] == 0
 
-    def test_time_slice_bigger_dataset(self, test_dataset):
+    def test_time_slice_bigger_dataset(self, example_dataset):
         """Test that time_slice works on a bigger dataset."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -176,11 +180,11 @@ class TestDrSadDataset:
             waveform_length = len(item["waveforms"])
             assert waveform_length <= int(time_slice * 16000)
 
-    def test_from_dataset_split(self, test_dataset):
+    def test_from_dataset_split(self, example_dataset):
         """Test that DrSadDataset.train_test_split correctly splits the dataset."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -198,11 +202,11 @@ class TestDrSadDataset:
         assert train_indices.isdisjoint(test_indices)
         assert val_indices.isdisjoint(test_indices)
 
-    def test_from_splitting_keys(self, test_dataset):
+    def test_from_splitting_keys(self, example_dataset):
         """Test that DrSadDataset.from_splitting_keys correctly creates datasets."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -225,11 +229,11 @@ class TestDrSadDataset:
         assert train_indices.isdisjoint(test_indices)
         assert val_indices.isdisjoint(test_indices)
 
-    def test_from_target_domain(self, test_dataset):
+    def test_from_target_domain(self, example_dataset):
         """Test that DrSadDataset.from_target_domain correctly creates datasets."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -277,11 +281,11 @@ class TestDrSadDataset:
         assert val_indices == expected_val
         assert test_indices == expected_test
 
-    def test_from_target_domain_raises_error_for_invalid_domain(self, test_dataset):
+    def test_from_target_domain_raises_error_for_invalid_domain(self, example_dataset):
         """Test that from_target_domain raises ValueError for domain with no data."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -300,10 +304,10 @@ class TestDrSadDataset:
                 data, train_keys, val_keys, test_keys, invalid_domain
             )
 
-    def test_from_split_domain(self, test_dataset):
+    def test_from_split_domain(self, example_dataset):
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -354,11 +358,11 @@ class TestDrSadDataset:
         )
         assert all_returned == set(data.index)
 
-    def test_from_split_domain_raises_error_for_invalid_domain(self, test_dataset):
+    def test_from_split_domain_raises_error_for_invalid_domain(self, example_dataset):
         """Test that from_split_domain raises ValueError for domain with no data."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -392,11 +396,11 @@ class TestDrSadDataset:
 
 
 class TestDataloader:
-    def test_make_dataloader(self, test_dataset):
+    def test_make_dataloader(self, example_dataset):
         """Test that make_dataloader creates a properly configured DataLoader."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -425,10 +429,10 @@ class TestDataloader:
         assert "annotations" in first_batch
         assert "domains" in first_batch
 
-    def test_make_dataloader_with_custom_params(self, test_dataset):
+    def test_make_dataloader_with_custom_params(self, example_dataset):
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -449,11 +453,11 @@ class TestDataloader:
 
 
 class TestTrainTestSplitDataloaders:
-    def test_train_test_split_dataloaders_basic(self, test_dataset):
+    def test_train_test_split_dataloaders_basic(self, example_dataset):
         """Test basic functionality of train_test_split_dataloaders."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -477,11 +481,11 @@ class TestTrainTestSplitDataloaders:
         assert isinstance(val_loader.sampler, StratifiedSampler)
         assert isinstance(test_loader.sampler, StratifiedSampler)
 
-    def test_train_test_split_dataloaders_custom_params(self, test_dataset):
+    def test_train_test_split_dataloaders_custom_params(self, example_dataset):
         """Test train_test_split_dataloaders with custom parameters."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -507,11 +511,11 @@ class TestTrainTestSplitDataloaders:
         assert val_loader.num_workers == 0
         assert test_loader.num_workers == 0
 
-    def test_train_test_split_dataloaders_iteration(self, test_dataset):
+    def test_train_test_split_dataloaders_iteration(self, example_dataset):
         """Test that we can iterate through the created dataloaders."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -532,11 +536,11 @@ class TestTrainTestSplitDataloaders:
             assert "domains" in batch
             assert len(batch["waveforms"]) == 2
 
-    def test_train_test_split_dataloaders_time_slice(self, test_dataset):
+    def test_train_test_split_dataloaders_time_slice(self, example_dataset):
         """Test train_test_split_dataloaders with time_slice parameter."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -572,11 +576,11 @@ class TestTrainTestSplitDataloaders:
 
 
 class TestFromKeysDataloaders:
-    def test_from_keys_dataloaders_basic(self, test_dataset):
+    def test_from_keys_dataloaders_basic(self, example_dataset):
         """Test basic functionality of from_keys_dataloaders."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -605,11 +609,11 @@ class TestFromKeysDataloaders:
         assert val_loader.batch_size == 2
         assert test_loader.batch_size == 2
 
-    def test_from_keys_dataloaders_iteration(self, test_dataset):
+    def test_from_keys_dataloaders_iteration(self, example_dataset):
         """Test that we can iterate through the created dataloaders."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -639,11 +643,11 @@ class TestFromKeysDataloaders:
             assert "annotations" in batch
             assert "domains" in batch
 
-    def test_from_keys_dataloaders_time_slice(self, test_dataset):
+    def test_from_keys_dataloaders_time_slice(self, example_dataset):
         """Test from_keys_dataloaders with time_slice parameter."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -685,11 +689,11 @@ class TestFromKeysDataloaders:
 
 
 class TestDomainSplitDataloaders:
-    def test_domain_split_dataloaders_basic(self, test_dataset):
+    def test_domain_split_dataloaders_basic(self, example_dataset):
         """Test basic functionality of domain_split_dataloaders."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -728,11 +732,11 @@ class TestDomainSplitDataloaders:
         assert isinstance(test_loader.sampler, StratifiedSampler)
         assert isinstance(domain_loader.sampler, StratifiedSampler)
 
-    def test_domain_split_dataloaders_custom_params(self, test_dataset):
+    def test_domain_split_dataloaders_custom_params(self, example_dataset):
         """Test domain_split_dataloaders with custom parameters."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -767,11 +771,11 @@ class TestDomainSplitDataloaders:
         assert test_loader.num_workers == 0
         assert domain_loader.num_workers == 0
 
-    def test_domain_split_dataloaders_iteration(self, test_dataset):
+    def test_domain_split_dataloaders_iteration(self, example_dataset):
         """Test that we can iterate through all created dataloaders."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -811,12 +815,12 @@ class TestDomainSplitDataloaders:
         assert all(d == domain for d in domain_batch["domains"])
 
     def test_domain_split_dataloaders_raises_error_for_invalid_domain(
-        self, test_dataset
+        self, example_dataset
     ):
         """Test that domain_split_dataloaders raises ValueError for invalid domain."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -841,11 +845,11 @@ class TestDomainSplitDataloaders:
                 random_seed=42,
             )
 
-    def test_domain_split_dataloaders_time_slice(self, test_dataset):
+    def test_domain_split_dataloaders_time_slice(self, example_dataset):
         """Test domain_split_dataloaders with time_slice parameter."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -890,11 +894,11 @@ class TestDomainSplitDataloaders:
 
 
 class TestSingleDomainDataloaders:
-    def test_single_domain_dataloaders_basic(self, test_dataset):
+    def test_single_domain_dataloaders_basic(self, example_dataset):
         """Test basic functionality of single_domain_dataloaders."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -930,11 +934,11 @@ class TestSingleDomainDataloaders:
         assert isinstance(val_loader.sampler, StratifiedSampler)
         assert isinstance(test_loader.sampler, StratifiedSampler)
 
-    def test_single_domain_dataloaders_custom_params(self, test_dataset):
+    def test_single_domain_dataloaders_custom_params(self, example_dataset):
         """Test single_domain_dataloaders with custom parameters."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -967,11 +971,11 @@ class TestSingleDomainDataloaders:
         assert val_loader.num_workers == 0
         assert test_loader.num_workers == 0
 
-    def test_single_domain_dataloaders_iteration(self, test_dataset):
+    def test_single_domain_dataloaders_iteration(self, example_dataset):
         """Test that we can iterate through the created dataloaders."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -1009,12 +1013,12 @@ class TestSingleDomainDataloaders:
         assert all(d == target_domain for d in test_batch["domains"])
 
     def test_single_domain_dataloaders_raises_error_for_invalid_domain(
-        self, test_dataset
+        self, example_dataset
     ):
         """Test that single_domain_dataloaders raises ValueError for invalid domain."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -1039,11 +1043,11 @@ class TestSingleDomainDataloaders:
                 random_seed=42,
             )
 
-    def test_single_domain_dataloaders_time_slice(self, test_dataset):
+    def test_single_domain_dataloaders_time_slice(self, example_dataset):
         """Test single_domain_dataloaders with time_slice parameter."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -1092,11 +1096,11 @@ class TestSingleDomainDataloaders:
 
 
 class TestOneTestDataloader:
-    def test_one_test_dataloader_basic(self, test_dataset):
+    def test_one_test_dataloader_basic(self, example_dataset):
         """Test basic functionality of one_test_dataloader."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -1121,11 +1125,11 @@ class TestOneTestDataloader:
             assert "annotations" in batch
             assert "domains" in batch
 
-    def test_one_test_dataloader_time_slice(self, test_dataset):
+    def test_one_test_dataloader_time_slice(self, example_dataset):
         """Test one_test_dataloader with time_slice parameter."""
         data = load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
