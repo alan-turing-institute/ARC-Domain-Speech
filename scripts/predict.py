@@ -160,6 +160,11 @@ if __name__ == "__main__":
         help="Experiment configuration file name located in configs/experiments/",
     )
     parser.add_argument(
+        "split_idx",
+        type=int,
+        help="Index of the data split to use, read from data config file",
+    )
+    parser.add_argument(
         "--data-config",
         type=str,
         default=None,
@@ -167,9 +172,6 @@ if __name__ == "__main__":
             "Dataset configuration file name located in configs/data/. Overrides"
             " the one specified in the experiment configuration."
         ),
-        "split_idx",
-        type=int,
-        help="Index of the data split to use, read from data config file",
     )
     parser.add_argument(
         "--exclude-domain",

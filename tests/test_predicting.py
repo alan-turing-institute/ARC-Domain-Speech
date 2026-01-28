@@ -434,7 +434,7 @@ class TestLoadDataEval:
             # Load data with train_domain specified
             validation_loader, test_loader, domain_loader = load_data_eval(
                 data_cfg=data_cfg,
-                data_split=None,
+                data_split=split_data,
                 trainer_cfg=trainer_cfg,
                 exp_config=exp_config,
                 train_domain=2,
@@ -466,7 +466,7 @@ class TestLoadDataEval:
         Test that load_data_eval raises error when train_domain is
         missing for single_domain.
         """
-        _, split_path = mock_data_split
+        split_data, split_path = mock_data_split
         data_cfg, trainer_cfg, exp_config = mock_configs
         data_cfg["domain_type"] = "single_domain"
 
@@ -494,7 +494,7 @@ class TestLoadDataEval:
             ):
                 load_data_eval(
                     data_cfg=data_cfg,
-                    data_split=None,
+                    data_split=split_data,
                     trainer_cfg=trainer_cfg,
                     exp_config=exp_config,
                     train_domain=None,
@@ -507,7 +507,7 @@ class TestLoadDataEval:
         Test that load_data_eval raises error when train_domain is provided for 'all'
         domain_type.
         """
-        _, split_path = mock_data_split
+        split_data, split_path = mock_data_split
         data_cfg, trainer_cfg, exp_config = mock_configs
         # domain_type is already 'all' by default
 
@@ -532,7 +532,7 @@ class TestLoadDataEval:
             ):
                 load_data_eval(
                     data_cfg=data_cfg,
-                    data_split=None,
+                    data_split=split_data,
                     trainer_cfg=trainer_cfg,
                     exp_config=exp_config,
                     train_domain=1,
