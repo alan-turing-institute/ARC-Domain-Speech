@@ -1185,7 +1185,6 @@ class TestNoiseAugmentation:
             "simultaneous": 1,
             "seed": 42,
             "start_choice": True,
-            "quiet": True,
         }
 
         ds_no = DrSadDataset(data_no_noise, sample_rate=16000)
@@ -1193,13 +1192,13 @@ class TestNoiseAugmentation:
             data_with_noise, sample_rate=16000, noise_kwargs=noise_kwargs
         )
 
-        for dataum_no, datum_noise in zip(ds_no, ds_noise, strict=True):
-            assert dataum_no["file_id"] == datum_noise["file_id"]
-            assert dataum_no["domains"] == datum_noise["domains"]
-            assert dataum_no["annotations"] == datum_noise["annotations"]
+        for datum_no, datum_noise in zip(ds_no, ds_noise, strict=True):
+            assert datum_no["file_id"] == datum_noise["file_id"]
+            assert datum_no["domains"] == datum_noise["domains"]
+            assert datum_no["annotations"] == datum_noise["annotations"]
             # Waveforms should differ due to noise addition
-            assert not np.array_equal(dataum_no["waveforms"], datum_noise["waveforms"])
-            assert datum_noise["waveforms"].shape == dataum_no["waveforms"].shape
+            assert not np.array_equal(datum_no["waveforms"], datum_noise["waveforms"])
+            assert datum_noise["waveforms"].shape == datum_no["waveforms"].shape
 
     def test_from_target_domain_with_noise(self, example_dataset, noise_dataset):
         """Ensure from_target_domain accepts noise_kwargs and modifies them."""
@@ -1226,7 +1225,6 @@ class TestNoiseAugmentation:
             "simultaneous": 1,
             "seed": base_seed,
             "start_choice": True,
-            "quiet": True,
         }
 
         train, val, test = DrSadDataset.from_target_domain(
@@ -1288,7 +1286,6 @@ class TestNoiseAugmentation:
             "simultaneous": 1,
             "seed": base_seed,
             "start_choice": True,
-            "quiet": True,
         }
 
         train, val, test, domain_data = DrSadDataset.from_split_domain(
@@ -1355,7 +1352,6 @@ class TestNoiseAugmentation:
             "simultaneous": 1,
             "seed": base_seed,
             "start_choice": True,
-            "quiet": True,
         }
 
         train, val, test = DrSadDataset.from_splitting_keys(
@@ -1406,7 +1402,6 @@ class TestNoiseAugmentation:
             "simultaneous": 1,
             "seed": base_seed,
             "start_choice": True,
-            "quiet": True,
         }
 
         train, val, test = DrSadDataset.from_train_test_split(
@@ -1469,7 +1464,6 @@ class DataloadersWithNoise:
             "simultaneous": 1,
             "seed": base_seed,
             "start_choice": True,
-            "quiet": True,
         }
 
         train_loader, val_loader, test_loader = train_test_split_dataloaders(
@@ -1534,7 +1528,6 @@ class DataloadersWithNoise:
             "simultaneous": 1,
             "seed": base_seed,
             "start_choice": True,
-            "quiet": True,
         }
 
         train_loader, val_loader, test_loader = from_keys_dataloaders(
@@ -1579,7 +1572,6 @@ class DataloadersWithNoise:
             "simultaneous": 1,
             "seed": base_seed,
             "start_choice": True,
-            "quiet": True,
         }
 
         (
@@ -1632,7 +1624,6 @@ class DataloadersWithNoise:
             "simultaneous": 1,
             "seed": base_seed,
             "start_choice": True,
-            "quiet": True,
         }
 
         train_loader, val_loader, test_loader = single_domain_dataloaders(
@@ -1672,7 +1663,6 @@ class DataloadersWithNoise:
             "simultaneous": 1,
             "seed": 42,
             "start_choice": True,
-            "quiet": True,
         }
 
         test_loader = one_test_dataloader(

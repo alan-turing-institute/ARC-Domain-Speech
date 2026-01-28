@@ -56,10 +56,10 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             noise_kwargs: (dict, optional): Keyword arguments for adding noise.
                 Defaults to None, which means no noise is added.
                 - noise_dir (Path | str): The directory containing noise audio files.
-                - snr_db (float): The desired signal-to-noise ratio in decibels (dB).
+                - snr_db (float, tuple[float, float]): The desired signal-to-noise ratio
+                    in decibels (dB).
                 - simultaneous (int, optional): The number of noise files to use.
                 - start_choice (bool, optional): Randomise starting point for cropping.
-                - quiet (bool, optional): If True, tqdm progress bars will be disabled.
                 - noise_files_list (list[str], optional): Specific noise file names.
         """
         self.noise_kwargs = noise_kwargs
@@ -69,6 +69,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             for key, waveform in data["waveforms"].items():
                 augmented_waveforms.loc[key] = noise_builder.add_noise(waveform)
             # Replace the original waveforms with the augmented ones
+            data = data.copy()
             data["waveforms"] = augmented_waveforms
 
         if time_slice is not None:

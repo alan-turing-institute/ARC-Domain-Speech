@@ -78,7 +78,6 @@ class NoiseBuilder:
         simultaneous: int = 1,
         seed: int | None = None,
         start_choice: bool = True,
-        quiet: bool = True,
         noise_files_list: list[str] | None = None,
     ) -> None:
         """This builds a temporary dataset of noise augmented audio files.
@@ -87,8 +86,14 @@ class NoiseBuilder:
         in the specified directory.
 
         Args:
-            noise_dir (Path | str): The directory containing noise audio files.
-            snr_db (float): The desired signal-to-noise ratio in decibels (dB).
+            noise_dir (Path | str): The directory containing noise audio files.]
+                This looks for the directory in the following order:
+                1) If noise_dir is a Path object, it uses that.
+                1) If noise_dir is a valid path, it uses that.
+                2) If not, it looks for the directory in the default data/noise
+                directory relative to the project root.
+            snr_db (float | tuple[float, float]): The desired signal-to-noise ratio
+                in decibels (dB), can be a value or a range.
             simultaneous (int, optional): The number of noise files to use
                 simultaneously. Defaults to 1, which means only one noise file
                 will be used.
@@ -97,8 +102,6 @@ class NoiseBuilder:
             start_choice (bool, optional): If True, the starting point for cropping
                 noise files will be randomly chosen. If False, the start will always
                 be at the beginning of the noise file. Defaults to True.
-            quiet (bool, optional): If True, tqdm progress bars will be disabled.
-                Defaults to True.
             noise_files_list (list[str] | None, optional): If provided, this is a
                 list of specific noise file names (with .wav extension) to use from
                 the noise_dir. If None, all .wav files in noise_dir will be used.
@@ -182,9 +185,6 @@ class NoiseBuilder:
 
         # Set the start choice behaviour
         self.start_choice = start_choice
-
-        # Quiet mode for tqdm
-        self.quiet = quiet
 
     @property
     def num_noises(self) -> int:
@@ -314,7 +314,7 @@ def generate_noise_kwargs_list(
         return [None] * count
     if not isinstance(noise_kwargs, dict):
         msg = "noise_kwargs must be a dict or None"  # type: ignore[unreachable]
-        raise TypeError()
+        raise TypeError(msg)
     base_seed = noise_kwargs.get("seed", None)
     if base_seed is not None:
         base_seed = int(base_seed)
