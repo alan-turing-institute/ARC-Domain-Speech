@@ -179,7 +179,7 @@ def load_data_eval(
             'domain_type' is 'single_domain'. Defaults to None.
 
     Returns:
-        tuple[DataLoader, DataLoader | None]: A tuple containing:
+        tuple[DataLoader, DataLoader, DataLoader | None]: A tuple containing:
             - validation_loader (DataLoader): DataLoader for the validation set.
             - test_loader (DataLoader): DataLoader for the test set or the included
                 domain.

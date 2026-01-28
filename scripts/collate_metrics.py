@@ -98,7 +98,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "experiment_name",
         type=str,
-        help="Experiment directory name (e.g. callhome_domain_10.yaml)",
+        help="Experiment name (e.g. callhome_domain_10.yaml)",
     )
     parser.add_argument(
         "--expected-evaluations",
