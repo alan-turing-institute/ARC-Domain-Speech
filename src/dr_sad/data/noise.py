@@ -1,9 +1,10 @@
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from scipy.io import wavfile
 
-__all__ = ("NoiseBuilder",)
+__all__ = ("NoiseBuilder", "generate_noise_kwargs_list")
 
 
 def _get_root_mean_square(noise_array: np.ndarray) -> float:
@@ -77,7 +78,7 @@ class NoiseBuilder:
         simultaneous: int = 1,
         seed: int | None = None,
         start_choice: bool = True,
-        quiet: bool = False,
+        quiet: bool = True,
         noise_files_list: list[str] | None = None,
     ) -> None:
         """This builds a temporary dataset of noise augmented audio files.
@@ -97,7 +98,7 @@ class NoiseBuilder:
                 noise files will be randomly chosen. If False, the start will always
                 be at the beginning of the noise file. Defaults to True.
             quiet (bool, optional): If True, tqdm progress bars will be disabled.
-                Defaults to False.
+                Defaults to True.
             noise_files_list (list[str] | None, optional): If provided, this is a
                 list of specific noise file names (with .wav extension) to use from
                 the noise_dir. If None, all .wav files in noise_dir will be used.
@@ -283,3 +284,36 @@ class NoiseBuilder:
 
         linear_scale = _signal_to_noise_scale(signal, noise_array, snr_db)
         return signal + linear_scale * noise_array
+
+
+def generate_noise_kwargs_list(
+    noise_kwargs: dict[str, Any] | None, count: int
+) -> list[dict[str, Any] | None]:
+    """Return a list of `count` noise_kwargs dicts.
+
+    If noise_kwargs is None -> returns [None]*count.
+    If noise_kwargs contains a numeric 'seed' -> returns copies with seeds
+    incremented by +1 .. +count (preserving other keys).
+    If 'seed' is missing or None -> returns shallow copies of the dict repeated.
+
+    Args:
+        noise_kwargs (dict | None): The base noise kwargs dictionary.
+        count (int): The number of dicts to generate.
+
+    Returns:
+        list[dict | None]: A list of noise kwargs dictionaries or None.
+    """
+    if count < 1:
+        msg = "count must be at least 1"
+        raise ValueError(msg)
+    if noise_kwargs is None:
+        return [None] * count
+    if not isinstance(noise_kwargs, dict):
+        msg = "noise_kwargs must be a dict or None"  # type: ignore[unreachable]
+        raise TypeError()
+    base_seed = noise_kwargs.get("seed", None)
+    if base_seed is not None:
+        base_seed = int(base_seed)
+        return [{**noise_kwargs, "seed": base_seed + i} for i in range(1, count + 1)]
+    # no seed provided: return independent shallow copies
+    return [noise_kwargs.copy() for _ in range(count)]

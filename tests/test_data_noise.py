@@ -7,6 +7,7 @@ from dr_sad.data.noise import (
     _clipping_and_typecast,
     _get_root_mean_square,
     _signal_to_noise_scale,
+    generate_noise_kwargs_list,
 )
 
 
@@ -210,3 +211,42 @@ class TestNoiseBuilder:
                 0,
                 noise_files_list="not_a_list",  # type: ignore[arg-type]
             )
+
+
+class TestGenerateNoiseKwargsList:
+    def test_none_input(self):
+        """Test that None input returns a list of None values."""
+        result = generate_noise_kwargs_list(None, 3)
+        assert result == [None, None, None]
+
+    def test_with_seed(self):
+        """Test that seed is incremented for each dict."""
+        noise_kwargs = {
+            "noise_dir": "/path/to/noise",
+            "snr_db": 10.0,
+            "seed": 42,
+        }
+        result = generate_noise_kwargs_list(noise_kwargs, 3)
+
+        assert isinstance(result, list)
+        assert len(result) == 3
+        assert all(isinstance(d, dict) for d in result)
+        assert result[0]["seed"] == 43  # type: ignore[index]
+        assert result[1]["seed"] == 44  # type: ignore[index]
+        assert result[2]["seed"] == 45  # type: ignore[index]
+        # Verify other keys are preserved
+        assert result[0]["snr_db"] == 10.0  # type: ignore[index]
+        assert result[1]["noise_dir"] == "/path/to/noise"  # type: ignore[index]
+
+    def test_without_seed(self):
+        """Test that dicts without seed are shallow copied."""
+        noise_kwargs = {
+            "noise_dir": "/path/to/noise",
+            "snr_db": 10.0,
+        }
+        result = generate_noise_kwargs_list(noise_kwargs, 2)
+        assert len(result) == 2
+        assert result[0] == noise_kwargs
+        assert result[1] == noise_kwargs
+        # Verify they are shallow copies (not the same object)
+        assert result[0] is not result[1]

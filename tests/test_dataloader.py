@@ -1159,3 +1159,536 @@ class TestOneTestDataloader:
             for start, end in anno:
                 assert start >= 0.0
                 assert end <= time_slice
+
+
+class TestNoiseAugmentation:
+    def test_load_with_noise_and_without(self, example_dataset, noise_dataset):
+        """Loading the same data with and without noise should change waveforms."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Create two independent copies so the augmentation doesn't modify the
+        # other one in-place.
+        data_no_noise = data.copy(deep=True)
+        data_with_noise = data.copy(deep=True)
+
+        # Prepare noise kwargs pointing to the generated noise folder in the
+        # fixture (`noise_dataset` returns the tmp path containing `noise`).
+        noise_dir = noise_dataset / "noise"
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": 42,
+            "start_choice": True,
+            "quiet": True,
+        }
+
+        ds_no = DrSadDataset(data_no_noise, sample_rate=16000)
+        ds_noise = DrSadDataset(
+            data_with_noise, sample_rate=16000, noise_kwargs=noise_kwargs
+        )
+
+        for dataum_no, datum_noise in zip(ds_no, ds_noise, strict=True):
+            assert dataum_no["file_id"] == datum_noise["file_id"]
+            assert dataum_no["domains"] == datum_noise["domains"]
+            assert dataum_no["annotations"] == datum_noise["annotations"]
+            # Waveforms should differ due to noise addition
+            assert not np.array_equal(dataum_no["waveforms"], datum_noise["waveforms"])
+            assert datum_noise["waveforms"].shape == dataum_no["waveforms"].shape
+
+    def test_from_target_domain_with_noise(self, example_dataset, noise_dataset):
+        """Ensure from_target_domain accepts noise_kwargs and modifies them."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        target_domain = 1
+
+        # Prepare noise kwargs pointing to the generated noise folder in the fixture
+        noise_dir = noise_dataset / "noise"
+        base_seed = 42
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": base_seed,
+            "start_choice": True,
+            "quiet": True,
+        }
+
+        train, val, test = DrSadDataset.from_target_domain(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            target_domain,
+            time_slice=None,
+            sample_rate=16000,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Check noise kwargs were set on returned datasets
+        assert train.noise_kwargs is not None
+        assert val.noise_kwargs is not None
+        assert test.noise_kwargs is not None
+
+        # Seeds should have been incremented for each split
+        assert train.noise_kwargs["seed"] == base_seed + 1
+        assert val.noise_kwargs["seed"] == base_seed + 2
+        assert test.noise_kwargs["seed"] == base_seed + 3
+
+        # noise_dir should be preserved
+        assert train.noise_kwargs["noise_dir"] == noise_dir
+        assert val.noise_kwargs["noise_dir"] == noise_dir
+        assert test.noise_kwargs["noise_dir"] == noise_dir
+
+        # Basic sanity: datasets should be non-empty and carry the domain attribute
+        assert train.domain == target_domain
+        assert val.domain == target_domain
+        assert test.domain == target_domain
+        assert len(train) + len(val) + len(test) == len(
+            data[data["domains"] == target_domain]
+        )
+
+    def test_from_split_domain_with_noise(self, example_dataset, noise_dataset):
+        """Test that from_split_domain accepts noise_kwargs and propagates them."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        domain = 1
+        base_seed = 42
+
+        # Prepare noise kwargs
+        noise_dir = noise_dataset / "noise"
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": base_seed,
+            "start_choice": True,
+            "quiet": True,
+        }
+
+        train, val, test, domain_data = DrSadDataset.from_split_domain(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            domain,
+            sample_rate=16000,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were set on all datasets
+        assert train.noise_kwargs is not None
+        assert val.noise_kwargs is not None
+        assert test.noise_kwargs is not None
+        assert domain_data.noise_kwargs is not None
+
+        # Verify seeds were incremented for each split
+        assert train.noise_kwargs["seed"] == base_seed + 1
+        assert val.noise_kwargs["seed"] == base_seed + 2
+        assert test.noise_kwargs["seed"] == base_seed + 3
+        assert domain_data.noise_kwargs["seed"] == base_seed + 4
+
+        # Verify all datasets have the domain attribute
+        assert train.domain == domain
+        assert val.domain == domain
+        assert test.domain == domain
+        assert domain_data.domain == domain
+
+        # Verify domain_data contains only the specified domain
+        for idx in domain_data.data.index:
+            assert int(data.loc[idx, "domains"]) == domain
+
+        # Verify train/val/test exclude the domain
+        for idx in train.data.index:
+            assert int(data.loc[idx, "domains"]) != domain
+        for idx in val.data.index:
+            assert int(data.loc[idx, "domains"]) != domain
+        for idx in test.data.index:
+            assert int(data.loc[idx, "domains"]) != domain
+
+    def test_from_splitting_keys_with_noise(self, example_dataset, noise_dataset):
+        """Test that from_splitting_keys accepts noise_kwargs and propagates them."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        # Define splitting keys
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        base_seed = 42
+
+        # Prepare noise kwargs
+        noise_dir = noise_dataset / "noise"
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": base_seed,
+            "start_choice": True,
+            "quiet": True,
+        }
+
+        train, val, test = DrSadDataset.from_splitting_keys(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            sample_rate=16000,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were set on all datasets
+        assert train.noise_kwargs is not None
+        assert val.noise_kwargs is not None
+        assert test.noise_kwargs is not None
+
+        # Verify seeds were incremented for each split
+        assert train.noise_kwargs["seed"] == base_seed + 1
+        assert val.noise_kwargs["seed"] == base_seed + 2
+        assert test.noise_kwargs["seed"] == base_seed + 3
+
+        # Verify noise_dir is preserved
+        assert train.noise_kwargs["noise_dir"] == noise_dir
+        assert val.noise_kwargs["noise_dir"] == noise_dir
+        assert test.noise_kwargs["noise_dir"] == noise_dir
+
+        # Verify datasets contain the correct data
+        assert len(train) == len(train_keys)
+        assert len(val) == len(val_keys)
+        assert len(test) == len(test_keys)
+
+    def test_from_train_test_split_with_noise(self, example_dataset, noise_dataset):
+        """Test that from_train_test_split accepts noise_kwargs and propagates them."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        base_seed = 42
+
+        # Prepare noise kwargs
+        noise_dir = noise_dataset / "noise"
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": base_seed,
+            "start_choice": True,
+            "quiet": True,
+        }
+
+        train, val, test = DrSadDataset.from_train_test_split(
+            data,
+            val_ratio=0.2,
+            test_ratio=0.2,
+            random_seed=123,
+            sample_rate=16000,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were set on all datasets
+        assert train.noise_kwargs is not None
+        assert val.noise_kwargs is not None
+        assert test.noise_kwargs is not None
+
+        # Verify seeds were incremented for each split
+        assert train.noise_kwargs["seed"] == base_seed + 1
+        assert val.noise_kwargs["seed"] == base_seed + 2
+        assert test.noise_kwargs["seed"] == base_seed + 3
+
+        # Verify noise_dir is preserved
+        assert train.noise_kwargs["noise_dir"] == noise_dir
+        assert val.noise_kwargs["noise_dir"] == noise_dir
+        assert test.noise_kwargs["noise_dir"] == noise_dir
+
+        # Verify datasets are non-empty and non-overlapping
+        assert len(train) > 0
+        assert len(val) > 0
+        assert len(test) > 0
+
+        train_indices = set(train.data.index)
+        val_indices = set(val.data.index)
+        test_indices = set(test.data.index)
+
+        assert train_indices.isdisjoint(val_indices)
+        assert train_indices.isdisjoint(test_indices)
+        assert val_indices.isdisjoint(test_indices)
+
+
+class DataloadersWithNoise:
+    def test_train_test_split_dataloaders_with_noise(
+        self, example_dataset, noise_dataset
+    ):
+        """Test train_test_split_dataloaders with noise_kwargs parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        base_seed = 42
+
+        # Prepare noise kwargs
+        noise_dir = noise_dataset / "noise"
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": base_seed,
+            "start_choice": True,
+            "quiet": True,
+        }
+
+        train_loader, val_loader, test_loader = train_test_split_dataloaders(
+            data,
+            batch_size=2,
+            val_ratio=0.2,
+            test_ratio=0.2,
+            random_seed=42,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Check that all returned objects are DataLoaders
+        assert isinstance(train_loader, DataLoader)
+        assert isinstance(val_loader, DataLoader)
+        assert isinstance(test_loader, DataLoader)
+
+        # Verify noise_kwargs were propagated to datasets
+        assert train_loader.dataset.noise_kwargs is not None
+        assert val_loader.dataset.noise_kwargs is not None
+        assert test_loader.dataset.noise_kwargs is not None
+
+        # Verify seeds were incremented for each split
+        assert train_loader.dataset.noise_kwargs["seed"] == base_seed + 1
+        assert val_loader.dataset.noise_kwargs["seed"] == base_seed + 2
+        assert test_loader.dataset.noise_kwargs["seed"] == base_seed + 3
+
+        # Verify noise_dir is preserved
+        assert train_loader.dataset.noise_kwargs["noise_dir"] == noise_dir
+        assert val_loader.dataset.noise_kwargs["noise_dir"] == noise_dir
+        assert test_loader.dataset.noise_kwargs["noise_dir"] == noise_dir
+
+        # Test that we can iterate through batches without errors
+        train_batch = next(iter(train_loader))
+        val_batch = next(iter(val_loader))
+        test_batch = next(iter(test_loader))
+
+        # Check batch structure for each
+        for batch in [train_batch, val_batch, test_batch]:
+            assert "waveforms" in batch
+            assert "annotations" in batch
+            assert "domains" in batch
+            assert len(batch["waveforms"]) == 2
+
+    def test_from_keys_dataloaders_with_noise(self, example_dataset, noise_dataset):
+        """Test from_keys_dataloaders with noise_kwargs parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        base_seed = 42
+        noise_dir = noise_dataset / "noise"
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": base_seed,
+            "start_choice": True,
+            "quiet": True,
+        }
+
+        train_loader, val_loader, test_loader = from_keys_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            batch_size=2,
+            random_seed=42,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were propagated to datasets
+        assert train_loader.dataset.noise_kwargs is not None
+        assert val_loader.dataset.noise_kwargs is not None
+        assert test_loader.dataset.noise_kwargs is not None
+
+        # Verify seeds were incremented for each split
+        assert train_loader.dataset.noise_kwargs["seed"] == base_seed + 1
+        assert val_loader.dataset.noise_kwargs["seed"] == base_seed + 2
+        assert test_loader.dataset.noise_kwargs["seed"] == base_seed + 3
+
+    def test_domain_split_dataloaders_with_noise(self, example_dataset, noise_dataset):
+        """Test domain_split_dataloaders with noise_kwargs parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        domain = 1
+
+        base_seed = 42
+        noise_dir = noise_dataset / "noise"
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": base_seed,
+            "start_choice": True,
+            "quiet": True,
+        }
+
+        (
+            train_loader,
+            val_loader,
+            test_loader,
+            domain_loader,
+        ) = domain_split_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            domain,
+            batch_size=2,
+            random_seed=42,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were propagated to all datasets
+        assert train_loader.dataset.noise_kwargs is not None
+        assert val_loader.dataset.noise_kwargs is not None
+        assert test_loader.dataset.noise_kwargs is not None
+        assert domain_loader.dataset.noise_kwargs is not None
+
+        # Verify seeds were incremented for each split
+        assert train_loader.dataset.noise_kwargs["seed"] == base_seed + 1
+        assert val_loader.dataset.noise_kwargs["seed"] == base_seed + 2
+        assert test_loader.dataset.noise_kwargs["seed"] == base_seed + 3
+        assert domain_loader.dataset.noise_kwargs["seed"] == base_seed + 4
+
+    def test_single_domain_dataloaders_with_noise(self, example_dataset, noise_dataset):
+        """Test single_domain_dataloaders with noise_kwargs parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        target_domain = 1
+
+        base_seed = 42
+        noise_dir = noise_dataset / "noise"
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": base_seed,
+            "start_choice": True,
+            "quiet": True,
+        }
+
+        train_loader, val_loader, test_loader = single_domain_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            target_domain,
+            batch_size=2,
+            random_seed=42,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were propagated to datasets
+        assert train_loader.dataset.noise_kwargs is not None
+        assert val_loader.dataset.noise_kwargs is not None
+        assert test_loader.dataset.noise_kwargs is not None
+
+        # Verify seeds were incremented for each split
+        assert train_loader.dataset.noise_kwargs["seed"] == base_seed + 1
+        assert val_loader.dataset.noise_kwargs["seed"] == base_seed + 2
+        assert test_loader.dataset.noise_kwargs["seed"] == base_seed + 3
+
+    def test_one_test_dataloader_with_noise(self, example_dataset, noise_dataset):
+        """Test one_test_dataloader with noise_kwargs parameter."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        noise_dir = noise_dataset / "noise"
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": 42,
+            "start_choice": True,
+            "quiet": True,
+        }
+
+        test_loader = one_test_dataloader(
+            data,
+            data_keys=data.index.tolist()[:6],
+            batch_size=2,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were propagated to dataset
+        assert test_loader.dataset.noise_kwargs is not None
+        assert test_loader.dataset.noise_kwargs["noise_dir"] == noise_dir
+        assert test_loader.dataset.noise_kwargs["seed"] == 42
+
+        # Test that we can iterate through batches without errors
+        test_batch = next(iter(test_loader))
+        assert "waveforms" in test_batch
+        assert "annotations" in test_batch
+        assert "domains" in test_batch
