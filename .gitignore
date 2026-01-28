@@ -123,6 +123,7 @@ venv.bak/
 
 # VS Code settings
 .vscode/
+.vsls.json
 
 # Spyder project settings
 .spyderproject
