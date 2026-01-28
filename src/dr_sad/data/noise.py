@@ -106,7 +106,11 @@ class NoiseBuilder:
         """
         # Validate and set the noise directory
         if isinstance(noise_dir, str):
-            noise_dir = Path(noise_dir)
+            # Checks if the string is a valid path
+            if Path(noise_dir).exists():
+                noise_dir = Path(noise_dir)
+            else:
+                noise_dir = Path(__file__).parents[3] / "data" / noise_dir
         if not noise_dir.exists():
             msg = f"Noise directory {noise_dir} does not exist."
             raise FileNotFoundError(msg)
