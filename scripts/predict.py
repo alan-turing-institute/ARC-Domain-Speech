@@ -66,6 +66,14 @@ def main(
     # load other configs from experiment config
     trainer_cfg_pth = Path(CONFIG_DIR) / "training" / exp_config["training_config"]
 
+    # handle the case where model is trained with all domains so weights are stored in
+    # main folder of experiment
+    train_data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
+    with open(train_data_cfg_pth) as f:
+        train_data_cfg = yaml.safe_load(f)
+        train_type = train_data_cfg["domain_type"]
+
+    # override data config if specified for loading eval data
     if data_config is not None:
         exp_config["data_config"] = data_config
     data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
@@ -93,17 +101,18 @@ def main(
     with split_file.open() as file:
         data_split = yaml.safe_load(file)
 
-    model_path = (
-        MAIN_DIR
-        / "outputs"
-        / experiment_name
-        / split_name
-        / domain_name
-        / "trained_model_weights.safetensors"
+    experiment_folder = (
+        MAIN_DIR / "outputs" / experiment_name / split_name / domain_name
     )
 
+    # need to go up one level if model trained with all domains
+    if train_type == "all":
+        model_folder = Path(experiment_folder).parent
+    else:
+        model_folder = Path(experiment_folder)
+
     model = load_model_eval(
-        model_path=model_path,
+        model_path=model_folder / "trained_model_weights.safetensors",
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
         data_cfg=data_cfg,
@@ -118,7 +127,8 @@ def main(
         train_domain=train_domain,
     )
 
-    prediction_dir = Path(model_path).parent / "saved_predictions"
+    # directory for predictions should stay the same
+    prediction_dir = Path(experiment_folder) / "saved_predictions"
     prediction_dir.mkdir(parents=True, exist_ok=True)
 
     save_model_metadata(model, prediction_dir.parent)
@@ -169,8 +179,9 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help=(
-            "Dataset configuration file name located in configs/data/. Overrides"
-            " the one specified in the experiment configuration."
+            "Dataset configuration file name located in configs/data/. Overrides "
+            "the one specified in the experiment configuration. "
+            "eg. 'dihard_domain.yaml'"
         ),
     )
     parser.add_argument(
