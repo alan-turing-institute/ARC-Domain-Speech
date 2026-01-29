@@ -9,6 +9,12 @@ from dr_sad.utils import get_experiment_name
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
 EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
+CHUNK_SIZE = 25
+SAVE_NAMES = {
+    "ood": "out_of_domain.safetensors",
+    "val": "validation.safetensors",
+    "test": "test.safetensors",
+}
 
 
 def save_model_metadata(model: PyanNet, prediction_dir: Path) -> None:
@@ -40,7 +46,6 @@ def save_model_metadata(model: PyanNet, prediction_dir: Path) -> None:
 
 def main(
     experiment_config: str,
-    data_config: str | None = None,
     domain: int | None = None,
     split_idx: int = 0,
 ) -> None:
@@ -52,7 +57,6 @@ def main(
         model_path (str): Path to the trained model file (safetensors format).
         experiment_config (str): Name of the experiment configuration file located in
         configs/experiment/.
-        data_config (str): Name of the data configuration file located in configs/data/.
         domain (int | None, optional): Domain to use/exclude based on domain_type from
         data config. Defaults to None.
     """
@@ -71,10 +75,9 @@ def main(
     with open(train_data_cfg_pth) as f:
         train_data_cfg = yaml.safe_load(f)
         train_type = train_data_cfg["domain_type"]
+        if train_type == "single_domain" and domain is None:
+            SAVE_NAMES["test"] = "test_single.safetensors"
 
-    # override data config if specified for loading eval data
-    if data_config is not None:
-        exp_config["data_config"] = data_config
     data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
     model_cfg_pth = Path(CONFIG_DIR) / "model" / exp_config["model_config"]
 
@@ -85,7 +88,9 @@ def main(
     with open(model_cfg_pth) as f:
         model_cfg = yaml.safe_load(f)
 
-    domain_name = f"domain_{domain}" if domain is not None else ""
+    domain_name = (
+        f"domain_{domain}" if (domain is not None and train_type != "all") else ""
+    )
 
     split_file = (
         MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_names"][split_idx]
@@ -99,11 +104,7 @@ def main(
         MAIN_DIR / "outputs" / experiment_name / split_name / domain_name
     )
 
-    # need to go up one level if model trained with all domains
-    if train_type == "all":
-        model_folder = Path(experiment_folder).parent
-    else:
-        model_folder = Path(experiment_folder)
+    model_folder = Path(experiment_folder)
 
     model = load_model_eval(
         model_path=model_folder / "trained_model_weights.safetensors",
@@ -135,15 +136,15 @@ def main(
     save_predictions_chunked(
         model,
         validation_loader,
-        prediction_dir / "validation.safetensors",
-        chunk_size=25,
+        prediction_dir / SAVE_NAMES["val"],
+        chunk_size=CHUNK_SIZE,
     )
     print("Saving test predictions...")
     save_predictions_chunked(
         model,
         test_loader,
-        prediction_dir / "test.safetensors",
-        chunk_size=25,
+        prediction_dir / SAVE_NAMES["test"],
+        chunk_size=CHUNK_SIZE,
     )
 
     if domain_loader is not None:
@@ -151,8 +152,57 @@ def main(
         save_predictions_chunked(
             model,
             domain_loader,
-            prediction_dir / "out_of_domain.safetensors",
-            chunk_size=25,
+            prediction_dir / SAVE_NAMES["ood"],
+            chunk_size=CHUNK_SIZE,
+        )
+
+    if train_type == "all":
+        print("Saving 'single' domain outputs...")
+        # directory for predictions should stay the same
+        domain_prediction_dir = (
+            Path(experiment_folder) / f"domain_{domain}" / "saved_predictions"
+        )
+        domain_prediction_dir.mkdir(parents=True, exist_ok=True)
+        data_name = data_cfg["name"]
+        print(
+            f"Loading data configs for: {data_name} for domain-specific predictions..."
+        )
+        single_domain_name = f"{data_name}_single.yaml"
+        exclude_domain_name = f"{data_name}_domain.yaml"
+        with open(CONFIG_DIR / "data" / single_domain_name) as f:
+            single_domain_cfg = yaml.safe_load(f)
+        with open(CONFIG_DIR / "data" / exclude_domain_name) as f:
+            exclude_domain_cfg = yaml.safe_load(f)
+
+        _, test_loader, _ = load_data_eval(
+            data_cfg=single_domain_cfg,
+            data_split=data_split,
+            trainer_cfg=trainer_cfg,
+            exp_config=exp_config,
+            train_domain=domain,
+            exclude_domain=None,
+        )
+        save_predictions_chunked(
+            model,
+            test_loader,
+            domain_prediction_dir / "test_single.safetensors",
+            chunk_size=CHUNK_SIZE,
+        )
+
+        print("Saving 'all_except' domain outputs...")
+        _, test_loader, _ = load_data_eval(
+            data_cfg=exclude_domain_cfg,
+            data_split=data_split,
+            trainer_cfg=trainer_cfg,
+            exp_config=exp_config,
+            train_domain=None,
+            exclude_domain=domain,
+        )
+        save_predictions_chunked(
+            model,
+            test_loader,
+            domain_prediction_dir / "test_all_except.safetensors",
+            chunk_size=CHUNK_SIZE,
         )
 
 
@@ -173,16 +223,6 @@ if __name__ == "__main__":
         help="Index of the data split to use, read from data config file",
     )
     parser.add_argument(
-        "--data-config",
-        type=str,
-        default=None,
-        help=(
-            "Dataset configuration file name located in configs/data/. Overrides "
-            "the one specified in the experiment configuration. "
-            "eg. 'dihard_domain.yaml'"
-        ),
-    )
-    parser.add_argument(
         "--domain",
         type=int,
         default=None,
@@ -193,7 +233,6 @@ if __name__ == "__main__":
 
     main(
         experiment_config=args.experiment_config,
-        data_config=args.data_config,
         domain=args.domain,
         split_idx=args.split_idx,
     )
