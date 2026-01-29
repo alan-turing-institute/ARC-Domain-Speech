@@ -66,6 +66,9 @@ def main(
     with open(experiment_config_path) as f:
         exp_config = yaml.safe_load(f)
 
+    # default save names
+    save_names = dict(SAVE_NAMES)
+
     # load other configs from experiment config
     trainer_cfg_pth = Path(CONFIG_DIR) / "training" / exp_config["training_config"]
 
@@ -76,7 +79,7 @@ def main(
         train_data_cfg = yaml.safe_load(f)
         train_type = train_data_cfg["domain_type"]
         if train_type == "single_domain" and domain is None:
-            SAVE_NAMES["test"] = "test_single.safetensors"
+            save_names["test"] = "test_single.safetensors"
 
     data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
     model_cfg_pth = Path(CONFIG_DIR) / "model" / exp_config["model_config"]
@@ -136,14 +139,14 @@ def main(
     save_predictions_chunked(
         model,
         validation_loader,
-        prediction_dir / SAVE_NAMES["val"],
+        prediction_dir / save_names["val"],
         chunk_size=CHUNK_SIZE,
     )
     print("Saving test predictions...")
     save_predictions_chunked(
         model,
         test_loader,
-        prediction_dir / SAVE_NAMES["test"],
+        prediction_dir / save_names["test"],
         chunk_size=CHUNK_SIZE,
     )
 
@@ -152,11 +155,11 @@ def main(
         save_predictions_chunked(
             model,
             domain_loader,
-            prediction_dir / SAVE_NAMES["ood"],
+            prediction_dir / save_names["ood"],
             chunk_size=CHUNK_SIZE,
         )
 
-    if train_type == "all":
+    if train_type == "all" and domain is not None:
         print("Saving 'single' domain outputs...")
         # directory for predictions should stay the same
         domain_prediction_dir = (
