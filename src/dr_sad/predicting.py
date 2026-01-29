@@ -37,7 +37,9 @@ def _save_chunk_safetensors(
     save_file(chunk_predictions, chunk_path)
 
 
-def _combine_chunks_safetensors(output_path: Path, num_chunks: int) -> None:
+def _combine_chunks_safetensors(
+    output_path: Path, num_chunks: int
+) -> dict[str, torch.Tensor]:
     """
     Combine all chunk files into a single safetensors file.
 
@@ -48,7 +50,8 @@ def _combine_chunks_safetensors(output_path: Path, num_chunks: int) -> None:
     """
 
     if num_chunks == 0:
-        return
+        err_msg = "No chunks to combine."
+        raise ValueError(err_msg)
 
     if num_chunks == 1:
         # If only one chunk, just rename it
@@ -88,7 +91,7 @@ def save_predictions_chunked(
         chunk_size (int, optional): Number of predictions per chunk. Defaults to 50.
 
     Returns:
-        None
+        dict[str, torch.Tensor]: Combined predictions from all chunks.
     """
 
     model.eval()

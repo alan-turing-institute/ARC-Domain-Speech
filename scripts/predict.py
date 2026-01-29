@@ -1,14 +1,19 @@
 from pathlib import Path
 
+import numpy as np
 import yaml
+from safetensors.torch import load_file, save_file
 
+from dr_sad.data.data_fetching import DOMAIN_SETTINGS
 from dr_sad.predicting import load_data_eval, load_model_eval, save_predictions_chunked
 from dr_sad.pyannet import PyanNet
 from dr_sad.utils import get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = MAIN_DIR / "data"
 CONFIG_DIR = MAIN_DIR / "configs"
 EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
+
 CHUNK_SIZE = 25
 SAVE_NAMES = {
     "ood": "out_of_domain.safetensors",
@@ -159,54 +164,93 @@ def main(
             chunk_size=CHUNK_SIZE,
         )
 
-    if train_type == "all" and domain is not None:
-        print("Saving 'single' domain outputs...")
-        # directory for predictions should stay the same
-        domain_prediction_dir = (
-            Path(experiment_folder) / f"domain_{domain}" / "saved_predictions"
-        )
-        domain_prediction_dir.mkdir(parents=True, exist_ok=True)
+    if train_type == "all":
+        print("Saving domain outputs...")
         data_name = data_cfg["name"]
-        print(
-            f"Loading data configs for: {data_name} for domain-specific predictions..."
-        )
-        single_domain_name = f"{data_name}_single.yaml"
-        exclude_domain_name = f"{data_name}_domain.yaml"
-        with open(CONFIG_DIR / "data" / single_domain_name) as f:
-            single_domain_cfg = yaml.safe_load(f)
-        with open(CONFIG_DIR / "data" / exclude_domain_name) as f:
-            exclude_domain_cfg = yaml.safe_load(f)
+        domains = DOMAIN_SETTINGS[data_name]["domains_idx"]
+        test_predictions = load_file(prediction_dir / save_names["test"])
 
-        _, test_loader, _ = load_data_eval(
-            data_cfg=single_domain_cfg,
-            data_split=data_split,
-            trainer_cfg=trainer_cfg,
-            exp_config=exp_config,
-            train_domain=domain,
-            exclude_domain=None,
-        )
-        save_predictions_chunked(
-            model,
-            test_loader,
-            domain_prediction_dir / "test_single.safetensors",
-            chunk_size=CHUNK_SIZE,
-        )
+        for d_name, d_idx in domains.items():
+            # directory for predictions
+            domain_prediction_dir = (
+                Path(experiment_folder) / f"domain_{d_idx}" / "saved_predictions"
+            )
+            domain_prediction_dir.mkdir(parents=True, exist_ok=True)
+            data_sources_pth = DATA_DIR / data_name / "sources.tbl"
+            data_sources = np.loadtxt(
+                data_sources_pth,
+                delimiter="\t",
+                skiprows=1,
+                dtype=str,
+                usecols=(0, 2),
+            )
 
-        print("Saving 'all_except' domain outputs...")
-        _, test_loader, _ = load_data_eval(
-            data_cfg=exclude_domain_cfg,
-            data_split=data_split,
-            trainer_cfg=trainer_cfg,
-            exp_config=exp_config,
-            train_domain=None,
-            exclude_domain=domain,
-        )
-        save_predictions_chunked(
-            model,
-            test_loader,
-            domain_prediction_dir / "test_all_except.safetensors",
-            chunk_size=CHUNK_SIZE,
-        )
+            single_dom_rows = np.array(data_sources[:, 1] == d_name).flatten()
+            single_domain_file_ids = data_sources[single_dom_rows, 0].flatten().tolist()
+            all_exc_rows = ~single_dom_rows  # invert mask for the all_except domain
+            all_except_file_ids = data_sources[all_exc_rows, 0].flatten().tolist()
+
+            # Save single domain predictions
+            single_domain_results = {}
+            all_except_results = {}
+            single_output_path = domain_prediction_dir / "single.safetensors"
+            all_except_output_path = domain_prediction_dir / "all_except.safetensors"
+
+            for file_id in test_predictions:
+                if file_id in single_domain_file_ids:
+                    single_domain_results[file_id] = test_predictions[file_id]
+                if file_id in all_except_file_ids:
+                    all_except_results[file_id] = test_predictions[file_id]
+
+            save_file(single_domain_results, single_output_path)
+            save_file(all_except_results, all_except_output_path)
+
+            # Create symlink to validation.safetensors
+            validation_source = prediction_dir / save_names["val"]
+            validation_symlink = domain_prediction_dir / save_names["val"]
+            if validation_source.exists() and not validation_symlink.exists():
+                validation_symlink.symlink_to(validation_source)
+
+        # print(
+        #     f"Loading data configs for: {data_name} for domain-specific predictions..."
+        # )
+        # single_domain_name = f"{data_name}_single.yaml"
+        # exclude_domain_name = f"{data_name}_domain.yaml"
+        # with open(CONFIG_DIR / "data" / single_domain_name) as f:
+        #     single_domain_cfg = yaml.safe_load(f)
+        # with open(CONFIG_DIR / "data" / exclude_domain_name) as f:
+        #     exclude_domain_cfg = yaml.safe_load(f)
+
+        # _, test_loader, _ = load_data_eval(
+        #     data_cfg=single_domain_cfg,
+        #     data_split=data_split,
+        #     trainer_cfg=trainer_cfg,
+        #     exp_config=exp_config,
+        #     train_domain=domain,
+        #     exclude_domain=None,
+        # )
+        # save_predictions_chunked(
+        #     model,
+        #     test_loader,
+        #     domain_prediction_dir / "test_single.safetensors",
+        #     chunk_size=CHUNK_SIZE,
+        # )
+
+        # print("Saving 'all_except' domain outputs...")
+        # _, test_loader, _ = load_data_eval(
+        #     data_cfg=exclude_domain_cfg,
+        #     data_split=data_split,
+        #     trainer_cfg=trainer_cfg,
+        #     exp_config=exp_config,
+        #     train_domain=None,
+        #     exclude_domain=domain,
+        # )
+        # save_predictions_chunked(
+        #     model,
+        #     test_loader,
+        #     domain_prediction_dir / "test_all_except.safetensors",
+        #     chunk_size=CHUNK_SIZE,
+        # )
 
 
 if __name__ == "__main__":
