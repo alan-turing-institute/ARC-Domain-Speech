@@ -80,9 +80,10 @@ class TestCombineChunksSafetensors:
     """Tests for _combine_chunks_safetensors function."""
 
     def test_combine_zero_chunks(self, tmp_path):
-        """Test that combining zero chunks does nothing."""
+        """Test that combining zero chunks does nothing and raises error."""
         output_path = tmp_path / "predictions.safetensors"
-        _combine_chunks_safetensors(output_path, num_chunks=0)
+        with pytest.raises(ValueError, match=r"No chunks to combine."):
+            _combine_chunks_safetensors(output_path, num_chunks=0)
         assert not output_path.exists()
 
     def test_combine_multiple_chunks(self, tmp_path):

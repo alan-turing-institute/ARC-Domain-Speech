@@ -37,9 +37,7 @@ def _save_chunk_safetensors(
     save_file(chunk_predictions, chunk_path)
 
 
-def _combine_chunks_safetensors(
-    output_path: Path, num_chunks: int
-) -> dict[str, torch.Tensor]:
+def _combine_chunks_safetensors(output_path: Path, num_chunks: int) -> None:
     """
     Combine all chunk files into a single safetensors file.
 

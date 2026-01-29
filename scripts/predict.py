@@ -211,47 +211,6 @@ def main(
             if validation_source.exists() and not validation_symlink.exists():
                 validation_symlink.symlink_to(validation_source)
 
-        # print(
-        #     f"Loading data configs for: {data_name} for domain-specific predictions..."
-        # )
-        # single_domain_name = f"{data_name}_single.yaml"
-        # exclude_domain_name = f"{data_name}_domain.yaml"
-        # with open(CONFIG_DIR / "data" / single_domain_name) as f:
-        #     single_domain_cfg = yaml.safe_load(f)
-        # with open(CONFIG_DIR / "data" / exclude_domain_name) as f:
-        #     exclude_domain_cfg = yaml.safe_load(f)
-
-        # _, test_loader, _ = load_data_eval(
-        #     data_cfg=single_domain_cfg,
-        #     data_split=data_split,
-        #     trainer_cfg=trainer_cfg,
-        #     exp_config=exp_config,
-        #     train_domain=domain,
-        #     exclude_domain=None,
-        # )
-        # save_predictions_chunked(
-        #     model,
-        #     test_loader,
-        #     domain_prediction_dir / "test_single.safetensors",
-        #     chunk_size=CHUNK_SIZE,
-        # )
-
-        # print("Saving 'all_except' domain outputs...")
-        # _, test_loader, _ = load_data_eval(
-        #     data_cfg=exclude_domain_cfg,
-        #     data_split=data_split,
-        #     trainer_cfg=trainer_cfg,
-        #     exp_config=exp_config,
-        #     train_domain=None,
-        #     exclude_domain=domain,
-        # )
-        # save_predictions_chunked(
-        #     model,
-        #     test_loader,
-        #     domain_prediction_dir / "test_all_except.safetensors",
-        #     chunk_size=CHUNK_SIZE,
-        # )
-
 
 if __name__ == "__main__":
     import argparse
