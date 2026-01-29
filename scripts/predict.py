@@ -211,6 +211,12 @@ def main(
             if validation_source.exists() and not validation_symlink.exists():
                 validation_symlink.symlink_to(validation_source)
 
+            # Create symlink to model metadata for the analysis scripts
+            metadata_source = prediction_dir.parent / "model_metadata.yaml"
+            metadata_symlink = metadata_source
+            if metadata_source.exists() and not metadata_symlink.exists():
+                metadata_symlink.symlink_to(metadata_source)
+
 
 if __name__ == "__main__":
     import argparse
