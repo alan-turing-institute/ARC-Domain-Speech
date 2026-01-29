@@ -41,21 +41,20 @@ def save_model_metadata(model: PyanNet, prediction_dir: Path) -> None:
 def main(
     experiment_config: str,
     data_config: str | None = None,
-    exclude_domain: int | None = None,
-    train_domain: int | None = None,
+    domain: int | None = None,
     split_idx: int = 0,
 ) -> None:
     """
     Runs prediction using a trained model on a specified dataset, with optional domain
-    exclusion.
+    specification.
 
     Args:
         model_path (str): Path to the trained model file (safetensors format).
         experiment_config (str): Name of the experiment configuration file located in
         configs/experiment/.
         data_config (str): Name of the data configuration file located in configs/data/.
-        exclude_domain (int | None, optional): Domain to exclude when domain_type is
-        'exclude_one'. Defaults to None.
+        domain (int | None, optional): Domain to use/exclude based on domain_type from
+        data config. Defaults to None.
     """
     experiment_name, experiment_config_path = get_experiment_name(
         experiment_config, EXP_CONFIG_DIR
@@ -86,12 +85,7 @@ def main(
     with open(model_cfg_pth) as f:
         model_cfg = yaml.safe_load(f)
 
-    if exclude_domain is not None:
-        domain_name = f"domain_{exclude_domain}"
-    elif train_domain is not None:
-        domain_name = f"domain_{train_domain}"
-    else:
-        domain_name = ""
+    domain_name = f"domain_{domain}" if domain is not None else ""
 
     split_file = (
         MAIN_DIR / "data" / data_cfg["name"] / data_cfg["split_names"][split_idx]
@@ -117,6 +111,10 @@ def main(
         trainer_cfg=trainer_cfg,
         data_cfg=data_cfg,
     )
+
+    # Determine how to use domain based on training type
+    exclude_domain = domain if train_type == "exclude_one" else None
+    train_domain = domain if train_type == "single_domain" else None
 
     validation_loader, test_loader, domain_loader = load_data_eval(
         data_cfg=data_cfg,
@@ -185,16 +183,10 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
-        "--exclude-domain",
+        "--domain",
         type=int,
         default=None,
-        help="Domain to exclude when domain_type is 'exclude_one'",
-    )
-    parser.add_argument(
-        "--train-domain",
-        type=int,
-        default=None,
-        help="Domain to use when domain_type is 'single_domain'",
+        help="Domain to use/exclude based on domain_type from experiment config",
     )
 
     args = parser.parse_args()
@@ -202,7 +194,6 @@ if __name__ == "__main__":
     main(
         experiment_config=args.experiment_config,
         data_config=args.data_config,
-        exclude_domain=args.exclude_domain,
-        train_domain=args.train_domain,
+        domain=args.domain,
         split_idx=args.split_idx,
     )
