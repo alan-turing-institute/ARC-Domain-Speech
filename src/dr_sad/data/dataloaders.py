@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader, Dataset
 
+from dr_sad.data.noise import NoiseBuilder, generate_noise_kwargs_list
 from dr_sad.data.sampler import StratifiedSampler
 from dr_sad.data.splitting import stratified_splitter
 from dr_sad.data.utils import collate_padded
@@ -32,6 +33,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         domain: int | None = None,
         time_slice: float | None = None,
         sample_rate: int = 16_000,
+        noise_kwargs: dict[str, Any] | None = None,
     ) -> None:
         """
         Initialize the DrSadDataset.
@@ -43,13 +45,33 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         The waveforms that are longer than the specified length split into multiple
         segments of the specified length positioning them in the mid point.
 
+        Noise augmentation can be added by providing noise_kwargs.
+
         Args:
             data (pd.DataFrame): The data to use for the dataset.
             domain (int, optional): The domain index for the dataset.
             time_slice (float, optional): Cut the waveforms to this length in seconds.
             sample_rate (int, optional): The sample rate of the waveforms.
                 Defaults to 16_000 Hz.
+            noise_kwargs: (dict, optional): Keyword arguments for adding noise.
+                Defaults to None, which means no noise is added.
+                - noise_dir (Path | str): The directory containing noise audio files.
+                - snr_db (float, tuple[float, float]): The desired signal-to-noise ratio
+                    in decibels (dB).
+                - simultaneous (int, optional): The number of noise files to use.
+                - start_choice (bool, optional): Randomise starting point for cropping.
+                - noise_files_list (list[str], optional): Specific noise file names.
         """
+        self.noise_kwargs = noise_kwargs
+        if noise_kwargs is not None:
+            noise_builder = NoiseBuilder(**noise_kwargs)
+            augmented_waveforms = pd.Series(dtype=object)
+            for key, waveform in data["waveforms"].items():
+                augmented_waveforms.loc[key] = noise_builder.add_noise(waveform)
+            # Replace the original waveforms with the augmented ones
+            data = data.copy()
+            data["waveforms"] = augmented_waveforms
+
         if time_slice is not None:
             if time_slice <= 0:
                 msg = "time_slice must be a positive value in seconds."
@@ -108,6 +130,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         domain: int,
         time_slice: float | None = None,
         sample_rate: int = 16_000,
+        noise_kwargs: dict[str, Any] | None = None,
     ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset"]:
         """
         Create a DrSadDataset for the target domain.
@@ -121,6 +144,8 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             time_slice (float, optional): Cut the waveforms to this length in seconds.
             sample_rate (int, optional): The sample rate of the waveforms.
                 Defaults to 16_000 Hz.
+            noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+                addition. Defaults to None.
         Returns:
             train (DrSadDataset): Training dataset of the specified domain.
             val (DrSadDataset): Validation dataset of the specified domain.
@@ -140,24 +165,31 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         train_data = data.loc[list(set(train_keys) & set(domain_keys))]
         val_data = data.loc[list(set(val_keys) & set(domain_keys))]
         test_data = data.loc[list(set(test_keys) & set(domain_keys))]
+
+        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
+            generate_noise_kwargs_list(noise_kwargs, 3)
+        )
         return (
             cls(
                 train_data,
                 domain=domain,
                 time_slice=time_slice,
                 sample_rate=sample_rate,
+                noise_kwargs=train_noise_kwargs,
             ),
             cls(
                 val_data,
                 domain=domain,
                 time_slice=time_slice,
                 sample_rate=sample_rate,
+                noise_kwargs=val_noise_kwargs,
             ),
             cls(
                 test_data,
                 domain=domain,
                 time_slice=time_slice,
                 sample_rate=sample_rate,
+                noise_kwargs=test_noise_kwargs,
             ),
         )
 
@@ -171,6 +203,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         domain: int,
         time_slice: float | None = None,
         sample_rate: int = 16_000,
+        noise_kwargs: dict[str, Any] | None = None,
     ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset", "DrSadDataset"]:
         """
         Create a DrSadDataset for a specific domain.
@@ -184,6 +217,8 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             time_slice (float, optional): Cut the waveforms to this length in seconds.
             sample_rate (int, optional): The sample rate of the waveforms.
                 Defaults to 16_000 Hz.
+            noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+                addition. Defaults to None.
 
         Returns:
             train (DrSadDataset): Training dataset excluding the specified domain.
@@ -203,30 +238,39 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         val_data = data.loc[list(set(val_keys) - set(domain_keys))]
         test_data = data.loc[list(set(test_keys) - set(domain_keys))]
         domain_data = data.loc[domain_keys]
+
+        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs, domain_noise_kwargs = (
+            generate_noise_kwargs_list(noise_kwargs, 4)
+        )
+
         return (
             cls(
                 train_data,
                 domain=domain,
                 time_slice=time_slice,
                 sample_rate=sample_rate,
+                noise_kwargs=train_noise_kwargs,
             ),
             cls(
                 val_data,
                 domain=domain,
                 time_slice=time_slice,
                 sample_rate=sample_rate,
+                noise_kwargs=val_noise_kwargs,
             ),
             cls(
                 test_data,
                 domain=domain,
                 time_slice=time_slice,
                 sample_rate=sample_rate,
+                noise_kwargs=test_noise_kwargs,
             ),
             cls(
                 domain_data,
                 domain=domain,
                 time_slice=time_slice,
                 sample_rate=sample_rate,
+                noise_kwargs=domain_noise_kwargs,
             ),
         )
 
@@ -239,6 +283,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         test_keys: list[str],
         time_slice: float | None = None,
         sample_rate: int = 16_000,
+        noise_kwargs: dict[str, Any] | None = None,
     ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset"]:
         """
         Create training, validation, and test datasets from splitting keys.
@@ -251,6 +296,8 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             time_slice (float, optional): Cut the waveforms to this length in seconds.
             sample_rate (int, optional): The sample rate of the waveforms.
                 Defaults to 16_000 Hz.
+            noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+                addition. Defaults to None.
 
         Returns:
             train (DrSadDataset): Training dataset.
@@ -260,10 +307,29 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         train_data = data.loc[train_keys]
         val_data = data.loc[val_keys]
         test_data = data.loc[test_keys]
+
+        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
+            generate_noise_kwargs_list(noise_kwargs, 3)
+        )
         return (
-            cls(train_data, time_slice=time_slice, sample_rate=sample_rate),
-            cls(val_data, time_slice=time_slice, sample_rate=sample_rate),
-            cls(test_data, time_slice=time_slice, sample_rate=sample_rate),
+            cls(
+                train_data,
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+                noise_kwargs=train_noise_kwargs,
+            ),
+            cls(
+                val_data,
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+                noise_kwargs=val_noise_kwargs,
+            ),
+            cls(
+                test_data,
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+                noise_kwargs=test_noise_kwargs,
+            ),
         )
 
     @classmethod
@@ -275,6 +341,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         random_seed: int | None = None,
         time_slice: float | None = None,
         sample_rate: int = 16_000,
+        noise_kwargs: dict[str, Any] | None = None,
     ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset"]:
         """
         Split the dataset into training, validation, and test sets.
@@ -287,6 +354,8 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             time_slice (float, optional): Cut the waveforms to this length in seconds.
             sample_rate (int, optional): The sample rate of the waveforms.
                 Defaults to 16_000 Hz.
+            noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+                addition. Defaults to None.
 
         Returns:
             train (DrSadDataset): Training dataset.
@@ -304,12 +373,30 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             test_ratio=test_ratio,
             random_seed=random_seed,
         )
+        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
+            generate_noise_kwargs_list(noise_kwargs, 3)
+        )
 
         # Create DrSadDataset objects
         return (
-            cls(data.loc[train_keys], time_slice=time_slice, sample_rate=sample_rate),
-            cls(data.loc[val_keys], time_slice=time_slice, sample_rate=sample_rate),
-            cls(data.loc[test_keys], time_slice=time_slice, sample_rate=sample_rate),
+            cls(
+                data.loc[train_keys],
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+                noise_kwargs=train_noise_kwargs,
+            ),
+            cls(
+                data.loc[val_keys],
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+                noise_kwargs=val_noise_kwargs,
+            ),
+            cls(
+                data.loc[test_keys],
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+                noise_kwargs=test_noise_kwargs,
+            ),
         )
 
     def __len__(self):
@@ -367,6 +454,7 @@ def train_test_split_dataloaders(
     random_seed: int | None = None,
     time_slice: float | None = None,
     sample_rate: int = 16_000,
+    noise_kwargs: dict[str, Any] | None = None,
     dataloader_kwargs: dict[str, Any] | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Create dataloaders for training, validation, and testing.
@@ -385,6 +473,8 @@ def train_test_split_dataloaders(
         time_slice (float, optional): Cut the waveforms to this length in seconds.
         sample_rate (int, optional): The sample rate of the waveforms.
             Defaults to 16_000 Hz.
+        noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+            addition. Defaults to None.
         dataloader_kwargs (dict, optional): Additional keyword arguments to pass
             to the DataLoader constructor. Defaults to {}.
 
@@ -403,6 +493,7 @@ def train_test_split_dataloaders(
         random_seed=random_seed,
         time_slice=time_slice,
         sample_rate=sample_rate,
+        noise_kwargs=noise_kwargs,
     )
     if random_seed is None:
         random_seed = np.random.randint(0, 1_000_000)
@@ -441,6 +532,7 @@ def from_keys_dataloaders(
     random_seed: int | None = None,
     time_slice: float | None = None,
     sample_rate: int = 16_000,
+    noise_kwargs: dict[str, Any] | None = None,
     dataloader_kwargs: dict[str, Any] | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Create dataloaders for training, validation, and testing from keys.
@@ -458,6 +550,8 @@ def from_keys_dataloaders(
         time_slice (float, optional): Cut the waveforms to this length in seconds.
         sample_rate (int, optional): The sample rate of the waveforms.
             Defaults to 16_000 Hz.
+        noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+            addition. Defaults to None.
         dataloader_kwargs (dict, optional): Additional keyword arguments to pass
             to the DataLoader constructor. Defaults to {}.
 
@@ -476,6 +570,7 @@ def from_keys_dataloaders(
         test_keys,
         time_slice=time_slice,
         sample_rate=sample_rate,
+        noise_kwargs=noise_kwargs,
     )
     if random_seed is None:
         random_seed = np.random.randint(0, 1_000_000)
@@ -515,6 +610,7 @@ def single_domain_dataloaders(
     random_seed: int | None = None,
     time_slice: float | None = None,
     sample_rate: int = 16_000,
+    noise_kwargs: dict[str, Any] | None = None,
     dataloader_kwargs: dict[str, Any] | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Create dataloaders for training, validation, testing, and a specific domain.
@@ -533,6 +629,8 @@ def single_domain_dataloaders(
         time_slice (float, optional): Cut the waveforms to this length in seconds.
         sample_rate (int, optional): The sample rate of the waveforms.
             Defaults to 16_000 Hz.
+        noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+            addition. Defaults to None.
         dataloader_kwargs (dict, optional): Additional keyword arguments to pass
             to the DataLoader constructor. Defaults to {}.
 
@@ -552,6 +650,7 @@ def single_domain_dataloaders(
         domain,
         time_slice=time_slice,
         sample_rate=sample_rate,
+        noise_kwargs=noise_kwargs,
     )
     if random_seed is None:
         random_seed = np.random.randint(0, 1_000_000)
@@ -591,6 +690,7 @@ def domain_split_dataloaders(
     random_seed: int | None = None,
     time_slice: float | None = None,
     sample_rate: int = 16_000,
+    noise_kwargs: dict[str, Any] | None = None,
     dataloader_kwargs: dict[str, Any] | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
     """Create dataloaders for training, validation, testing, and a specific domain.
@@ -609,6 +709,8 @@ def domain_split_dataloaders(
         time_slice (float, optional): Cut the waveforms to this length in seconds.
         sample_rate (int, optional): The sample rate of the waveforms.
             Defaults to 16_000 Hz.
+        noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+            addition. Defaults to None.
         dataloader_kwargs (dict, optional): Additional keyword arguments to pass
             to the DataLoader constructor. Defaults to {}.
 
@@ -629,6 +731,7 @@ def domain_split_dataloaders(
         domain,
         time_slice=time_slice,
         sample_rate=sample_rate,
+        noise_kwargs=noise_kwargs,
     )
     if random_seed is None:
         random_seed = np.random.randint(0, 1_000_000)
@@ -671,6 +774,7 @@ def one_test_dataloader(
     batch_size: int = 4,
     time_slice: float | None = None,
     sample_rate: int = 16_000,
+    noise_kwargs: dict[str, Any] | None = None,
     dataloader_kwargs: dict[str, Any] | None = None,
 ) -> DataLoader:
     """Create a dataloader for testing only.
@@ -686,6 +790,8 @@ def one_test_dataloader(
         time_slice (float, optional): Cut the waveforms to this length in seconds.
         sample_rate (int, optional): The sample rate of the waveforms.
             Defaults to 16_000 Hz.
+        noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+            addition. Defaults to None.
         dataloader_kwargs (dict, optional): Additional keyword arguments to pass
             to the DataLoader constructor. Defaults to {}.
 
@@ -701,6 +807,7 @@ def one_test_dataloader(
         domain=domain,
         time_slice=time_slice,
         sample_rate=sample_rate,
+        noise_kwargs=noise_kwargs,
     )
 
     # Create dataloader

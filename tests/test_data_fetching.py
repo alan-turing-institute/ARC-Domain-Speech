@@ -43,10 +43,10 @@ class TestRemoveOverlap:
 
 
 class TestFullFilePull:
-    def test_full_file_pull(self, test_dataset):
+    def test_full_file_pull(self, example_dataset):
         file_id = "TEST_0001"
         d_idx = 0
-        data_dir_loc = str(test_dataset)
+        data_dir_loc = str(example_dataset)
 
         result = data_fetching.full_file_pull(file_id, d_idx, data_dir_loc)
 
@@ -70,11 +70,11 @@ class TestFullFilePull:
 
 
 class TestLoadData:
-    def test_load_test_dataset(self, test_dataset):
+    def test_load_test_dataset(self, example_dataset):
         """Test loading the test dataset using the fixture."""
         df = data_fetching.load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
@@ -102,26 +102,26 @@ class TestLoadData:
         assert first_annotations[0] == (0.5, 1.0)
         assert first_annotations[1] == (1.5, 2.0)
 
-    def test_loaded_data_includes_file_ids(self, test_dataset):
+    def test_loaded_data_includes_file_ids(self, example_dataset):
         """Test that loaded data includes file IDs."""
         df = data_fetching.load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
         )
 
         # Check that 'file_id' column exists and has correct values
-        sources = pd.read_csv(test_dataset / "sources.tbl", index_col=0, sep="\t")
+        sources = pd.read_csv(example_dataset / "sources.tbl", index_col=0, sep="\t")
         expected_file_ids = sorted(sources.index.tolist())
         loaded_file_ids = sorted(df.index.tolist())
         assert loaded_file_ids == expected_file_ids
 
-    def test_load_data_with_num_workers(self, test_dataset):
+    def test_load_data_with_num_workers(self, example_dataset):
         """Test loading data with multiple workers."""
         df = data_fetching.load_data(
             data_choice=None,
-            data_set_path=test_dataset,
+            data_set_path=example_dataset,
             domain_column="domain",
             domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
             num_workers=4,
@@ -133,7 +133,7 @@ class TestLoadData:
 
         indexes = sorted(
             pd.read_csv(
-                test_dataset / "sources.tbl", index_col=0, sep="\t"
+                example_dataset / "sources.tbl", index_col=0, sep="\t"
             ).index.tolist()
         )
 
@@ -145,23 +145,23 @@ class TestLoadData:
         with pytest.raises(ValueError, match="Either data_choice or data_set_path"):
             data_fetching.load_data(data_choice=None, data_set_path=None)
 
-    def test_missing_domain_column_raises(self, test_dataset):
+    def test_missing_domain_column_raises(self, example_dataset):
         """If domain_column is None when data_choice is None, raise ValueError."""
 
         with pytest.raises(ValueError, match="domain_column must be provided"):
             data_fetching.load_data(
                 data_choice=None,
-                data_set_path=test_dataset,
+                data_set_path=example_dataset,
                 domain_column=None,
                 domains_idx={"AAA": 0},
             )
 
-    def test_missing_domains_idx_raises(self, test_dataset):
+    def test_missing_domains_idx_raises(self, example_dataset):
         """If domains_idx is None when data_choice is None, raise ValueError."""
         with pytest.raises(ValueError, match="domains_idx must be provided"):
             data_fetching.load_data(
                 data_choice=None,
-                data_set_path=test_dataset,
+                data_set_path=example_dataset,
                 domain_column="domain",
                 domains_idx=None,
             )

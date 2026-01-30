@@ -339,6 +339,7 @@ class TestLoadDataEval:
                 test_keys=split_data["test"],
                 batch_size=16,
                 random_seed=42,
+                noise_kwargs=None,
             )
 
             # Verify return values
@@ -398,6 +399,7 @@ class TestLoadDataEval:
                 domain=0,
                 batch_size=16,
                 random_seed=42,
+                noise_kwargs=None,
             )
 
             # Verify return values

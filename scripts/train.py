@@ -89,6 +89,7 @@ def main(args) -> None:
             batch_size=batch_size,
             time_slice=time_slice,
             random_seed=exp_config["random_seed"],
+            noise_kwargs=data_cfg.get("noise_augmentation"),
         )
     elif data_cfg["domain_type"] == "single_domain":
         if args.train_domain is None:
@@ -116,6 +117,7 @@ def main(args) -> None:
             batch_size=batch_size,
             time_slice=time_slice,
             random_seed=exp_config["random_seed"],
+            noise_kwargs=data_cfg.get("noise_augmentation"),
         )
 
     elif data_cfg["domain_type"] == "exclude_one":
@@ -140,6 +142,7 @@ def main(args) -> None:
             batch_size=batch_size,
             time_slice=time_slice,
             random_seed=exp_config["random_seed"],
+            noise_kwargs=data_cfg.get("noise_augmentation"),
         )
     else:
         err_msg = f"Unknown domain_type option: {data_cfg['domain_type']}"
@@ -201,6 +204,7 @@ def main(args) -> None:
                 data,
                 data_keys=data_split["test"],
                 batch_size=full_batch_size,
+                noise_kwargs=data_cfg.get("noise_augmentation"),
             )
             results["in_domain_test_full"] = trainer.test(model, full_test_loader)[0]
             results["out_of_domain_test_full"] = None
@@ -212,6 +216,7 @@ def main(args) -> None:
                 data,
                 data_keys=test_only_target_keys,
                 batch_size=full_batch_size,
+                noise_kwargs=data_cfg.get("noise_augmentation"),
             )
             results["in_domain_test_full"] = trainer.test(model, full_test_loader)[0]
 
@@ -222,12 +227,14 @@ def main(args) -> None:
                 data,
                 data_keys=test_without_domain_keys,
                 batch_size=full_batch_size,
+                noise_kwargs=data_cfg.get("noise_augmentation"),
             )
             results["in_domain_test_full"] = trainer.test(model, full_test_loader)[0]
             full_domain_loader = one_test_dataloader(
                 data,
                 data_keys=domain_keys,
                 batch_size=full_batch_size,
+                noise_kwargs=data_cfg.get("noise_augmentation"),
             )
             results["out_of_domain_test_full"] = trainer.test(
                 model, full_domain_loader
