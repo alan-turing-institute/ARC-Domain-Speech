@@ -212,16 +212,16 @@ def main(
             save_file(all_except_results, all_except_output_path)
 
             # Create symlink to validation.safetensors
-            validation_source = prediction_dir / save_names["val"]
             validation_symlink = domain_prediction_dir / save_names["val"]
-            if validation_source.exists() and not validation_symlink.exists():
-                validation_symlink.symlink_to(validation_source)
+            val_relative_path = Path("..", "..", "saved_predictions", save_names["val"])
+            validation_symlink.unlink(missing_ok=True)
+            validation_symlink.symlink_to(val_relative_path)
 
             # Create symlink to model metadata for the analysis scripts
-            metadata_source = prediction_dir.parent / "model_metadata.yaml"
-            metadata_symlink = metadata_source
-            if metadata_source.exists() and not metadata_symlink.exists():
-                metadata_symlink.symlink_to(metadata_source)
+            metadata_symlink = domain_prediction_dir.parent / "model_metadata.yaml"
+            metadata_relative_path = Path("..", "model_metadata.yaml")
+            metadata_symlink.unlink(missing_ok=True)
+            metadata_symlink.symlink_to(metadata_relative_path)
 
 
 if __name__ == "__main__":
