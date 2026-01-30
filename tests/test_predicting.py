@@ -455,6 +455,7 @@ class TestLoadDataEval:
                 domain=2,
                 batch_size=16,
                 random_seed=42,
+                noise_kwargs=None,
             )
 
             # Verify return values
