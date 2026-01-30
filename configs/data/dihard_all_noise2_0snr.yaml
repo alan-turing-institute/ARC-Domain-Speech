@@ -1,0 +1,14 @@
+# Dataset configuration
+name: dihard
+split_names:
+  - split_A.yaml
+  - split_B.yaml
+  - split_C.yaml
+  - split_D.yaml
+  - split_E.yaml
+domain_type: all
+noise_augmentation:
+  noise_dir: musan/noise
+  snr_db: 0.0
+  simultaneous: 2
+  seed: 1337

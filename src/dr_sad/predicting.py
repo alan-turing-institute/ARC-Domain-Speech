@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import torch
 from safetensors.torch import load_file, save_file
@@ -155,7 +156,7 @@ def load_model_eval(
 
 
 def load_data_eval(
-    data_cfg: dict[str, str],
+    data_cfg: dict[str, Any],
     data_split: dict[str, list[str]],
     trainer_cfg: dict[str, str | int | float],
     exp_config: dict[str, str | int | float],
@@ -166,7 +167,7 @@ def load_data_eval(
     Load evaluation DataLoaders based on the provided configuration and data split.
 
     Args:
-        data_cfg (dict[str, str]): Configuration dictionary for the dataset,
+        data_cfg (dict[str, Any]): Configuration dictionary for the dataset,
             must include 'name', 'split_name', and 'domain_type' keys.
         data_split (dict[str, list[str]]): Pre-loaded data split
             dictionary.
@@ -223,6 +224,7 @@ def load_data_eval(
                 domain=train_domain,
                 batch_size=int(trainer_cfg["batch_size"]),
                 random_seed=int(exp_config["random_seed"]),
+                noise_kwargs=data_cfg.get("noise_augmentation"),
             )
 
         elif data_cfg["domain_type"] == "all":
@@ -233,6 +235,7 @@ def load_data_eval(
                 test_keys=data_split["test"],
                 batch_size=int(trainer_cfg["batch_size"]),
                 random_seed=int(exp_config["random_seed"]),
+                noise_kwargs=data_cfg.get("noise_augmentation"),
             )
 
         else:
@@ -254,6 +257,7 @@ def load_data_eval(
             domain=exclude_domain,
             batch_size=int(trainer_cfg["batch_size"]),
             random_seed=int(exp_config["random_seed"]),
+            noise_kwargs=data_cfg.get("noise_augmentation"),
         )
 
         return validation_loader, test_loader, domain_loader

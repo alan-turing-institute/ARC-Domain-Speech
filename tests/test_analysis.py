@@ -27,10 +27,10 @@ class TestLoadAnnotations:
 class TestLoadAudioAndAnnotations:
     """Tests for _load_audio_and_annotations function."""
 
-    def test_load_valid_file(self, test_dataset):
+    def test_load_valid_file(self, example_dataset):
         """Test loading a valid audio file with annotations."""
         audio, sample_rate, speech_segments = load_audio_and_annotations(
-            file_id="TEST_0001", data_dir=str(test_dataset)
+            file_id="TEST_0001", data_dir=str(example_dataset)
         )
 
         # Check audio properties
@@ -43,23 +43,23 @@ class TestLoadAudioAndAnnotations:
         assert speech_segments[0] == (0.5, 1.0)  # start at 0.5s, duration 0.5s
         assert speech_segments[1] == (1.5, 2.0)  # start at 1.5s, duration 0.5s
 
-    def test_load_multiple_files(self, test_dataset):
+    def test_load_multiple_files(self, example_dataset):
         """Test loading multiple different files."""
         file_ids = ["TEST_0001", "TEST_0005", "TEST_0010"]
 
         for file_id in file_ids:
             audio, sample_rate, speech_segments = load_audio_and_annotations(
-                file_id=file_id, data_dir=str(test_dataset)
+                file_id=file_id, data_dir=str(example_dataset)
             )
             assert len(audio) > 0
             assert sample_rate == 16000
             assert len(speech_segments) == 2
 
-    def test_load_nonexistent_file(self, test_dataset):
+    def test_load_nonexistent_file(self, example_dataset):
         """Test that loading a nonexistent file raises an error."""
         with pytest.raises((FileNotFoundError, sf.LibsndfileError)):
             load_audio_and_annotations(
-                file_id="NONEXISTENT", data_dir=str(test_dataset)
+                file_id="NONEXISTENT", data_dir=str(example_dataset)
             )
 
     def test_rttm_parsing_format(self):
