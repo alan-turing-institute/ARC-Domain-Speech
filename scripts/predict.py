@@ -59,11 +59,12 @@ def main(
     specification.
 
     Args:
-        model_path (str): Path to the trained model file (safetensors format).
         experiment_config (str): Name of the experiment configuration file located in
         configs/experiment/.
         domain (int | None, optional): Domain to use/exclude based on domain_type from
         data config. Defaults to None.
+        split_idx (int, optional): Index of the data split to use, read from data config
+        file. Defaults to 0.
     """
     experiment_name, experiment_config_path = get_experiment_name(
         experiment_config, EXP_CONFIG_DIR
@@ -83,7 +84,7 @@ def main(
     with open(train_data_cfg_pth) as f:
         train_data_cfg = yaml.safe_load(f)
         train_type = train_data_cfg["domain_type"]
-        if train_type == "single_domain" and domain is None:
+        if train_type == "single_domain":
             save_names["test"] = "test_single.safetensors"
 
     data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
@@ -120,7 +121,12 @@ def main(
         trainer_cfg=trainer_cfg,
         data_cfg=data_cfg,
     )
-
+    # Determine how to use domain based on training type
+    if data_cfg.get("domain_type") == "all" and domain is not None:
+        warning_msg = (
+            "The '--domain' argument is not used when data_cfg['domain_type'] is 'all'."
+        )
+        print("------------------\n", warning_msg, "\n------------------")
     # Determine how to use domain based on training type
     exclude_domain = domain if train_type == "exclude_one" else None
     train_domain = domain if train_type == "single_domain" else None
