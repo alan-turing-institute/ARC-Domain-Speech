@@ -489,7 +489,7 @@ class TestLoadDataEval:
             with pytest.raises(
                 ValueError,
                 match=(
-                    r"Must specify --train_domain when domain_type is "
+                    r"Must specify train_domain when domain_type is "
                     r"'single_domain'\."
                 ),
             ):

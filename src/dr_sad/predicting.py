@@ -89,7 +89,7 @@ def save_predictions_chunked(
         chunk_size (int, optional): Number of predictions per chunk. Defaults to 50.
 
     Returns:
-        dict[str, torch.Tensor]: Combined predictions from all chunks.
+        None: Predictions are saved to the specified output path in safetensors format.
     """
 
     model.eval()
@@ -201,8 +201,7 @@ def load_data_eval(
     if data_cfg["domain_type"] != "exclude_one":
         if exclude_domain is not None:
             err_msg = (
-                "Cannot exclude domain when domain_type is set to 'all'"
-                " or 'single_domain'."
+                "Cannot exclude domain when domain_type is 'all' or 'single_domain'."
             )
             raise ValueError(err_msg)
 
@@ -213,7 +212,7 @@ def load_data_eval(
         if data_cfg["domain_type"] == "single_domain":
             if train_domain is None:
                 err_msg = (
-                    "Must specify --train_domain when domain_type is 'single_domain'."
+                    "Must specify train_domain when domain_type is 'single_domain'."
                 )
                 raise ValueError(err_msg)
             _, validation_loader, test_loader = single_domain_dataloaders(
@@ -244,7 +243,7 @@ def load_data_eval(
 
     if data_cfg["domain_type"] == "exclude_one":
         if exclude_domain is None:
-            err_msg = "Must specify --exclude_domain when domain_type is 'exclude_one'."
+            err_msg = "Must specify exclude_domain when domain_type is 'exclude_one'."
             raise ValueError(err_msg)
         # Use domain_split_dataloaders to exclude the specified domain
         _, validation_loader, test_loader, domain_loader = domain_split_dataloaders(
