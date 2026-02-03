@@ -80,9 +80,10 @@ class TestCombineChunksSafetensors:
     """Tests for _combine_chunks_safetensors function."""
 
     def test_combine_zero_chunks(self, tmp_path):
-        """Test that combining zero chunks does nothing."""
+        """Test that combining zero chunks does nothing and raises error."""
         output_path = tmp_path / "predictions.safetensors"
-        _combine_chunks_safetensors(output_path, num_chunks=0)
+        with pytest.raises(ValueError, match=r"No chunks to combine."):
+            _combine_chunks_safetensors(output_path, num_chunks=0)
         assert not output_path.exists()
 
     def test_combine_multiple_chunks(self, tmp_path):
@@ -406,3 +407,137 @@ class TestLoadDataEval:
             assert validation_loader is mock_val_loader
             assert test_loader is mock_test_loader
             assert domain_loader is mock_domain_loader
+
+    def test_load_data_single_domain(self, mock_data_split, mock_configs, tmp_path):
+        """Test loading data with domain_type='single_domain'."""
+        split_data, split_path = mock_data_split
+        data_cfg, trainer_cfg, exp_config = mock_configs
+        data_cfg["domain_type"] = "single_domain"
+
+        # Create the data directory structure
+        data_dir = tmp_path / "data" / data_cfg["name"]
+        data_dir.mkdir(parents=True, exist_ok=True)
+        dest_split_path = data_dir / data_cfg["split_name"]
+        shutil.copy(split_path, dest_split_path)
+
+        with (
+            patch("dr_sad.predicting.load_data") as mock_load_data,
+            patch("dr_sad.predicting.single_domain_dataloaders") as mock_single_domain,
+            patch("dr_sad.predicting.MAIN_DIR", tmp_path),
+        ):
+            # Mock the data loading
+            mock_dataset = MagicMock()
+            mock_load_data.return_value = mock_dataset
+
+            # Mock the dataloaders
+            mock_val_loader = MagicMock(spec=DataLoader)
+            mock_test_loader = MagicMock(spec=DataLoader)
+            mock_single_domain.return_value = (None, mock_val_loader, mock_test_loader)
+
+            # Load data with train_domain specified
+            validation_loader, test_loader, domain_loader = load_data_eval(
+                data_cfg=data_cfg,
+                data_split=split_data,
+                trainer_cfg=trainer_cfg,
+                exp_config=exp_config,
+                train_domain=2,
+            )
+
+            # Verify load_data was called correctly
+            mock_load_data.assert_called_once_with("test_dataset", num_workers=4)
+
+            # Verify single_domain_dataloaders was called with correct arguments
+            mock_single_domain.assert_called_once_with(
+                mock_dataset,
+                train_keys=split_data["train"],
+                val_keys=split_data["val"],
+                test_keys=split_data["test"],
+                domain=2,
+                batch_size=16,
+                random_seed=42,
+                noise_kwargs=None,
+            )
+
+            # Verify return values
+            assert validation_loader is mock_val_loader
+            assert test_loader is mock_test_loader
+            assert domain_loader is None
+
+    def test_load_data_single_domain_missing_train_domain(
+        self, mock_data_split, mock_configs, tmp_path
+    ):
+        """
+        Test that load_data_eval raises error when train_domain is
+        missing for single_domain.
+        """
+        split_data, split_path = mock_data_split
+        data_cfg, trainer_cfg, exp_config = mock_configs
+        data_cfg["domain_type"] = "single_domain"
+
+        # Create the data directory structure
+        data_dir = tmp_path / "data" / data_cfg["name"]
+        data_dir.mkdir(parents=True, exist_ok=True)
+        dest_split_path = data_dir / data_cfg["split_name"]
+        shutil.copy(split_path, dest_split_path)
+
+        with (
+            patch("dr_sad.predicting.load_data") as mock_load_data,
+            patch("dr_sad.predicting.MAIN_DIR", tmp_path),
+        ):
+            # Mock the data loading
+            mock_dataset = MagicMock()
+            mock_load_data.return_value = mock_dataset
+
+            # Verify that ValueError is raised when train_domain is None
+            with pytest.raises(
+                ValueError,
+                match=(
+                    r"Must specify train_domain when domain_type is "
+                    r"'single_domain'\."
+                ),
+            ):
+                load_data_eval(
+                    data_cfg=data_cfg,
+                    data_split=split_data,
+                    trainer_cfg=trainer_cfg,
+                    exp_config=exp_config,
+                    train_domain=None,
+                )
+
+    def test_load_data_all_with_train_domain_error(
+        self, mock_data_split, mock_configs, tmp_path
+    ):
+        """
+        Test that load_data_eval raises error when train_domain is provided for 'all'
+        domain_type.
+        """
+        split_data, split_path = mock_data_split
+        data_cfg, trainer_cfg, exp_config = mock_configs
+        # domain_type is already 'all' by default
+
+        # Create the data directory structure
+        data_dir = tmp_path / "data" / data_cfg["name"]
+        data_dir.mkdir(parents=True, exist_ok=True)
+        dest_split_path = data_dir / data_cfg["split_name"]
+        shutil.copy(split_path, dest_split_path)
+
+        with (
+            patch("dr_sad.predicting.load_data") as mock_load_data,
+            patch("dr_sad.predicting.MAIN_DIR", tmp_path),
+        ):
+            # Mock the data loading
+            mock_dataset = MagicMock()
+            mock_load_data.return_value = mock_dataset
+
+            # Verify that ValueError is raised when train_domain is provided for 'all'
+            with pytest.raises(
+                ValueError,
+                match=r"Cannot specify train_domain when domain_type is set to 'all'\.",
+            ):
+                load_data_eval(
+                    data_cfg=data_cfg,
+                    data_split=split_data,
+                    trainer_cfg=trainer_cfg,
+                    exp_config=exp_config,
+                    train_domain=1,
+                )

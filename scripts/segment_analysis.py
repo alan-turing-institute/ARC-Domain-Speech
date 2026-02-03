@@ -140,7 +140,11 @@ def evaluate_set(
     return set_name, f1_score
 
 
-def main(experiment_config_path: str, exclude_domain: int | None, split_idx: int):
+def main(
+    experiment_config_path: str,
+    domain: int | None,
+    split_idx: int,
+) -> None:
     # load experiment config to get data name
     _, experiment_path = get_experiment_name(
         experiment_config_path, MAIN_DIR / "configs" / "experiment"
@@ -153,21 +157,30 @@ def main(experiment_config_path: str, exclude_domain: int | None, split_idx: int
     data_name = data_cfg["name"]
     split_name = data_cfg["split_names"][split_idx].strip(".yaml")
 
-    if data_cfg.get("domain_type") == "exclude_one" and exclude_domain is None:
+    if data_cfg.get("domain_type") == "exclude_one" and domain is None:
         msg = (
             "Error: When data domain_type is 'exclude_one', "
-            "--exclude-domain argument must be provided."
+            "--domain argument must be provided."
         )
         raise ValueError(msg)
 
+    if data_cfg.get("domain_type") == "single_domain" and domain is None:
+        msg = (
+            "Error: When data domain_type is 'single_domain', "
+            "--domain argument must be provided."
+        )
+        raise ValueError(msg)
+
+    # should be None if neither are defined
+    domain_identifier = domain
     output_path = (
         MAIN_DIR / "outputs" / experiment_path.stem / split_name
-        if exclude_domain is None
+        if domain_identifier is None
         else MAIN_DIR
         / "outputs"
         / experiment_path.stem
         / split_name
-        / f"domain_{exclude_domain}"
+        / f"domain_{domain_identifier}"
     )
     predictions_paths = list(output_path.glob("saved_predictions/*.safetensors"))
 
@@ -211,14 +224,17 @@ if __name__ == "__main__":
         help="Index of the data split to use, read from data config file",
     )
     parser.add_argument(
-        "--exclude-domain",
+        "--domain",
         type=int,
         default=None,
-        help="Domain to exclude when domain_type is 'exclude_one'",
+        help=(
+            "Domain to exclude when domain_type is 'exclude_one' OR target domain"
+            " when domain_type is 'single_domain'."
+        ),
     )
     args = parser.parse_args()
     main(
         args.experiment_config,
-        exclude_domain=args.exclude_domain,
+        domain=args.domain,
         split_idx=args.split_idx,
     )

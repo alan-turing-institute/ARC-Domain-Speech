@@ -107,7 +107,7 @@ def run_analysis(
 
 def main(
     experiment_config_path: str,
-    exclude_domain: int | None,
+    domain: int | None,
     use_collar: bool,
     split_idx: int,
 ) -> None:
@@ -121,21 +121,24 @@ def main(
     data_name = data_cfg["name"]
     split_name = data_cfg["split_names"][split_idx].strip(".yaml")
 
-    if data_cfg.get("domain_type") == "exclude_one" and exclude_domain is None:
+    if (
+        data_cfg.get("domain_type") == "exclude_one"
+        or data_cfg.get("domain_type") == "single_domain"
+    ) and domain is None:
         msg = (
-            "Error: When data domain_type is 'exclude_one', "
-            "--exclude-domain argument must be provided."
+            "Error: When data domain_type is 'exclude_one' or 'single_domain', "
+            "--domain argument must be provided."
         )
         raise ValueError(msg)
 
     output_path = (
         MAIN_DIR / "outputs" / experiment_path.stem / split_name
-        if exclude_domain is None
+        if domain is None
         else MAIN_DIR
         / "outputs"
         / experiment_path.stem
         / split_name
-        / f"domain_{exclude_domain}"
+        / f"domain_{domain}"
     )
     predictions_paths = list(output_path.glob("saved_predictions/*.safetensors"))
     if not predictions_paths:
@@ -167,10 +170,13 @@ if __name__ == "__main__":
         help="Path or name to the experiment configuration file.",
     )
     parser.add_argument(
-        "--exclude-domain",
+        "--domain",
         type=int,
         default=None,
-        help="Domain to exclude when domain_type is 'exclude_one'",
+        help=(
+            "Domain to exclude when domain_type is 'exclude_one', OR"
+            " target domain when domain_type is 'single_domain'."
+        ),
     )
     parser.add_argument(
         "split_idx",
@@ -185,7 +191,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(
         args.experiment_config,
-        args.exclude_domain,
+        args.domain,
         args.use_collar,
         args.split_idx,
     )

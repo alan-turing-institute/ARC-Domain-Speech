@@ -28,8 +28,8 @@ def main(args) -> None:
         args: An object (typically argparse.Namespace) with the following attributes:
             experiment_name (str): The name or path of the experiment configuration
             file.
-            exclude_domain (str or None): The domain to exclude when domain_type is
-            'exclude_one'.
+            domain (int or None): The domain to use/exclude based on domain_type from
+            data config.
     """
 
     experiment_name, experiment_path = get_experiment_name(
@@ -77,8 +77,8 @@ def main(args) -> None:
     if data_cfg["domain_type"] == "all":
         save_dir = MAIN_DIR / "outputs" / experiment_name / split_name
         save_dir.mkdir(parents=True, exist_ok=True)
-        if args.exclude_domain is not None:
-            err_msg = "Cannot exclude domain when domain_type is set to 'all'."
+        if args.domain is not None:
+            err_msg = "Cannot specify domain when domain_type is set to 'all'."
             raise ValueError(err_msg)
 
         train_loader, val_loader, test_loader = from_keys_dataloaders(
@@ -92,11 +92,8 @@ def main(args) -> None:
             noise_kwargs=data_cfg.get("noise_augmentation"),
         )
     elif data_cfg["domain_type"] == "single_domain":
-        if args.train_domain is None:
-            err_msg = "Must specify --train-domain when domain_type is 'single_domain'."
-            raise ValueError(err_msg)
-        if args.exclude_domain is not None:
-            err_msg = "Cannot exclude domain when domain_type is 'single_domain'."
+        if args.domain is None:
+            err_msg = "Must specify --domain when domain_type is 'single_domain'."
             raise ValueError(err_msg)
 
         save_dir = (
@@ -104,7 +101,7 @@ def main(args) -> None:
             / "outputs"
             / experiment_name
             / split_name
-            / f"domain_{args.train_domain}"
+            / f"domain_{args.domain}"
         )
         save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -113,7 +110,7 @@ def main(args) -> None:
             train_keys=data_split["train"],
             val_keys=data_split["val"],
             test_keys=data_split["test"],
-            domain=args.train_domain,
+            domain=args.domain,
             batch_size=batch_size,
             time_slice=time_slice,
             random_seed=exp_config["random_seed"],
@@ -121,24 +118,24 @@ def main(args) -> None:
         )
 
     elif data_cfg["domain_type"] == "exclude_one":
+        if args.domain is None:
+            err_msg = "Must specify --domain when domain_type is 'exclude_one'."
+            raise ValueError(err_msg)
         save_dir = (
             MAIN_DIR
             / "outputs"
             / experiment_name
             / split_name
-            / f"domain_{args.exclude_domain}"
+            / f"domain_{args.domain}"
         )
         save_dir.mkdir(parents=True, exist_ok=True)
-        if args.exclude_domain is None:
-            err_msg = "Must specify --exclude_domain when domain_type is 'exclude_one'."
-            raise ValueError(err_msg)
         # Use domain_split_dataloaders to exclude the specified domain
         train_loader, val_loader, test_loader, domain_loader = domain_split_dataloaders(
             data,
             train_keys=data_split["train"],
             val_keys=data_split["val"],
             test_keys=data_split["test"],
-            domain=args.exclude_domain,
+            domain=args.domain,
             batch_size=batch_size,
             time_slice=time_slice,
             random_seed=exp_config["random_seed"],
@@ -185,7 +182,7 @@ def main(args) -> None:
     print("Evaluating on In-Domain Test data:")
     result_in_domain = trainer.test(model, test_loader)[0]
 
-    if args.exclude_domain is not None:
+    if data_cfg["domain_type"] == "exclude_one":
         print("Evaluating on Out-of-Domain data:")
         result_out_domain = trainer.test(model, domain_loader)[0]
     else:
@@ -210,7 +207,7 @@ def main(args) -> None:
             results["out_of_domain_test_full"] = None
 
         elif data_cfg["domain_type"] == "single_domain":
-            target_keys = data[data["domains"] == args.train_domain].index.to_list()
+            target_keys = data[data["domains"] == args.domain].index.to_list()
             test_only_target_keys = list(set(data_split["test"]) & set(target_keys))
             full_test_loader = one_test_dataloader(
                 data,
@@ -221,7 +218,7 @@ def main(args) -> None:
             results["in_domain_test_full"] = trainer.test(model, full_test_loader)[0]
 
         elif data_cfg["domain_type"] == "exclude_one":
-            domain_keys = data[data["domains"] == args.exclude_domain].index.to_list()
+            domain_keys = data[data["domains"] == args.domain].index.to_list()
             test_without_domain_keys = list(set(data_split["test"]) - set(domain_keys))
             full_test_loader = one_test_dataloader(
                 data,
@@ -267,16 +264,10 @@ if __name__ == "__main__":
         help="Index of the data split to use, read from data config file",
     )
     parser.add_argument(
-        "--exclude-domain",
+        "--domain",
         type=int,
         default=None,
-        help="Domain to exclude from training/validation/test (for OOD evaluation)",
-    )
-    parser.add_argument(
-        "--train-domain",
-        type=int,
-        default=None,
-        help="Domain to train on. Only used if domain_type is 'single_domain'",
+        help="Domain to use/exclude based on domain_type from experiment config",
     )
     args = parser.parse_args()
     main(args)

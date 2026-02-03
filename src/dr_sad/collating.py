@@ -53,7 +53,9 @@ def check_splits_consistency(frame_splits: set[str], segment_splits: set[str]) -
 
 
 def load_domain_metrics(
-    experiment_dir: Path, metric_file: str = "frame_metrics.yaml"
+    experiment_dir: Path,
+    metric_file: str = "frame_metrics.yaml",
+    expected_evaluations: list[str] | None = None,
 ) -> dict[int, dict[str, dict[str, float]]]:
     """
     Load metrics from all domain subdirectories.
@@ -61,10 +63,16 @@ def load_domain_metrics(
     Args:
         experiment_dir: Path to experiment directory containing domain_* subdirs
         metric_file: Name of the metric file to load (default: frame_metrics.yaml)
+        expected_evaluations: List of evaluation splits to include (default: \
+            EXPECTED_EVALUATIONS)
 
     Returns:
         Dictionary mapping domain indices to their metrics for all splits
     """
+    # Use default if no expected_evaluations provided
+    if expected_evaluations is None:
+        expected_evaluations = EXPECTED_EVALUATIONS
+
     domain_metrics = {}
 
     # Compile regex once for better performance
@@ -84,7 +92,7 @@ def load_domain_metrics(
             metrics = yaml.safe_load(f)
             # Extract all relevant splits
             filtered_metrics = {}
-            for split_name in EXPECTED_EVALUATIONS:
+            for split_name in expected_evaluations:
                 if split_name in metrics:
                     filtered_metrics[split_name] = metrics[split_name]
 
