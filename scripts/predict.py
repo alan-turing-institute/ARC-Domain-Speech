@@ -77,16 +77,6 @@ def main(
 
     # load other configs from experiment config
     trainer_cfg_pth = Path(CONFIG_DIR) / "training" / exp_config["training_config"]
-
-    # handle the case where model is trained with all domains so weights are stored in
-    # main folder of experiment
-    train_data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
-    with open(train_data_cfg_pth) as f:
-        train_data_cfg = yaml.safe_load(f)
-        train_type = train_data_cfg["domain_type"]
-        if train_type == "single_domain":
-            save_names["test"] = "test_single.safetensors"
-
     data_cfg_pth = Path(CONFIG_DIR) / "data" / exp_config["data_config"]
     model_cfg_pth = Path(CONFIG_DIR) / "model" / exp_config["model_config"]
 
@@ -96,6 +86,11 @@ def main(
         trainer_cfg = yaml.safe_load(f)
     with open(model_cfg_pth) as f:
         model_cfg = yaml.safe_load(f)
+
+    # Override test save name for single domain training
+    train_type = data_cfg["domain_type"]
+    if train_type == "single_domain":
+        save_names["test"] = "test_single.safetensors"
 
     domain_name = (
         f"domain_{domain}" if (domain is not None and train_type != "all") else ""
@@ -199,8 +194,10 @@ def main(
             # Save single domain predictions
             single_domain_results = {}
             all_except_results = {}
-            single_output_path = domain_prediction_dir / "single.safetensors"
-            all_except_output_path = domain_prediction_dir / "all_except.safetensors"
+            single_output_path = domain_prediction_dir / "test_single.safetensors"
+            all_except_output_path = (
+                domain_prediction_dir / "test_all_except.safetensors"
+            )
 
             for file_id in test_predictions:
                 if file_id in single_domain_file_ids:
