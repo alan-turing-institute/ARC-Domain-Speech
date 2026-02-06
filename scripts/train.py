@@ -74,6 +74,12 @@ def main(args) -> None:
 
     data = load_data(data_cfg["name"], num_workers=trainer_cfg["num_workers"])
 
+    # So each split has its own noise seed
+    if isinstance(data_cfg.get("noise_augmentation"), dict) and isinstance(
+        data_cfg["noise_augmentation"].get("seed"), int | float
+    ):
+        data_cfg["noise_augmentation"]["seed"] += args.split_idx * 10
+
     if data_cfg["domain_type"] == "all":
         save_dir = MAIN_DIR / "outputs" / experiment_name / split_name
         save_dir.mkdir(parents=True, exist_ok=True)
