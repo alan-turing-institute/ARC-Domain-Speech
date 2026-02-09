@@ -208,6 +208,30 @@ def detection_cost_function(
     )
 
 
+def calculate_precision_recall(metrics_dict: dict[str, float]) -> tuple[float, float]:
+    """
+    Calculate precision and recall from metrics dictionary, handling division by zero.
+
+    Args:
+        metrics_dict: Dictionary containing 'true_positives', 'false_positives',
+            'false_negatives'
+
+    Returns:
+        tuple: (precision, recall) with NaN for undefined cases
+    """
+    tp = metrics_dict["true_positives"]
+    fp = metrics_dict["false_positives"]
+    fn = metrics_dict["false_negatives"]
+
+    # Calculate precision: tp / (tp + fp)
+    precision = tp / (tp + fp) if (tp + fp) > 0 else np.nan
+
+    # Calculate recall: tp / (tp + fn)
+    recall = tp / (tp + fn) if (tp + fn) > 0 else np.nan
+
+    return precision, recall
+
+
 def frame_accuracy(
     predictions: np.ndarray,
     ground_truth: np.ndarray,

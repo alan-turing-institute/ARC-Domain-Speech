@@ -7,9 +7,9 @@ import yaml
 from safetensors.torch import load_file
 from tqdm import tqdm
 
-from dr_sad.analysis import get_ground_truth_and_preds
+from dr_sad.analysis import get_ground_truth_and_preds, inverse_weightings_by_domain
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
-from dr_sad.evaluating import SpeechDetectionEvaluator
+from dr_sad.evaluating import SpeechDetectionEvaluator, calculate_precision_recall
 from dr_sad.plotting import plot_general_pr_curve, plot_pr_curves
 from dr_sad.utils import get_experiment_name
 
@@ -42,6 +42,7 @@ def main(
     with open(data_cfg_pth) as f:
         data_cfg = yaml.safe_load(f)
     data_name = data_cfg["name"]
+    tbl_path = MAIN_DIR / "data" / data_name / "sources.tbl"
     split_names: list[str] = data_cfg["split_names"]
 
     domain_name_idx_map = DOMAIN_SETTINGS[data_name]["domains_idx"]
@@ -90,7 +91,6 @@ def main(
         model_metadata = yaml.safe_load(
             (experiment_output_pattern / "model_metadata.yaml").read_text()
         )
-
         for eval_split in eval_split_names:
             for split_name in split_names:
                 prediction_path = (
@@ -109,6 +109,11 @@ def main(
                 precision = np.zeros((n_thresholds, n_predictions))
                 recall = np.zeros((n_thresholds, n_predictions))
 
+                file_weightings = inverse_weightings_by_domain(
+                    file_ids=list(predictions.keys()), data_tbl_path=tbl_path
+                )["file_weights"]
+                inverse_weightings = np.zeros(len(predictions))
+
                 for prediction_idx, (file_id, prediction_tensor) in enumerate(
                     predictions.items()
                 ):
@@ -119,6 +124,7 @@ def main(
                         file_id=file_id,
                         predictions=numpy_prediction,
                     )
+                    inverse_weightings[prediction_idx] = file_weightings[file_id]
                     for threshold_idx, threshold in enumerate(
                         np.linspace(0, 1, n_thresholds)
                     ):
@@ -128,21 +134,22 @@ def main(
                         metrics_dict = evaluator.calculate_base_metrics(
                             ground_truth, signal_predictions
                         )
-                        precision[threshold_idx, prediction_idx] = metrics_dict[
-                            "true_positives"
-                        ] / (
-                            metrics_dict["true_positives"]
-                            + metrics_dict["false_positives"]
+                        precision_val, recall_val = calculate_precision_recall(
+                            metrics_dict
                         )
-                        recall[threshold_idx, prediction_idx] = metrics_dict[
-                            "true_positives"
-                        ] / (
-                            metrics_dict["true_positives"]
-                            + metrics_dict["false_negatives"]
-                        )
+                        precision[threshold_idx, prediction_idx] = precision_val
+                        recall[threshold_idx, prediction_idx] = recall_val
+
+                masked_precision = np.ma.masked_invalid(precision)
+                masked_recall = np.ma.masked_invalid(recall)
+
                 # Save precision-recall data
-                results_dict[eval_split]["precision"].append(np.mean(precision, axis=1))
-                results_dict[eval_split]["recall"].append(np.mean(recall, axis=1))
+                results_dict[eval_split]["precision"].append(
+                    np.ma.average(masked_precision, axis=1, weights=inverse_weightings)
+                )
+                results_dict[eval_split]["recall"].append(
+                    np.ma.average(masked_recall, axis=1, weights=inverse_weightings)
+                )
 
         # stack values
         stacked_results = {

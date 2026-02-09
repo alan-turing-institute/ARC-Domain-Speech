@@ -13,7 +13,9 @@ from dr_sad.annotation import speaking_map
 from dr_sad.evaluating import EvaluationMetrics, SpeechDetectionEvaluator
 
 
-def inverse_weightings_by_domain(file_ids, data_tbl_path):
+def inverse_weightings_by_domain(
+    file_ids: list[str], data_tbl_path: Path
+) -> dict[str, dict[str, dict[str, float]]]:
     """
     Calculate inverse normalisation weightings for each domain based on the number of
     files in each domain.
@@ -382,5 +384,4 @@ def get_ground_truth_and_preds(
         timestamps=all_timestamps,
         annotations=speech_segments,
     )
-    return ground_truth_mask, signal_predictions
     return ground_truth_mask, signal_predictions
