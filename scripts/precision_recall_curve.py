@@ -7,51 +7,14 @@ import yaml
 from safetensors.torch import load_file
 from tqdm import tqdm
 
-from dr_sad.analysis import load_audio_and_annotations
-from dr_sad.annotation import speaking_map
+from dr_sad.analysis import get_ground_truth_and_preds
 from dr_sad.evaluating import SpeechDetectionEvaluator
-from dr_sad.plotting import (
-    plot_general_precision_recall_curve,
-    plot_precision_recall_curve,
-)
+from dr_sad.plotting import plot_general_pr_curve, plot_pr_curves
 from dr_sad.utils import get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
 EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
-
-
-def get_ground_truth(
-    model_metadata: dict[str, float | int],
-    data_dir: Path,
-    file_id: str,
-    predictions,
-) -> tuple[np.ndarray, np.ndarray]:
-    audio, _, speech_segments = load_audio_and_annotations(
-        file_id,
-        data_dir,
-    )
-
-    # get model frame parameters
-    frame_rate_hz = model_metadata["frame_rate_hz"]
-    frame_center_start = model_metadata["frame_center_start"]
-    frame_center_step = model_metadata["frame_center_step"]
-    actual_num_frames = int(
-        ((len(audio) - 2 * frame_center_start) // frame_center_step) + 1
-    )
-
-    # get only the valid portion of predictions
-    signal_predictions = predictions[:actual_num_frames]
-
-    all_timestamps = (
-        np.arange(len(signal_predictions)) * (1 / frame_rate_hz)
-    ) + model_metadata["frame_hop_sec"]
-    # Create ground truth mask
-    ground_truth_mask = speaking_map(
-        timestamps=all_timestamps,
-        annotations=speech_segments,
-    )
-    return ground_truth_mask, signal_predictions
 
 
 def main(
@@ -90,6 +53,10 @@ def main(
     # Initialize dictionary to store all results across domains
     all_results: dict[str, dict[str, dict[str, list[float]]]] = {}
 
+    #  create plot array for each domain and eval split
+    fig, axes = plt.subplots(5, 2, figsize=(12, 20))
+    axes = axes.flatten()
+
     # Loop over each domain
     for domain in tqdm(sorted(domains)):
         experiment_output_pattern = (
@@ -105,6 +72,11 @@ def main(
                 experiment_output_pattern.glob("saved_predictions/*.safetensors")
             )
         ]
+
+        if "validation" in eval_split_names:
+            eval_split_names.remove("validation")
+        if "train" in eval_split_names:
+            eval_split_names.remove("train")
 
         results_dict: dict[str, dict[str, list[float]]] = {
             eval_split: {"precision": [], "recall": []}
@@ -137,7 +109,7 @@ def main(
                     predictions.items()
                 ):
                     numpy_prediction = prediction_tensor.numpy().flatten()
-                    ground_truth, signal_predictions = get_ground_truth(
+                    ground_truth, signal_predictions = get_ground_truth_and_preds(
                         model_metadata=model_metadata,
                         data_dir=MAIN_DIR / "data" / data_name,
                         file_id=file_id,
@@ -186,26 +158,26 @@ def main(
                 "recall": results["recall"].tolist(),
             }
 
-        # save precision-recall curve to matplotlib figure
-        fig, ax = plt.subplots()
-        for eval_split in eval_split_names:
-            ax = plot_precision_recall_curve(
-                stacked_results[eval_split], eval_split, ax
+        # save precision-recall curves to matplotlib figure
+        for index, eval_split in enumerate(eval_split_names):
+            axes[domain] = plot_pr_curves(
+                stacked_results[eval_split],
+                eval_split,
+                axes[domain],
+                colour_index=index,
             )
 
-        ax.set_xlabel("Recall")
-        ax.set_ylabel("Precision")
-        ax.legend()
+        axes[domain].set_xlabel("Recall")
+        axes[domain].set_ylabel("Precision")
+        axes[domain].legend()
+        axes[domain].set_title(f"Domain {domain}")
 
-        fig.savefig(
-            figure_save_path / f"precision_recall_curve_domain_{domain}.pdf",
-            bbox_inches="tight",
-            dpi=300,
-        )
-        plt.close(fig)
+    fig.tight_layout()
+    fig.savefig(figure_save_path / "precision_recall_curves_by_domain.pdf")
+    plt.close(fig)
 
     # Create general precision-recall curve across all domains
-    plot_general_precision_recall_curve(all_results, figure_save_path)
+    plot_general_pr_curve(all_results, figure_save_path, plotting_function="all_curves")
 
     # Save all results to files
     results_save_path = figure_save_path / "precision_recall_results.yaml"

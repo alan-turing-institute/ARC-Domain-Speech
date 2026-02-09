@@ -55,10 +55,44 @@ def _interpolate_pr_curves(
     return interpolated_precision
 
 
-def plot_precision_recall_curve(
+def plot_pr_curves(
     results_dict: dict[str, np.ndarray],
     eval_split: str,
     ax: plt.Axes,
+    colour_index: int = 0,
+) -> plt.Axes:
+    precision_values = results_dict["precision"]
+    recall_values = results_dict["recall"]
+
+    # Calculate mean and std ignoring NaN values
+    mean_precision = np.nanmean(precision_values, axis=0)
+    mean_recall = np.nanmean(recall_values, axis=0)
+
+    # Plot mean curve
+    ax.plot(
+        mean_recall,
+        mean_precision,
+        label=eval_split.capitalize().replace("_", " "),
+        color=f"C{colour_index}",
+    )
+    for i in range(precision_values.shape[0]):
+        ax.plot(
+            recall_values[i],
+            precision_values[i],
+            color=f"C{colour_index}",
+            alpha=0.2,
+        )
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.legend()
+    return ax
+
+
+def plot_interpolated_pr_curve(
+    results_dict: dict[str, np.ndarray],
+    eval_split: str,
+    ax: plt.Axes,
+    colour_index: int = 0,
 ) -> plt.Axes:
     """
     Plot precision-recall curve with variance using fill_between.
@@ -84,7 +118,10 @@ def plot_precision_recall_curve(
 
     # Plot mean curve
     ax.plot(
-        recall_values, mean_precision, label=eval_split.capitalize().replace("_", " ")
+        recall_values,
+        mean_precision,
+        label=eval_split.capitalize().replace("_", " "),
+        color=f"C{colour_index}",
     )
 
     # Plot variance
@@ -93,14 +130,16 @@ def plot_precision_recall_curve(
         mean_precision - std_precision,
         mean_precision + std_precision,
         alpha=0.4,
+        color=f"C{colour_index}",
     )
 
     return ax
 
 
-def plot_general_precision_recall_curve(
+def plot_general_pr_curve(
     all_results: dict[str, dict[str, dict[str, list[float]]]],
     figure_save_path: Path,
+    plotting_function: str = "all_curves",
 ) -> None:
     """
     Create a general precision-recall curve aggregating results across all domains.
@@ -110,6 +149,17 @@ def plot_general_precision_recall_curve(
                     {domain_X: {eval_split: {precision: [...], recall: [...]}}}
         figure_save_path: Path to save the figure
     """
+    if plotting_function == "interpolated":
+        plot_curves = plot_interpolated_pr_curve
+    elif plotting_function == "all_curves":
+        plot_curves = plot_pr_curves
+    else:
+        err_msg = (
+            f"Invalid plotting function: {plotting_function}."
+            " Must be 'interpolated', 'all_curves', or 'all'."
+        )
+        raise ValueError(err_msg)
+
     # Get eval splits from first domain (they're all the same)
     first_domain = next(iter(all_results.values()))
     eval_splits = list(first_domain.keys())
@@ -119,38 +169,34 @@ def plot_general_precision_recall_curve(
     for eval_split in eval_splits:
         all_precision = []
         all_recall = []
-
+        # repeats x domains x points
         for _, domain_results in all_results.items():
             if eval_split in domain_results:
                 # Convert back to numpy arrays
                 precision_array = np.array(domain_results[eval_split]["precision"])
                 recall_array = np.array(domain_results[eval_split]["recall"])
 
-                # Add all curves from this domain
-                if len(precision_array.shape) == 1:
-                    # Single curve
-                    all_precision.append(precision_array)
-                    all_recall.append(recall_array)
-                else:
-                    # Multiple curves
-                    for i in range(precision_array.shape[0]):
-                        all_precision.append(precision_array[i])
-                        all_recall.append(recall_array[i])
+                all_precision.append(precision_array)
+                all_recall.append(recall_array)
 
-        if all_precision:
-            aggregated_results[eval_split] = {
-                "precision": np.array(all_precision),
-                "recall": np.array(all_recall),
-            }
+        aggregated_results[eval_split] = {
+            "precision": np.stack(all_precision, axis=1),
+            "recall": np.stack(all_recall, axis=1),
+        }
 
     # Create the plot
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    for eval_split in eval_splits:
+    for index, eval_split in enumerate(eval_splits):
         if eval_split in aggregated_results:
-            ax = plot_precision_recall_curve(
-                aggregated_results[eval_split], eval_split, ax
-            )
+            means_over_domains = {
+                "precision": np.nanmean(
+                    aggregated_results[eval_split]["precision"], axis=1
+                ),
+                "recall": np.nanmean(aggregated_results[eval_split]["recall"], axis=1),
+            }
+
+            ax = plot_curves(means_over_domains, eval_split, ax, colour_index=index)
 
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")

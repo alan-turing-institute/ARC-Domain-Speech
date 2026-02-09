@@ -281,3 +281,50 @@ def evaluate_file(
         )
 
     return evaluation_metrics
+
+
+def get_ground_truth_and_preds(
+    model_metadata: dict[str, float | int],
+    data_dir: Path,
+    file_id: str,
+    predictions,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Terser function to retrieve the ground truth labels for a specific file ID along
+    with the model predictions where there is overlap with the audio.
+
+    Args:
+        model_metadata: metadata dictionary containing frame parameters
+            (frame_rate_hz, frame_center_start, frame_center_step, frame_hop_sec).
+        data_dir: Path to the data directory containing audio and annotations.
+        file_id: ID of the file to retrieve ground truth for.
+        predictions: Model predictions for the audio file.
+
+    Returns:
+        Tuple containing ground truth labels and corresponding model predictions.
+    """
+    audio, _, speech_segments = load_audio_and_annotations(
+        file_id,
+        data_dir,
+    )
+
+    # get model frame parameters
+    frame_rate_hz = model_metadata["frame_rate_hz"]
+    frame_center_start = model_metadata["frame_center_start"]
+    frame_center_step = model_metadata["frame_center_step"]
+    actual_num_frames = int(
+        ((len(audio) - 2 * frame_center_start) // frame_center_step) + 1
+    )
+
+    # get only the valid portion of predictions
+    signal_predictions = predictions[:actual_num_frames]
+
+    all_timestamps = (
+        np.arange(len(signal_predictions)) * (1 / frame_rate_hz)
+    ) + model_metadata["frame_hop_sec"]
+    # Create ground truth mask
+    ground_truth_mask = speaking_map(
+        timestamps=all_timestamps,
+        annotations=speech_segments,
+    )
+    return ground_truth_mask, signal_predictions
