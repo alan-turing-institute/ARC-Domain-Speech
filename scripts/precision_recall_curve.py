@@ -8,6 +8,7 @@ from safetensors.torch import load_file
 from tqdm import tqdm
 
 from dr_sad.analysis import get_ground_truth_and_preds
+from dr_sad.data.data_fetching import DOMAIN_SETTINGS
 from dr_sad.evaluating import SpeechDetectionEvaluator
 from dr_sad.plotting import plot_general_pr_curve, plot_pr_curves
 from dr_sad.utils import get_experiment_name
@@ -42,6 +43,9 @@ def main(
         data_cfg = yaml.safe_load(f)
     data_name = data_cfg["name"]
     split_names: list[str] = data_cfg["split_names"]
+
+    domain_name_idx_map = DOMAIN_SETTINGS[data_name]["domains_idx"]
+    domain_idx_name_map = {idx: name for name, idx in domain_name_idx_map.items()}
 
     # Find all domain directories
     base_experiment_output = (
@@ -170,7 +174,12 @@ def main(
         axes[domain].set_xlabel("Recall")
         axes[domain].set_ylabel("Precision")
         axes[domain].legend()
-        axes[domain].set_title(f"Domain {domain}")
+        if domain in domain_idx_name_map:
+            axes[domain].set_title(
+                f"{domain_idx_name_map[domain].replace('_', ' ').capitalize()}"
+            )
+        else:
+            axes[domain].set_title(f"Domain {domain}")
 
     fig.tight_layout()
     fig.savefig(figure_save_path / "precision_recall_curves_by_domain.pdf")
