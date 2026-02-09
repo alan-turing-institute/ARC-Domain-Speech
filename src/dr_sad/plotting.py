@@ -77,8 +77,8 @@ def plot_pr_curves(
     )
     for i in range(precision_values.shape[0]):
         ax.plot(
-            recall_values[i],
-            precision_values[i],
+            recall_values[i][:-1],  # last point is often NaN/0
+            precision_values[i][:-1],  # last point is often NaN/0
             color=f"C{colour_index}",
             alpha=0.2,
         )
@@ -118,17 +118,17 @@ def plot_interpolated_pr_curve(
 
     # Plot mean curve
     ax.plot(
-        recall_values,
-        mean_precision,
+        recall_values[:-1],  # last point is often NaN/0
+        mean_precision[:-1],  # last point is often NaN/0
         label=eval_split.capitalize().replace("_", " "),
         color=f"C{colour_index}",
     )
 
     # Plot variance
     ax.fill_between(
-        recall_values,
-        mean_precision - std_precision,
-        mean_precision + std_precision,
+        recall_values[:-1],  # last point is often NaN/0
+        mean_precision[:-1] - std_precision[:-1],
+        mean_precision[:-1] + std_precision[:-1],
         alpha=0.4,
         color=f"C{colour_index}",
     )
