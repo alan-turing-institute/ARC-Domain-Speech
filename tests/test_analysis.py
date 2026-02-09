@@ -1,15 +1,50 @@
+import os
 import tempfile
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import numpy as np
+import pandas as pd
 import pytest
 import soundfile as sf
 
 from dr_sad.analysis import (
     downsample_to_prediction_frames,
+    inverse_weightings_by_domain,
     load_annotations,
     load_audio_and_annotations,
 )
+
+
+@pytest.fixture()
+def sample_data_table():
+    """Create a sample data table for testing."""
+    data = {
+        "file_id": ["file1", "file2", "file3", "file4", "file5", "file6"],
+        "domain": [
+            "webvideo",
+            "webvideo",
+            "webvideo",
+            "clinical",
+            "clinical",
+            "restaurant",
+        ],
+        "duration": [10.5, 15.2, 8.7, 12.3, 9.8, 11.1],
+    }
+    return pd.DataFrame(data)
+
+
+@pytest.fixture()
+def temp_data_table_file(sample_data_table):
+    """Create a temporary TSV file with sample data."""
+    with NamedTemporaryFile(mode="w", suffix=".tbl", delete=False) as f:
+        sample_data_table.to_csv(f, sep="\t", index=False)
+        temp_path = Path(f.name)
+
+    yield temp_path
+
+    # Cleanup
+    os.unlink(temp_path)
 
 
 class TestLoadAnnotations:
@@ -168,3 +203,117 @@ class TestDownsampleToPredictionFrames:
         assert len(downsampled) == prediction_length
         # Binary values should still be preserved
         assert np.all((downsampled == 0) | (downsampled == 1))
+
+
+class TestInverseWeightingsByDomain:
+    """Test cases for inverse_weightings_by_domain function."""
+
+    def test_basic_functionality(self, temp_data_table_file):
+        """Test basic functionality with known data."""
+        file_ids = ["file1", "file2", "file3", "file4", "file5", "file6"]
+
+        result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+
+        # Check return structure
+        assert isinstance(result, dict)
+        assert "domain_weights" in result
+        assert "domain_counts" in result
+        assert "file_weights" in result
+
+        # Check domain counts
+        expected_counts = {"webvideo": 3, "clinical": 2, "restaurant": 1}
+        assert result["domain_counts"] == expected_counts
+
+        # Check that weights are inverse proportional
+        domain_weights = result["domain_weights"]
+        assert domain_weights["restaurant"] > domain_weights["clinical"]
+        assert domain_weights["clinical"] > domain_weights["webvideo"]
+
+        # Check that domain weights sum to 1
+        assert abs(sum(domain_weights.values()) - 1.0) < 1e-10
+
+        # Check file weights mapping
+        file_weights = result["file_weights"]
+        assert len(file_weights) == len(file_ids)
+
+        # Files from same domain should have same weight
+        assert file_weights["file1"] == file_weights["file2"] == file_weights["file3"]
+        assert file_weights["file4"] == file_weights["file5"]
+
+    def test_inverse_weighting_calculation(self, temp_data_table_file):
+        """Test that inverse weighting calculation is correct."""
+        file_ids = ["file1", "file2", "file3", "file4", "file5", "file6"]
+        total_files = len(file_ids)
+
+        result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+
+        domain_counts = result["domain_counts"]
+        domain_weights = result["domain_weights"]
+
+        # Calculate expected weights manually
+        # webvideo: 6/3 = 2, clinical: 6/2 = 3, restaurant: 6/1 = 6
+        # Total weight: 2 + 3 + 6 = 11
+        # Normalized: webvideo: 2/11, clinical: 3/11, restaurant: 6/11
+
+        expected_webvideo = (total_files / domain_counts["webvideo"]) / 11
+        expected_clinical = (total_files / domain_counts["clinical"]) / 11
+        expected_restaurant = (total_files / domain_counts["restaurant"]) / 11
+
+        assert abs(domain_weights["webvideo"] - expected_webvideo) < 1e-10
+        assert abs(domain_weights["clinical"] - expected_clinical) < 1e-10
+        assert abs(domain_weights["restaurant"] - expected_restaurant) < 1e-10
+
+    def test_subset_of_files(self, temp_data_table_file):
+        """Test with only a subset of available files."""
+        file_ids = ["file1", "file4", "file6"]  # One from each domain
+
+        result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+
+        # Should have equal counts for each domain
+        expected_counts = {"webvideo": 1, "clinical": 1, "restaurant": 1}
+        assert result["domain_counts"] == expected_counts
+
+        # All domains should have equal weights (1/3 each)
+        domain_weights = result["domain_weights"]
+        expected_weight = 1 / 3
+
+        for weight in domain_weights.values():
+            assert abs(weight - expected_weight) < 1e-10
+
+    def test_single_domain(self, temp_data_table_file):
+        """Test with files from only one domain."""
+        file_ids = ["file1", "file2", "file3"]  # Only webvideo files
+
+        result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+
+        # Should have only one domain
+        assert len(result["domain_counts"]) == 1
+        assert result["domain_counts"]["webvideo"] == 3
+
+        # Single domain should get weight of 1.0
+        assert result["domain_weights"]["webvideo"] == 1.0
+
+        # All files should have the same weight
+        file_weights = result["file_weights"]
+        expected_file_weight = 1.0
+        for weight in file_weights.values():
+            assert weight == expected_file_weight
+
+    def test_empty_file_list(self, temp_data_table_file):
+        """Test with empty file list."""
+        file_ids: list[str] = []
+
+        result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+
+        # All dictionaries should be empty
+        assert result["domain_counts"] == {}
+        assert result["domain_weights"] == {}
+        assert result["file_weights"] == {}
+
+    def test_file_not_found(self):
+        """Test with non-existent data table file."""
+        file_ids = ["file1", "file2"]
+        nonexistent_path = Path("/nonexistent/path/data.tbl")
+
+        with pytest.raises(FileNotFoundError):
+            inverse_weightings_by_domain(file_ids, nonexistent_path)
