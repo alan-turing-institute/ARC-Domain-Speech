@@ -4,12 +4,67 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import soundfile
 import torch
 from scipy import signal as sp_signal
 
 from dr_sad.annotation import speaking_map
 from dr_sad.evaluating import EvaluationMetrics, SpeechDetectionEvaluator
+
+
+def inverse_weightings_by_domain(file_ids, data_tbl_path):
+    """
+    Calculate inverse normalisation weightings for each domain based on the number of
+    files in each domain.
+    Less represented domains get higher weights.
+
+    Args:
+        file_ids: List of file IDs to be analyzed.
+        data_tbl_path: Path to the data table CSV file containing file metadata,
+            including domain information.
+
+    Returns:
+        Dictionary mapping file IDs to their corresponding inverse normalisation
+        weightings.
+    """
+
+    # Load data table
+    data_tbl = pd.read_csv(data_tbl_path, sep="\t")
+
+    # Filter data table to only include rows corresponding to the provided file_ids
+    filtered_data_tbl = data_tbl[data_tbl["file_id"].isin(file_ids)]
+
+    # Count number of files in each domain
+    domain_counts = filtered_data_tbl["domain"].value_counts().to_dict()
+
+    # Calculate total number of files
+    total_files = len(file_ids)
+
+    # Calculate inverse weightings for each domain
+    inverse_weights = {}
+    for domain, count in domain_counts.items():
+        inverse_weights[domain] = total_files / count
+
+    # Normalize inverse weights so they sum to 1
+    total_weight = sum(inverse_weights.values())
+    normalized_weights = {
+        domain: weight / total_weight for domain, weight in inverse_weights.items()
+    }
+
+    # Create file-level weights mapping
+    file_weights = {}
+    for file_id in file_ids:
+        domain = filtered_data_tbl[filtered_data_tbl["file_id"] == file_id][
+            "domain"
+        ].values[0]
+        file_weights[file_id] = normalized_weights[domain]
+
+    return {
+        "domain_weights": normalized_weights,
+        "domain_counts": domain_counts,
+        "file_weights": file_weights,
+    }
 
 
 def load_annotations(
@@ -327,4 +382,5 @@ def get_ground_truth_and_preds(
         timestamps=all_timestamps,
         annotations=speech_segments,
     )
+    return ground_truth_mask, signal_predictions
     return ground_truth_mask, signal_predictions

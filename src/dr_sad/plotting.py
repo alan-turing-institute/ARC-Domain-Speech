@@ -140,7 +140,7 @@ def plot_general_pr_curve(
     all_results: dict[str, dict[str, dict[str, list[float]]]],
     figure_save_path: Path,
     plotting_function: str = "all_curves",
-) -> None:
+) -> dict[str, dict[str, list[float]]]:
     """
     Create a general precision-recall curve aggregating results across all domains.
 
@@ -187,13 +187,18 @@ def plot_general_pr_curve(
     # Create the plot
     fig, ax = plt.subplots(figsize=(8, 6))
 
+    mean_results = {}
+
     for index, eval_split in enumerate(eval_splits):
         if eval_split in aggregated_results:
-            means_over_domains = {
+            means_over_domains: dict[str, np.ndarray] = {
                 "precision": np.nanmean(
                     aggregated_results[eval_split]["precision"], axis=1
                 ),
                 "recall": np.nanmean(aggregated_results[eval_split]["recall"], axis=1),
+            }
+            mean_results[eval_split] = {
+                key: item.tolist() for key, item in means_over_domains.items()
             }
 
             ax = plot_curves(means_over_domains, eval_split, ax, colour_index=index)
@@ -211,3 +216,4 @@ def plot_general_pr_curve(
         dpi=300,
     )
     plt.close(fig)
+    return mean_results

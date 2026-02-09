@@ -186,10 +186,12 @@ def main(
     plt.close(fig)
 
     # Create general precision-recall curve across all domains
-    plot_general_pr_curve(all_results, figure_save_path, plotting_function="all_curves")
-
+    mean_curves = plot_general_pr_curve(
+        all_results, figure_save_path, plotting_function="all_curves"
+    )
+    all_results["mean"] = mean_curves
     # Save all results to files
-    results_save_path = figure_save_path / "precision_recall_results.yaml"
+    results_save_path = figure_save_path.parent / "precision_recall_results.yaml"
     with open(results_save_path, "w") as f:
         yaml.dump(all_results, f, indent=2)
 
