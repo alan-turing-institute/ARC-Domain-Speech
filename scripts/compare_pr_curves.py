@@ -16,6 +16,7 @@ EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
 def main(
     exp_configs: list[str],
     evaluation_splits: list[str],
+    save_name: str,
 ):
     set_plot_style()
     # check the experiments have the PR curve data, and load it if so
@@ -36,7 +37,7 @@ def main(
         with open(pr_curve_data_pth) as f:
             curve_data[experiment_name] = yaml.safe_load(f)
 
-    figure_save_path = MAIN_DIR / "outputs" / "figures" / "general_pr_curve.pdf"
+    figure_save_path = MAIN_DIR / "outputs" / "figures" / f"{save_name}.pdf"
     figure_save_path.parent.mkdir(parents=True, exist_ok=True)
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -84,5 +85,11 @@ if __name__ == "__main__":
             "'test', 'out_of_domain', 'test_single' etc."
         ),
     )
+    parser.add_argument(
+        "--save_name",
+        type=str,
+        default="general_pr_curve",
+        help=("Name to use for saving the figure. Default is 'general_pr_curve'."),
+    )
     args = parser.parse_args()
-    main(args.exp_configs, args.evaluation_splits)
+    main(args.exp_configs, args.evaluation_splits, args.save_name)
