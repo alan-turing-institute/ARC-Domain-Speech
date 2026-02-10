@@ -65,13 +65,13 @@ def plot_pr_curves(
     recall_values = results_dict["recall"]
 
     # Calculate mean and std ignoring NaN values
-    mean_precision = np.nanmean(precision_values[:-1], axis=0)
-    mean_recall = np.nanmean(recall_values[:-1], axis=0)
+    mean_precision = np.nanmean(precision_values, axis=0)
+    mean_recall = np.nanmean(recall_values, axis=0)
 
     # Plot mean curve
     ax.plot(
-        mean_recall,
-        mean_precision,
+        mean_recall[:-1],  # last point is often NaN/0
+        mean_precision[:-1],
         label=eval_split.capitalize().replace("_", " "),
         color=f"C{colour_index}",
     )
@@ -207,7 +207,6 @@ def plot_general_pr_curve(
     ax.set_ylabel("Precision")
     ax.set_title("Precision-Recall Curves Across All Domains")
     ax.legend()
-    ax.grid(True, alpha=0.3)
 
     # Save the figure
     fig.savefig(
