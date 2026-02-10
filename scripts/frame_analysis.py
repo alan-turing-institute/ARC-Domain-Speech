@@ -96,7 +96,7 @@ def run_analysis(
         metric_data = []
         for file_id, metrics in all_results.items():
             metric_value = metrics[metric_name]
-            file_weight = weightings["file_weights"][file_id]
+            file_weight = weightings[file_id]
             metric_data.append((metric_value, file_weight))
 
         # Unpack into separate lists

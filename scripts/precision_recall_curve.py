@@ -111,7 +111,7 @@ def main(
 
                 file_weightings = inverse_weightings_by_domain(
                     file_ids=list(predictions.keys()), data_tbl_path=tbl_path
-                )["file_weights"]
+                )
                 inverse_weightings = np.zeros(len(predictions))
 
                 for prediction_idx, (file_id, prediction_tensor) in enumerate(

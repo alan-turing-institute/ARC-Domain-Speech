@@ -65,8 +65,8 @@ def plot_pr_curves(
     recall_values = results_dict["recall"]
 
     # Calculate mean and std ignoring NaN values
-    mean_precision = np.nanmean(precision_values, axis=0)
-    mean_recall = np.nanmean(recall_values, axis=0)
+    mean_precision = np.nanmean(precision_values[:-1], axis=0)
+    mean_recall = np.nanmean(recall_values[:-1], axis=0)
 
     # Plot mean curve
     ax.plot(

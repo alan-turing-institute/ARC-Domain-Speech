@@ -1,7 +1,5 @@
-import os
 import tempfile
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import numpy as np
 import pandas as pd
@@ -35,16 +33,11 @@ def sample_data_table():
 
 
 @pytest.fixture()
-def temp_data_table_file(sample_data_table):
-    """Create a temporary TSV file with sample data."""
-    with NamedTemporaryFile(mode="w", suffix=".tbl", delete=False) as f:
-        sample_data_table.to_csv(f, sep="\t", index=False)
-        temp_path = Path(f.name)
-
-    yield temp_path
-
-    # Cleanup
-    os.unlink(temp_path)
+def temp_data_table_file(sample_data_table, tmp_path):
+    """Create a temporary TSV file with sample data using pytest tmp_path."""
+    temp_file = tmp_path / "test_data.tbl"
+    sample_data_table.to_csv(temp_file, sep="\t", index=False)
+    return temp_file
 
 
 class TestLoadAnnotations:
@@ -212,28 +205,14 @@ class TestInverseWeightingsByDomain:
         """Test basic functionality with known data."""
         file_ids = ["file1", "file2", "file3", "file4", "file5", "file6"]
 
-        result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+        file_weights = inverse_weightings_by_domain(file_ids, temp_data_table_file)
 
         # Check return structure
-        assert isinstance(result, dict)
-        assert "domain_weights" in result
-        assert "domain_counts" in result
-        assert "file_weights" in result
-
-        # Check domain counts
-        expected_counts = {"webvideo": 3, "clinical": 2, "restaurant": 1}
-        assert result["domain_counts"] == expected_counts
-
-        # Check that weights are inverse proportional
-        domain_weights = result["domain_weights"]
-        assert domain_weights["restaurant"] > domain_weights["clinical"]
-        assert domain_weights["clinical"] > domain_weights["webvideo"]
-
-        # Check that domain weights sum to 1
-        assert abs(sum(domain_weights.values()) - 1.0) < 1e-10
+        assert isinstance(file_weights, dict)
+        for file_id in file_ids:
+            assert file_id in file_weights
 
         # Check file weights mapping
-        file_weights = result["file_weights"]
         assert len(file_weights) == len(file_ids)
 
         # Files from same domain should have same weight
@@ -247,21 +226,18 @@ class TestInverseWeightingsByDomain:
 
         result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
 
-        domain_counts = result["domain_counts"]
-        domain_weights = result["domain_weights"]
-
         # Calculate expected weights manually
         # webvideo: 6/3 = 2, clinical: 6/2 = 3, restaurant: 6/1 = 6
         # Total weight: 2 + 3 + 6 = 11
         # Normalized: webvideo: 2/11, clinical: 3/11, restaurant: 6/11
 
-        expected_webvideo = (total_files / domain_counts["webvideo"]) / 11
-        expected_clinical = (total_files / domain_counts["clinical"]) / 11
-        expected_restaurant = (total_files / domain_counts["restaurant"]) / 11
+        expected_webvideo = (total_files / 3) / 11
+        expected_clinical = (total_files / 2) / 11
+        expected_restaurant = (total_files / 1) / 11
 
-        assert abs(domain_weights["webvideo"] - expected_webvideo) < 1e-10
-        assert abs(domain_weights["clinical"] - expected_clinical) < 1e-10
-        assert abs(domain_weights["restaurant"] - expected_restaurant) < 1e-10
+        assert abs(result["file1"] - expected_webvideo) < 1e-10
+        assert abs(result["file4"] - expected_clinical) < 1e-10
+        assert abs(result["file6"] - expected_restaurant) < 1e-10
 
     def test_subset_of_files(self, temp_data_table_file):
         """Test with only a subset of available files."""
@@ -269,15 +245,10 @@ class TestInverseWeightingsByDomain:
 
         result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
 
-        # Should have equal counts for each domain
-        expected_counts = {"webvideo": 1, "clinical": 1, "restaurant": 1}
-        assert result["domain_counts"] == expected_counts
-
-        # All domains should have equal weights (1/3 each)
-        domain_weights = result["domain_weights"]
+        # Should have equal counts for each file, so equal weights
         expected_weight = 1 / 3
 
-        for weight in domain_weights.values():
+        for weight in result.values():
             assert abs(weight - expected_weight) < 1e-10
 
     def test_single_domain(self, temp_data_table_file):
@@ -286,17 +257,9 @@ class TestInverseWeightingsByDomain:
 
         result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
 
-        # Should have only one domain
-        assert len(result["domain_counts"]) == 1
-        assert result["domain_counts"]["webvideo"] == 3
-
-        # Single domain should get weight of 1.0
-        assert result["domain_weights"]["webvideo"] == 1.0
-
         # All files should have the same weight
-        file_weights = result["file_weights"]
         expected_file_weight = 1.0
-        for weight in file_weights.values():
+        for weight in result.values():
             assert weight == expected_file_weight
 
     def test_empty_file_list(self, temp_data_table_file):
@@ -306,9 +269,7 @@ class TestInverseWeightingsByDomain:
         result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
 
         # All dictionaries should be empty
-        assert result["domain_counts"] == {}
-        assert result["domain_weights"] == {}
-        assert result["file_weights"] == {}
+        assert result == {}
 
     def test_file_not_found(self):
         """Test with non-existent data table file."""

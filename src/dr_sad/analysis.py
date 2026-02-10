@@ -15,7 +15,7 @@ from dr_sad.evaluating import EvaluationMetrics, SpeechDetectionEvaluator
 
 def inverse_weightings_by_domain(
     file_ids: list[str], data_tbl_path: Path
-) -> dict[str, dict[str, float] | dict[str, int]]:
+) -> dict[str, float]:
     """
     Calculate inverse normalisation weightings for each domain based on the number of
     files in each domain.
@@ -62,11 +62,7 @@ def inverse_weightings_by_domain(
         ].values[0]
         file_weights[file_id] = normalized_weights[domain]
 
-    return {
-        "domain_weights": normalized_weights,
-        "domain_counts": domain_counts,
-        "file_weights": file_weights,
-    }
+    return file_weights
 
 
 def load_annotations(
