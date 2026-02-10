@@ -83,31 +83,32 @@ def run_analysis(
         all_results[file_id] = evaluation_metrics.to_dict()
 
     data_tbl_path = data_dir / "sources.tbl"
-    weightings = inverse_weightings_by_domain(
-        list(predictions.keys()),
-        data_tbl_path,
-    )
 
     mean_results = {}
-    # Get metric names from first item in dictionary
     metric_names = next(iter(all_results.values())).keys()
-    for metric_name in metric_names:
-        # Build list of (value, weight) pairs for this metric
-        metric_data = []
-        for file_id, metrics in all_results.items():
-            metric_value = metrics[metric_name]
-            file_weight = weightings[file_id]
-            metric_data.append((metric_value, file_weight))
+    if inverse_weightings:
+        weightings = inverse_weightings_by_domain(
+            list(predictions.keys()),
+            data_tbl_path,
+        )
+        # Get metric names from first item in dictionary
+        for metric_name in metric_names:
+            # Build list of (value, weight) pairs for this metric
+            values = []
+            file_weightings = []
+            for file_id, metrics in all_results.items():
+                values.append(metrics[metric_name])
+                file_weightings.append(weightings[file_id])
 
-        # Unpack into separate lists
-        values, file_weightings = zip(*metric_data, strict=True)
-        # calculate mean value for this metric, using inverse weightings if specified
-        if inverse_weightings:
             mean_results[metric_name] = np.average(
-                values, weights=file_weightings
-            ).tolist()
-        else:
-            mean_results[metric_name] = np.mean(values).tolist()
+                values,
+                weights=file_weightings,
+            ).item()
+    else:
+        for metric_name in metric_names:
+            mean_results[metric_name] = np.mean(
+                [metrics[metric_name] for metrics in all_results.values()]
+            ).item()
 
     # Load existing results or create new dict
     if results_filepath.exists():

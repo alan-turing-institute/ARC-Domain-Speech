@@ -10,7 +10,7 @@ from tqdm import tqdm
 from dr_sad.analysis import get_ground_truth_and_preds, inverse_weightings_by_domain
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
 from dr_sad.evaluating import SpeechDetectionEvaluator, calculate_precision_recall
-from dr_sad.plotting import plot_general_pr_curve, plot_pr_curves
+from dr_sad.plotting import plot_general_pr_curve, plot_pr_curves, set_plot_style
 from dr_sad.utils import get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
@@ -27,7 +27,7 @@ def main(
     Args:
         experiment_config (str): Path or name to the experiment configuration file.
     """
-
+    set_plot_style()
     # Load predictions and ground truth based on experiment_config
     experiment_name, experiment_cfg_path = get_experiment_name(
         experiment_config, EXP_CONFIG_DIR
@@ -171,9 +171,18 @@ def main(
 
         # save precision-recall curves to matplotlib figure
         for index, eval_split in enumerate(eval_split_names):
+            if eval_split == "out_of_domain" or eval_split == "test_single":
+                plot_label = domain_idx_name_map[domain].replace("_", " ").capitalize()
+            elif eval_split == "test_all_except":
+                plot_label = (
+                    f"All except {domain_idx_name_map[domain].replace('_', ' ')}"
+                )
+            else:
+                plot_label = eval_split.replace("_", " ").capitalize()
+
             axes[domain] = plot_pr_curves(
                 stacked_results[eval_split],
-                eval_split,
+                plot_label,
                 axes[domain],
                 colour_index=index,
             )
@@ -183,7 +192,7 @@ def main(
         axes[domain].legend()
         if domain in domain_idx_name_map:
             axes[domain].set_title(
-                f"{domain_idx_name_map[domain].replace('_', ' ').capitalize()}"
+                f"{domain_idx_name_map[domain].replace('_', ' ').title()}"
             )
         else:
             axes[domain].set_title(f"Domain {domain}")
@@ -198,7 +207,7 @@ def main(
     )
     all_results["mean"] = mean_curves
     # Save all results to files
-    results_save_path = figure_save_path.parent / "precision_recall_results.yaml"
+    results_save_path = figure_save_path.parent / "precision_recall_curve_data.yaml"
     with open(results_save_path, "w") as f:
         yaml.dump(all_results, f, indent=2)
 

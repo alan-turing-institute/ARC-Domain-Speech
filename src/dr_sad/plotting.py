@@ -4,6 +4,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+def set_plot_style() -> None:
+    plt.style.use("ggplot")
+    plt.rcParams["axes.facecolor"] = "white"
+    plt.rcParams["axes.linewidth"] = 1.6
+    plt.rcParams["axes.spines.right"] = False
+    plt.rcParams["axes.spines.top"] = False
+    plt.rcParams["axes.spines.left"] = True
+    plt.rcParams["axes.spines.bottom"] = True
+    plt.rcParams["axes.edgecolor"] = "black"
+    plt.rcParams["text.color"] = "black"
+    plt.rcParams["xtick.color"] = "black"
+    plt.rcParams["ytick.color"] = "black"
+    plt.rcParams["axes.labelcolor"] = "black"
+    plt.rcParams["font.size"] = 11
+    plt.rcParams["axes.grid"] = False
+
+
 def _interpolate_pr_curves(
     original_recall: np.ndarray,
     original_precision: np.ndarray,
@@ -57,10 +74,22 @@ def _interpolate_pr_curves(
 
 def plot_pr_curves(
     results_dict: dict[str, np.ndarray],
-    eval_split: str,
+    plot_label: str,
     ax: plt.Axes,
     colour_index: int = 0,
 ) -> plt.Axes:
+    """
+    Plot precision-recall curves.
+
+    Args:
+        results_dict: Dictionary containing precision and recall arrays for a split
+        plot_label: Label for the curve to use in the legend
+        ax: Matplotlib Axes object to plot on
+        colour_index: Index to determine colour of the plot (for consistency across
+            plots)
+    Returns:
+        ax: Matplotlib Axes object with the plot
+    """
     precision_values = results_dict["precision"]
     recall_values = results_dict["recall"]
 
@@ -72,7 +101,7 @@ def plot_pr_curves(
     ax.plot(
         mean_recall[:-1],  # last point is often NaN/0
         mean_precision[:-1],
-        label=eval_split.capitalize().replace("_", " "),
+        label=plot_label,
         color=f"C{colour_index}",
     )
     for i in range(precision_values.shape[0]):
@@ -90,17 +119,21 @@ def plot_pr_curves(
 
 def plot_interpolated_pr_curve(
     results_dict: dict[str, np.ndarray],
-    eval_split: str,
+    plot_label: str,
     ax: plt.Axes,
     colour_index: int = 0,
 ) -> plt.Axes:
     """
-    Plot precision-recall curve with variance using fill_between.
+    Plot precision-recall curve with variance using fill_between and np.interpolate.
 
     Args:
         results_dict: Dictionary containing precision and recall arrays for a split
-        eval_split: The evaluation split name (key for results_dict)
+        plot_label: Label for the curve to use in the legend
         ax: Matplotlib Axes object to plot on
+        colour_index: Index to determine colour of the plot (for consistency across
+            plots)
+    Returns:
+        ax: Matplotlib Axes object with the plot
     """
 
     # get range of recall values
@@ -120,7 +153,7 @@ def plot_interpolated_pr_curve(
     ax.plot(
         recall_values[:-1],  # last point is often NaN/0
         mean_precision[:-1],  # last point is often NaN/0
-        label=eval_split.capitalize().replace("_", " "),
+        label=plot_label,
         color=f"C{colour_index}",
     )
 
@@ -201,7 +234,12 @@ def plot_general_pr_curve(
                 key: item.tolist() for key, item in means_over_domains.items()
             }
 
-            ax = plot_curves(means_over_domains, eval_split, ax, colour_index=index)
+            ax = plot_curves(
+                means_over_domains,
+                eval_split.replace("_", " ").capitalize(),
+                ax,
+                colour_index=index,
+            )
 
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
