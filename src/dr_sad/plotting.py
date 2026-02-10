@@ -5,7 +5,7 @@ import numpy as np
 
 
 def set_plot_style() -> None:
-    plt.style.use("ggplot")
+    plt.style.use("seaborn-v0_8-colorblind")
     plt.rcParams["axes.facecolor"] = "white"
     plt.rcParams["axes.linewidth"] = 1.6
     plt.rcParams["axes.spines.right"] = False
