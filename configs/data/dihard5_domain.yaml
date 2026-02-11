@@ -1,0 +1,9 @@
+# Dataset configuration
+name: dihard_five
+split_names:
+  - split_A.yaml
+  - split_B.yaml
+  - split_C.yaml
+  - split_D.yaml
+  - split_E.yaml
+domain_type: exclude_one

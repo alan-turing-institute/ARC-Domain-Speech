@@ -104,6 +104,12 @@ def main(
     with split_file.open() as file:
         data_split = yaml.safe_load(file)
 
+    # So each split has its own noise seed
+    if isinstance(data_cfg.get("noise_augmentation"), dict) and isinstance(
+        data_cfg["noise_augmentation"].get("seed"), int | float
+    ):
+        data_cfg["noise_augmentation"]["seed"] += split_idx * 10
+
     experiment_folder = (
         MAIN_DIR / "outputs" / experiment_name / split_name / domain_name
     )
