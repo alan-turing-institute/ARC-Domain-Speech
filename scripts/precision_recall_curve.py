@@ -7,15 +7,16 @@ import yaml
 from safetensors.torch import load_file
 from tqdm import tqdm
 
-from dr_sad.analysis import get_ground_truth_and_preds, inverse_weightings_by_domain
+from dr_sad.analysis import generate_precision_recall_curve_data
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
-from dr_sad.evaluating import SpeechDetectionEvaluator, calculate_precision_recall
 from dr_sad.plotting import plot_general_pr_curve, plot_pr_curves, set_plot_style
 from dr_sad.utils import get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
 EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
+
+N_THRESHOLDS = 50
 
 
 def main(
@@ -106,42 +107,16 @@ def main(
                 )
                 predictions = load_file(prediction_path)
 
-                n_predictions = len(predictions)
-                n_thresholds = 50
-
-                precision = np.zeros((n_thresholds, n_predictions))
-                recall = np.zeros((n_thresholds, n_predictions))
-
-                file_weightings = inverse_weightings_by_domain(
-                    file_ids=list(predictions.keys()), data_tbl_path=tbl_path
-                )
-                inverse_weightings = np.zeros(len(predictions))
-
-                for prediction_idx, (file_id, prediction_tensor) in enumerate(
-                    predictions.items()
-                ):
-                    numpy_prediction = prediction_tensor.numpy().flatten()
-                    ground_truth, signal_predictions = get_ground_truth_and_preds(
-                        model_metadata=model_metadata,
-                        data_dir=MAIN_DIR / "data" / data_name,
-                        file_id=file_id,
-                        predictions=numpy_prediction,
+                precision, recall, inverse_weightings = (
+                    generate_precision_recall_curve_data(
+                        N_THRESHOLDS,
+                        predictions,
+                        model_metadata,
+                        MAIN_DIR / "data" / data_name,
+                        data_name,
+                        tbl_path,
                     )
-                    inverse_weightings[prediction_idx] = file_weightings[file_id]
-                    for threshold_idx, threshold in enumerate(
-                        np.linspace(0, 1, n_thresholds)
-                    ):
-                        evaluator = SpeechDetectionEvaluator(
-                            detection_threshold=threshold,
-                        )
-                        metrics_dict = evaluator.calculate_base_metrics(
-                            ground_truth, signal_predictions
-                        )
-                        precision_val, recall_val = calculate_precision_recall(
-                            metrics_dict
-                        )
-                        precision[threshold_idx, prediction_idx] = precision_val
-                        recall[threshold_idx, prediction_idx] = recall_val
+                )
 
                 masked_precision = np.ma.masked_invalid(precision)
                 masked_recall = np.ma.masked_invalid(recall)
@@ -223,6 +198,10 @@ if __name__ == "__main__":
         "experiment_config",
         type=str,
         help="Path or name to the experiment configuration file.",
+    )
+    args = parser.parse_args()
+    main(
+        args.experiment_config,
     )
     args = parser.parse_args()
     main(

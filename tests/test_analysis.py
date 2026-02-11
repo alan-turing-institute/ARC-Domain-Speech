@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 import soundfile as sf
 
+from dr_sad import analysis
 from dr_sad.analysis import (
     downsample_to_prediction_frames,
     inverse_weightings_by_domain,
@@ -27,7 +28,8 @@ def sample_data_table():
             "clinical",
             "restaurant",
         ],
-        "duration": [10.5, 15.2, 8.7, 12.3, 9.8, 11.1],
+        "lang": ["english"] * 6,
+        "source": ["librivox"] * 6,
     }
     return pd.DataFrame(data)
 
@@ -201,11 +203,19 @@ class TestDownsampleToPredictionFrames:
 class TestInverseWeightingsByDomain:
     """Test cases for inverse_weightings_by_domain function."""
 
+    @pytest.fixture(autouse=True)
+    def _mock_domain_settings(self, monkeypatch):
+        """Mock DOMAIN_SETTINGS for all tests in this class."""
+        mock_settings = {"test": {"domain_column": "domain"}}
+        monkeypatch.setattr(analysis, "DOMAIN_SETTINGS", mock_settings)
+
     def test_basic_functionality(self, temp_data_table_file):
         """Test basic functionality with known data."""
         file_ids = ["file1", "file2", "file3", "file4", "file5", "file6"]
 
-        file_weights = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+        file_weights = inverse_weightings_by_domain(
+            file_ids, temp_data_table_file, data_name="test"
+        )
 
         # Check return structure
         assert isinstance(file_weights, dict)
@@ -224,7 +234,9 @@ class TestInverseWeightingsByDomain:
         file_ids = ["file1", "file2", "file3", "file4", "file5", "file6"]
         total_files = len(file_ids)
 
-        result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+        result = inverse_weightings_by_domain(
+            file_ids, temp_data_table_file, data_name="test"
+        )
 
         # Calculate expected weights manually
         # webvideo: 6/3 = 2, clinical: 6/2 = 3, restaurant: 6/1 = 6
@@ -243,7 +255,9 @@ class TestInverseWeightingsByDomain:
         """Test with only a subset of available files."""
         file_ids = ["file1", "file4", "file6"]  # One from each domain
 
-        result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+        result = inverse_weightings_by_domain(
+            file_ids, temp_data_table_file, data_name="test"
+        )
 
         # Should have equal counts for each file, so equal weights
         expected_weight = 1 / 3
@@ -255,7 +269,9 @@ class TestInverseWeightingsByDomain:
         """Test with files from only one domain."""
         file_ids = ["file1", "file2", "file3"]  # Only webvideo files
 
-        result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+        result = inverse_weightings_by_domain(
+            file_ids, temp_data_table_file, data_name="test"
+        )
 
         # All files should have the same weight
         expected_file_weight = 1.0
@@ -266,7 +282,9 @@ class TestInverseWeightingsByDomain:
         """Test with empty file list."""
         file_ids: list[str] = []
 
-        result = inverse_weightings_by_domain(file_ids, temp_data_table_file)
+        result = inverse_weightings_by_domain(
+            file_ids, temp_data_table_file, data_name="test"
+        )
 
         # All dictionaries should be empty
         assert result == {}
@@ -277,4 +295,4 @@ class TestInverseWeightingsByDomain:
         nonexistent_path = Path("/nonexistent/path/data.tbl")
 
         with pytest.raises(FileNotFoundError):
-            inverse_weightings_by_domain(file_ids, nonexistent_path)
+            inverse_weightings_by_domain(file_ids, nonexistent_path, data_name="test")

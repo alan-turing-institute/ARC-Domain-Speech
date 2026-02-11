@@ -92,8 +92,7 @@ def run_analysis(
     metric_names = next(iter(all_results.values())).keys()
     if inverse_weightings:
         weightings = inverse_weightings_by_domain(
-            list(predictions.keys()),
-            data_tbl_path,
+            list(predictions.keys()), data_tbl_path, data_name=data_name
         )
         # Get metric names from first item in dictionary
         for metric_name in metric_names:
