@@ -203,7 +203,3 @@ if __name__ == "__main__":
     main(
         args.experiment_config,
     )
-    args = parser.parse_args()
-    main(
-        args.experiment_config,
-    )
