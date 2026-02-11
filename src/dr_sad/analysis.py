@@ -23,8 +23,8 @@ def inverse_weightings_by_domain(
 
     Args:
         file_ids: List of file IDs to be analyzed.
-        data_tbl_path: Path to the data table CSV file containing file metadata,
-            including domain information.
+        data_tbl_path: Path to the tab-separated data table file (e.g. `.tsv`/`.tbl`)
+            containing file metadata, including domain information.
 
     Returns:
         Dictionary mapping file IDs to their corresponding inverse normalisation
@@ -34,19 +34,38 @@ def inverse_weightings_by_domain(
     # Load data table
     data_tbl = pd.read_csv(data_tbl_path, sep="\t")
 
-    # Filter data table to only include rows corresponding to the provided file_ids
-    filtered_data_tbl = data_tbl[data_tbl["file_id"].isin(file_ids)]
+    # Build file_id -> domain mapping and validate uniqueness
+    file_to_domain = {}
+    for _, row in data_tbl.iterrows():
+        file_id = row["file_id"]
+        domain = row["domain"]
 
-    # Count number of files in each domain
-    domain_counts = filtered_data_tbl["domain"].value_counts().to_dict()
+        if file_id in file_to_domain:
+            err_msg = (
+                f"Duplicate file_id '{file_id}' found in data table at {data_tbl_path}."
+            )
+            raise ValueError(err_msg)
+        file_to_domain[file_id] = domain
 
-    # Calculate total number of files
-    total_files = len(file_ids)
+    # Validate that all requested file_ids are present in metadata
+    missing_files = set(file_ids) - set(file_to_domain.keys())
+    if missing_files:
+        err_msg = (
+            "The following file IDs were not found in the data table at "
+            f"{data_tbl_path}: {sorted(missing_files)}"
+        )
+        raise KeyError(err_msg)
+
+    # Count number of files in each domain (only for files passed in file_ids)
+    domain_counts: dict[str, int] = {}
+    for file_id in file_ids:
+        domain = file_to_domain[file_id]
+        domain_counts[domain] = domain_counts.get(domain, 0) + 1
 
     # Calculate inverse weightings for each domain
-    inverse_weights = {}
+    inverse_weights: dict[str, float] = {}
     for domain, count in domain_counts.items():
-        inverse_weights[domain] = total_files / count
+        inverse_weights[domain] = len(file_ids) / count
 
     # Normalize inverse weights so they sum to 1
     total_weight = sum(inverse_weights.values())
@@ -55,12 +74,9 @@ def inverse_weightings_by_domain(
     }
 
     # Create file-level weights mapping
-    file_weights = {}
+    file_weights: dict[str, float] = {}
     for file_id in file_ids:
-        domain = filtered_data_tbl[filtered_data_tbl["file_id"] == file_id][
-            "domain"
-        ].values[0]
-        file_weights[file_id] = normalized_weights[domain]
+        file_weights[file_id] = normalized_weights[file_to_domain[file_id]]
 
     return file_weights
 

@@ -58,7 +58,7 @@ def main(
 
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
-    ax.legend()
+    ax.legend(loc="lower left")
     plt.tight_layout()
     fig.savefig(figure_save_path, dpi=300)
     plt.close(fig)

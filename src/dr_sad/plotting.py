@@ -14,11 +14,18 @@ def set_plot_style() -> None:
     plt.rcParams["axes.spines.bottom"] = True
     plt.rcParams["axes.edgecolor"] = "black"
     plt.rcParams["text.color"] = "black"
+    plt.rcParams["xtick.minor.visible"] = True
+    plt.rcParams["ytick.minor.visible"] = True
+    plt.rcParams["xtick.direction"] = "in"
+    plt.rcParams["ytick.direction"] = "in"
     plt.rcParams["xtick.color"] = "black"
     plt.rcParams["ytick.color"] = "black"
     plt.rcParams["axes.labelcolor"] = "black"
     plt.rcParams["font.size"] = 11
-    plt.rcParams["axes.grid"] = False
+    plt.rcParams["grid.color"] = "lightgray"
+    plt.rcParams["grid.linestyle"] = "--"
+    plt.rcParams["grid.alpha"] = 0.5
+    plt.rcParams["axes.grid"] = True
 
 
 def _interpolate_pr_curves(
@@ -137,8 +144,8 @@ def plot_interpolated_pr_curve(
     """
 
     # get range of recall values
-    min_recall = np.min(results_dict["recall"][:, :-1])  # last point is often NaN/0
-    max_recall = np.max(results_dict["recall"][:, :-1])  # last point is often NaN/0
+    min_recall = np.nanmin(results_dict["recall"][:, :-1])  # last point is often NaN/0
+    max_recall = np.nanmax(results_dict["recall"][:, :-1])  # last point is often NaN/0
     recall_values = np.linspace(min_recall, max_recall, 50)
 
     interpolated_precision = _interpolate_pr_curves(
@@ -189,7 +196,7 @@ def plot_general_pr_curve(
     else:
         err_msg = (
             f"Invalid plotting function: {plotting_function}."
-            " Must be 'interpolated', 'all_curves', or 'all'."
+            " Must be 'interpolated' or 'all_curves'."
         )
         raise ValueError(err_msg)
 

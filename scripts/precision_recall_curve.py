@@ -50,7 +50,7 @@ def main(
 
     # Find all domain directories
     base_experiment_output = (
-        MAIN_DIR / "outputs" / experiment_name / split_names[0].rstrip(".yaml")
+        MAIN_DIR / "outputs" / experiment_name / Path(split_names[0]).stem
     )
     domain_dirs = list(base_experiment_output.glob("domain_*"))
     domains = [int(d.name.replace("domain_", "")) for d in domain_dirs]
@@ -59,8 +59,11 @@ def main(
     all_results: dict[str, dict[str, dict[str, list[float]]]] = {}
 
     #  create plot array for each domain and eval split
-    fig, axes = plt.subplots(5, 2, figsize=(12, 20))
-    axes = axes.flatten()
+    num_domains = len(domains)
+    ncols = 2
+    nrows = int(np.ceil(num_domains / ncols)) if num_domains > 0 else 1
+    fig, axes = plt.subplots(nrows, ncols, figsize=(12, 4 * nrows))
+    axes = np.atleast_1d(axes).flatten()
 
     # Loop over each domain
     for domain in tqdm(sorted(domains)):
@@ -189,7 +192,7 @@ def main(
 
         axes[domain].set_xlabel("Recall")
         axes[domain].set_ylabel("Precision")
-        axes[domain].legend()
+        axes[domain].legend(loc="lower left")
         if domain in domain_idx_name_map:
             axes[domain].set_title(
                 f"{domain_idx_name_map[domain].replace('_', ' ').title()}"

@@ -85,6 +85,10 @@ def run_analysis(
     data_tbl_path = data_dir / "sources.tbl"
 
     mean_results = {}
+    if not all_results:
+        err_msg = f"No results to analyse for {split_name} - check predictions."
+        raise ValueError(err_msg)
+
     metric_names = next(iter(all_results.values())).keys()
     if inverse_weightings:
         weightings = inverse_weightings_by_domain(
