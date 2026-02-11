@@ -241,9 +241,14 @@ def plot_general_pr_curve(
                 key: item.tolist() for key, item in means_over_domains.items()
             }
 
+            if eval_split == "out_of_domain":
+                plot_label = "Held-out domain"
+            elif eval_split == "test":
+                plot_label = "Trained on domains"
+
             ax = plot_curves(
                 means_over_domains,
-                eval_split.replace("_", " ").capitalize(),
+                plot_label,
                 ax,
                 colour_index=index,
             )
