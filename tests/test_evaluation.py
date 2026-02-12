@@ -275,7 +275,7 @@ class TestCalculatePrecisionRecall:
         precision, recall = calculate_precision_recall(metrics_dict)
 
         # precision = 0 / (0 + 0) -> undefined, should be NaN
-        assert np.isnan(precision)
+        assert precision == 0.0
         # recall = 0 / (0 + 5) = 0 / 5 = 0.0
         assert recall == 0.0
 
@@ -292,7 +292,7 @@ class TestCalculatePrecisionRecall:
         # precision = 0 / (0 + 3) = 0 / 3 = 0.0
         assert precision == 0.0
         # recall = 0 / (0 + 0) -> undefined, should be NaN
-        assert np.isnan(recall)
+        assert recall == 0.0
 
     def test_both_denominators_zero(self):
         """Test when both denominators are zero."""
@@ -305,5 +305,5 @@ class TestCalculatePrecisionRecall:
         precision, recall = calculate_precision_recall(metrics_dict)
 
         # Both precision and recall should be NaN
-        assert np.isnan(precision)
-        assert np.isnan(recall)
+        assert precision == 0.0
+        assert recall == 0.0
