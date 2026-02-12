@@ -217,7 +217,7 @@ def calculate_precision_recall(metrics_dict: dict[str, float]) -> tuple[float, f
             'false_negatives'
 
     Returns:
-        tuple: (precision, recall) with NaN for undefined cases
+        tuple: (precision, recall) with 0 for undefined cases
     """
     tp = metrics_dict["true_positives"]
     fp = metrics_dict["false_positives"]

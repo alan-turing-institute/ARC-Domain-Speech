@@ -423,12 +423,12 @@ class TestGeneratePrecisionRecallCurveData:
             tbl_path=tbl_path,
         )
 
-        # With no positive predictions, precision should be NaN
+        # With no positive predictions, precision should be 0
         for threshold_idx in range(n_thresholds):
             precision_val = precision[threshold_idx, 0]
             recall_val = recall[threshold_idx, 0]
 
-            # Precision is undefined when no positive predictions (could be NaN)
+            # Precision is undefined when no positive predictions should be set to 0
             assert precision_val == 0.0
             # Recall should be 0 (no true positives out of actual positives)
             assert recall_val == 0.0

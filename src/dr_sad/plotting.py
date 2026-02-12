@@ -245,6 +245,8 @@ def plot_general_pr_curve(
                 plot_label = "Held-out domain"
             elif eval_split == "test":
                 plot_label = "Trained on domains"
+            else:
+                plot_label = eval_split.replace("_", " ").capitalize()
 
             ax = plot_curves(
                 means_over_domains,

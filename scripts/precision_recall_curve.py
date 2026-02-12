@@ -54,6 +54,12 @@ def main(
         MAIN_DIR / "outputs" / experiment_name / Path(split_names[0]).stem
     )
     domain_dirs = list(base_experiment_output.glob("domain_*"))
+    if len(domain_dirs) == 0:
+        err_msg = (
+            f"No domain directories found in expected path {base_experiment_output}."
+        )
+        raise FileNotFoundError(err_msg)
+
     domains = [int(d.name.replace("domain_", "")) for d in domain_dirs]
 
     # Initialize dictionary to store all results across domains
@@ -106,7 +112,7 @@ def main(
                     MAIN_DIR
                     / "outputs"
                     / experiment_name
-                    / split_name.rstrip(".yaml")
+                    / split_name.removesuffix(".yaml")
                     / f"domain_{domain}"
                     / f"saved_predictions/{eval_split}.safetensors"
                 )
