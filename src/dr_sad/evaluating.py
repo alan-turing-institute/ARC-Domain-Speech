@@ -224,10 +224,10 @@ def calculate_precision_recall(metrics_dict: dict[str, float]) -> tuple[float, f
     fn = metrics_dict["false_negatives"]
 
     # Calculate precision: tp / (tp + fp)
-    precision = tp / (tp + fp) if (tp + fp) > 0 else np.nan
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
 
     # Calculate recall: tp / (tp + fn)
-    recall = tp / (tp + fn) if (tp + fn) > 0 else np.nan
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
 
     return precision, recall
 
