@@ -63,8 +63,13 @@ def main(
     num_domains = len(domains)
     ncols = 2
     nrows = int(np.ceil(num_domains / ncols)) if num_domains > 0 else 1
+
     fig, axes = plt.subplots(nrows, ncols, figsize=(12, 4 * nrows))
     axes = np.atleast_1d(axes).flatten()
+
+    if len(axes) > num_domains:
+        for extra_ax in axes[num_domains:]:
+            extra_ax.axis("off")
 
     # Loop over each domain
     for domain in tqdm(sorted(domains)):
