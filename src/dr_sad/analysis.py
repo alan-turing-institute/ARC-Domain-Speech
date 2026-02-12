@@ -4,12 +4,90 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import soundfile
 import torch
 from scipy import signal as sp_signal
 
 from dr_sad.annotation import speaking_map
-from dr_sad.evaluating import EvaluationMetrics, SpeechDetectionEvaluator
+from dr_sad.data.data_fetching import DOMAIN_SETTINGS
+from dr_sad.evaluating import (
+    EvaluationMetrics,
+    SpeechDetectionEvaluator,
+    calculate_precision_recall,
+)
+
+
+def inverse_weightings_by_domain(
+    file_ids: list[str], data_tbl_path: Path, data_name: str
+) -> dict[str, float]:
+    """
+    Calculate inverse normalisation weightings for each domain based on the number of
+    files in each domain.
+    Less represented domains get higher weights.
+
+    Args:
+        file_ids: List of file IDs to be analyzed.
+        data_tbl_path: Path to the tab-separated data table file (e.g. `.tsv`/`.tbl`)
+            containing file metadata, including domain information.
+        data_name: Name of the dataset being analyzed, used to determine domain column
+            from DOMAIN_SETTINGS.
+
+    Returns:
+        Dictionary mapping file IDs to their corresponding inverse normalisation
+        weightings.
+    """
+
+    domain_identifier = DOMAIN_SETTINGS[data_name]["domain_column"]
+
+    # Load data table
+    data_tbl = pd.read_csv(data_tbl_path, sep="\t")
+
+    # Build file_id -> domain mapping and validate uniqueness
+    file_to_domain = {}
+    for _, row in data_tbl.iterrows():
+        file_id = row["file_id"]
+        domain = row[domain_identifier]
+
+        if file_id in file_to_domain:
+            err_msg = (
+                f"Duplicate file_id '{file_id}' found in data table at {data_tbl_path}."
+            )
+            raise ValueError(err_msg)
+        file_to_domain[file_id] = domain
+
+    # Validate that all requested file_ids are present in metadata
+    missing_files = set(file_ids) - set(file_to_domain.keys())
+    if missing_files:
+        err_msg = (
+            "The following file IDs were not found in the data table at "
+            f"{data_tbl_path}: {sorted(missing_files)}"
+        )
+        raise KeyError(err_msg)
+
+    # Count number of files in each domain (only for files passed in file_ids)
+    domain_counts: dict[str, int] = {}
+    for file_id in file_ids:
+        domain = file_to_domain[file_id]
+        domain_counts[domain] = domain_counts.get(domain, 0) + 1
+
+    # Calculate inverse weightings for each domain
+    inverse_weights: dict[str, float] = {}
+    for domain, count in domain_counts.items():
+        inverse_weights[domain] = len(file_ids) / count
+
+    # Normalize inverse weights so they sum to 1
+    total_weight = sum(inverse_weights.values())
+    normalized_weights = {
+        domain: weight / total_weight for domain, weight in inverse_weights.items()
+    }
+
+    # Create file-level weights mapping
+    file_weights: dict[str, float] = {}
+    for file_id in file_ids:
+        file_weights[file_id] = normalized_weights[file_to_domain[file_id]]
+
+    return file_weights
 
 
 def load_annotations(
@@ -202,6 +280,54 @@ def plot_analysis(
     plt.close()
 
 
+def get_file_data_and_preds(
+    model_metadata: dict[str, float | int],
+    data_dir: Path | str,
+    file_id: str,
+    predictions: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Terser function to retrieve the ground truth labels for a specific file ID along
+    with the model predictions where there is overlap with the audio.
+
+    Args:
+        model_metadata: metadata dictionary containing frame parameters
+            (frame_rate_hz, frame_center_start, frame_center_step, frame_hop_sec).
+        data_dir: Path to the data directory containing audio and annotations.
+        file_id: ID of the file to retrieve ground truth for.
+        predictions: Model predictions for the audio file.
+
+    Returns:
+        Tuple containing ground truth labels, corresponding model predictions,
+            timestamps for each prediction frame, and the raw audio samples.
+    """
+    audio, _, speech_segments = load_audio_and_annotations(
+        file_id,
+        data_dir,
+    )
+
+    # get model frame parameters
+    frame_rate_hz = model_metadata["frame_rate_hz"]
+    frame_center_start = model_metadata["frame_center_start"]
+    frame_center_step = model_metadata["frame_center_step"]
+    actual_num_frames = int(
+        ((len(audio) - 2 * frame_center_start) // frame_center_step) + 1
+    )
+
+    # get only the valid portion of predictions
+    signal_predictions = predictions[:actual_num_frames]
+
+    all_timestamps = (
+        np.arange(len(signal_predictions)) * (1 / frame_rate_hz)
+    ) + model_metadata["frame_hop_sec"]
+    # Create ground truth mask
+    ground_truth_mask = speaking_map(
+        timestamps=all_timestamps,
+        annotations=speech_segments,
+    )
+    return ground_truth_mask, signal_predictions, all_timestamps, audio
+
+
 def evaluate_file(
     data_dir: Path | str,
     file_id: str,
@@ -238,28 +364,13 @@ def evaluate_file(
             stacklevel=2,
         )
 
-    audio, _, speech_segments = load_audio_and_annotations(
-        file_id,
-        data_dir,
-    )
-
-    # get model frame parameters
-    frame_rate_hz = model_metadata["frame_rate_hz"]
-    frame_center_start = model_metadata["frame_center_start"]
-    frame_center_step = model_metadata["frame_center_step"]
-    actual_num_frames = ((len(audio) - 2 * frame_center_start) // frame_center_step) + 1
-
-    # get only the valid portion of predictions
-    signal_predictions = predictions[:actual_num_frames]
-
-    all_timestamps = (
-        np.arange(len(signal_predictions)) * (1 / frame_rate_hz)
-    ) + model_metadata["frame_hop_sec"]
-
-    # Create ground truth mask
-    ground_truth_mask = speaking_map(
-        timestamps=all_timestamps,
-        annotations=speech_segments,
+    ground_truth_mask, signal_predictions, all_timestamps, audio = (
+        get_file_data_and_preds(
+            model_metadata=model_metadata,
+            data_dir=data_dir,
+            file_id=file_id,
+            predictions=predictions,
+        )
     )
 
     # Downsample ground truth to match predictions
@@ -281,3 +392,43 @@ def evaluate_file(
         )
 
     return evaluation_metrics
+
+
+def generate_precision_recall_curve_data(
+    n_thresholds: int,
+    predictions: dict[str, torch.Tensor],
+    model_metadata: dict[str, int | float],
+    data_dir: Path | str,
+    data_name: str,
+    tbl_path: Path,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    n_predictions = len(predictions)
+    precision = np.zeros((n_thresholds, n_predictions))
+    recall = np.zeros((n_thresholds, n_predictions))
+
+    file_weightings = inverse_weightings_by_domain(
+        file_ids=list(predictions.keys()), data_tbl_path=tbl_path, data_name=data_name
+    )
+    inverse_weightings = np.zeros(len(predictions))
+
+    for prediction_idx, (file_id, prediction_tensor) in enumerate(predictions.items()):
+        numpy_prediction = prediction_tensor.numpy().flatten()
+        ground_truth, signal_predictions, _, _ = get_file_data_and_preds(
+            model_metadata=model_metadata,
+            data_dir=data_dir,
+            file_id=file_id,
+            predictions=numpy_prediction,
+        )
+        inverse_weightings[prediction_idx] = file_weightings[file_id]
+        for threshold_idx, threshold in enumerate(np.linspace(0, 1, n_thresholds)):
+            evaluator = SpeechDetectionEvaluator(
+                detection_threshold=threshold,
+            )
+            metrics_dict = evaluator.calculate_base_metrics(
+                ground_truth, signal_predictions
+            )
+            precision_val, recall_val = calculate_precision_recall(metrics_dict)
+            precision[threshold_idx, prediction_idx] = precision_val
+            recall[threshold_idx, prediction_idx] = recall_val
+
+    return precision, recall, inverse_weightings

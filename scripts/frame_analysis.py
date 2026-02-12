@@ -5,11 +5,12 @@ Analysis script for model predictions.
 from argparse import ArgumentParser
 from pathlib import Path
 
+import numpy as np
 import yaml
 from safetensors.torch import load_file
 from tqdm import tqdm
 
-from dr_sad.analysis import evaluate_file
+from dr_sad.analysis import evaluate_file, inverse_weightings_by_domain
 from dr_sad.evaluating import SpeechDetectionEvaluator
 from dr_sad.utils import get_experiment_name
 
@@ -29,6 +30,7 @@ def run_analysis(
     data_name: str,
     results_filepath: Path,
     use_collar: bool = False,
+    inverse_weightings: bool = True,
 ) -> None:
     """
     Run frame level analysis on predictions
@@ -40,6 +42,8 @@ def run_analysis(
         data_name (str): Name of the dataset being analyzed
         results_filepath (Path): Path to save YAML file with aggregated results
         use_collar (bool): Whether to use collar frames in the analysis
+        inverse_weightings (bool): Whether to use inverse weightings based on domain
+            representation when calculating mean results across files.
     """
     # Load prediction file
     predictions = load_file(prediction_path)
@@ -78,31 +82,51 @@ def run_analysis(
         )
         all_results[file_id] = evaluation_metrics.to_dict()
 
-    # Filter out None results and calculate means
-    valid_results: list[dict[str, float]] = list(all_results.values())
+    data_tbl_path = data_dir / "sources.tbl"
 
-    if len(valid_results) > 0:
-        mean_results = {}
-        # Get metric names from first valid result
-        for metric in valid_results[0]:
-            mean_results[metric] = sum(
-                result[metric] for result in valid_results
-            ) / len(valid_results)
+    mean_results = {}
+    if not all_results:
+        err_msg = f"No results to analyse for {split_name} - check predictions."
+        raise ValueError(err_msg)
 
-        # Load existing results or create new dict
-        if results_filepath.exists():
-            with open(results_filepath) as f:
-                all_split_results = yaml.safe_load(f) or {}
-        else:
-            all_split_results = {}
+    metric_names = next(iter(all_results.values())).keys()
+    if inverse_weightings:
+        weightings = inverse_weightings_by_domain(
+            list(predictions.keys()), data_tbl_path, data_name=data_name
+        )
+        # Get metric names from first item in dictionary
+        for metric_name in metric_names:
+            # Build list of (value, weight) pairs for this metric
+            values = []
+            file_weightings = []
+            for file_id, metrics in all_results.items():
+                values.append(metrics[metric_name])
+                file_weightings.append(weightings[file_id])
 
-        # Add mean results for this split
-        all_split_results = all_split_results | {split_name: mean_results}
+            mean_results[metric_name] = np.average(
+                values,
+                weights=file_weightings,
+            ).item()
+    else:
+        for metric_name in metric_names:
+            mean_results[metric_name] = np.mean(
+                [metrics[metric_name] for metrics in all_results.values()]
+            ).item()
 
-        # Save updated results to yaml file
-        results_filepath.parent.mkdir(parents=True, exist_ok=True)
-        with open(results_filepath, "w") as f:
-            yaml.dump(all_split_results, f)
+    # Load existing results or create new dict
+    if results_filepath.exists():
+        with open(results_filepath) as f:
+            all_split_results = yaml.safe_load(f) or {}
+    else:
+        all_split_results = {}
+
+    # Add mean results for this split
+    all_split_results = all_split_results | {split_name: mean_results}
+
+    # Save updated results to yaml file
+    results_filepath.parent.mkdir(parents=True, exist_ok=True)
+    with open(results_filepath, "w") as f:
+        yaml.dump(all_split_results, f)
 
 
 def main(
@@ -170,6 +194,11 @@ if __name__ == "__main__":
         help="Path or name to the experiment configuration file.",
     )
     parser.add_argument(
+        "split_idx",
+        type=int,
+        help="Index of the data split to use, read from data config file",
+    )
+    parser.add_argument(
         "--domain",
         type=int,
         default=None,
@@ -177,11 +206,6 @@ if __name__ == "__main__":
             "Domain to exclude when domain_type is 'exclude_one', OR"
             " target domain when domain_type is 'single_domain'."
         ),
-    )
-    parser.add_argument(
-        "split_idx",
-        type=int,
-        help="Index of the data split to use, read from data config file",
     )
     parser.add_argument(
         "--use-collar",

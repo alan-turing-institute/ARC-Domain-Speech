@@ -5,6 +5,7 @@ from dr_sad.evaluating import (
     EvaluationMetrics,
     SpeechDetectionEvaluator,
     apply_collar,
+    calculate_precision_recall,
     detection_cost_function,
     detection_error_rate,
     frame_accuracy,
@@ -229,3 +230,80 @@ class TestSpeechDetectionEvaluator:
         assert metrics.f1_nonspeech == pytest.approx(
             (2 * 3) / (2 * 3 + 1 + 1), rel=1e-3
         )  # F1 for non-speech class
+
+
+class TestCalculatePrecisionRecall:
+    """Tests for calculate_precision_recall function."""
+
+    def test_normal_cases(self):
+        """Test precision and recall calculation with normal values."""
+        metrics_dict = {
+            "true_positives": 10.0,
+            "false_positives": 5.0,
+            "false_negatives": 3.0,
+        }
+
+        precision, recall = calculate_precision_recall(metrics_dict)
+
+        # precision = tp / (tp + fp) = 10 / (10 + 5) = 10/15 = 2/3
+        assert precision == pytest.approx(10.0 / 15.0, rel=1e-10)
+        # recall = tp / (tp + fn) = 10 / (10 + 3) = 10/13
+        assert recall == pytest.approx(10.0 / 13.0, rel=1e-10)
+
+    def test_perfect_precision_and_recall(self):
+        """Test with perfect predictions (no false positives or negatives)."""
+        metrics_dict = {
+            "true_positives": 8.0,
+            "false_positives": 0.0,
+            "false_negatives": 0.0,
+        }
+
+        precision, recall = calculate_precision_recall(metrics_dict)
+
+        # Both should be 1.0 (perfect)
+        assert precision == 1.0
+        assert recall == 1.0
+
+    def test_zero_precision_denominator(self):
+        """Test when precision denominator is zero (no predictions made)."""
+        metrics_dict = {
+            "true_positives": 0.0,
+            "false_positives": 0.0,
+            "false_negatives": 5.0,
+        }
+
+        precision, recall = calculate_precision_recall(metrics_dict)
+
+        # precision = 0 / (0 + 0) -> undefined, should be set to zero
+        assert precision == 0.0
+        # recall = 0 / (0 + 5) = 0 / 5 = 0.0
+        assert recall == 0.0
+
+    def test_zero_recall_denominator(self):
+        """Test when recall denominator is zero (no actual positives)."""
+        metrics_dict = {
+            "true_positives": 0.0,
+            "false_positives": 3.0,
+            "false_negatives": 0.0,
+        }
+
+        precision, recall = calculate_precision_recall(metrics_dict)
+
+        # precision = 0 / (0 + 3) = 0 / 3 = 0.0
+        assert precision == 0.0
+        # recall = 0 / (0 + 0) -> undefined, should be set to zero
+        assert recall == 0.0
+
+    def test_both_denominators_zero(self):
+        """Test when both denominators are zero."""
+        metrics_dict = {
+            "true_positives": 0.0,
+            "false_positives": 0.0,
+            "false_negatives": 0.0,
+        }
+
+        precision, recall = calculate_precision_recall(metrics_dict)
+
+        # Both precision and recall should be zero
+        assert precision == 0.0
+        assert recall == 0.0
