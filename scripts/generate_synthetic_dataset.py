@@ -11,6 +11,7 @@ from dr_sad.data.synthetic import (
     BaseNoiseBuilder,
     IdentityNoiseBuilder,
     ResampleNoiseBuilder,
+    VolumeNoiseBuilder,
 )
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -49,7 +50,7 @@ def main(data_name: str, domains: list[str | int]):
         ),
         "noise": NoiseBuilder(noise_dir=NOISE_DIR / "noise", simultaneous=1, snr_db=0),
         "reverb": IdentityNoiseBuilder(),
-        "volume": IdentityNoiseBuilder(),
+        "volume": VolumeNoiseBuilder(volume_range=(0.2, 0.6), n_volume_changes=25),
         "downsample": ResampleNoiseBuilder(downsample_factor=4),
     }
 
@@ -86,9 +87,11 @@ def main(data_name: str, domains: list[str | int]):
 if __name__ == "__main__":
     main(
         data_name="dihard",
-        domains=["restaurant", "socio_field", "clinical", "meeting", "webvideo"],
-    )
-    main(
-        data_name="dihard",
-        domains=["restaurant", "socio_field", "clinical", "meeting", "webvideo"],
+        domains=[
+            "meeting",
+            "socio_field",
+            "clinical",
+            "restaurant",
+            "webvideo",
+        ],
     )
