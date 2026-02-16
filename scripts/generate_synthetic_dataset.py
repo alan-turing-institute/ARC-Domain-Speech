@@ -1,33 +1,28 @@
 from pathlib import Path
 from shutil import copy
-from typing import NamedTuple
 
-import numpy as np
 import pandas as pd
 import soundfile as sf
 from tqdm import tqdm
 
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS, full_file_pull
 from dr_sad.data.noise import NoiseBuilder
+from dr_sad.data.synthetic import (
+    BaseNoiseBuilder,
+    IdentityNoiseBuilder,
+    ResampleNoiseBuilder,
+)
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 NOISE_DIR = DATA_DIR / "musan"
 
-noise_domain_map = {
+NOISE_DOMAIN_MAP = {
     "restaurant": "babble",
     "socio_field": "reverb",
     "clinical": "noise",
     "meeting": "volume",
     "webvideo": "downsample",
 }
-
-
-class BaseNoiseBuilder(NamedTuple):
-    noise_dir: Path
-    snr_db: int | tuple[int, int]
-
-    def add_noise(self, signal: np.ndarray) -> np.ndarray:
-        return signal
 
 
 def main(data_name: str, domains: list[str | int]):
@@ -53,9 +48,9 @@ def main(data_name: str, domains: list[str | int]):
             noise_dir=NOISE_DIR / "speech", simultaneous=10, snr_db=(5, 10)
         ),
         "noise": NoiseBuilder(noise_dir=NOISE_DIR / "noise", simultaneous=1, snr_db=0),
-        "reverb": BaseNoiseBuilder(noise_dir=NOISE_DIR / "reverb", snr_db=0),
-        "volume": BaseNoiseBuilder(noise_dir=NOISE_DIR / "volume", snr_db=0),
-        "downsample": BaseNoiseBuilder(noise_dir=NOISE_DIR / "downsample", snr_db=0),
+        "reverb": IdentityNoiseBuilder(),
+        "volume": IdentityNoiseBuilder(),
+        "downsample": ResampleNoiseBuilder(downsample_factor=4),
     }
 
     # loop over domains and files, add noise to each file, and save the synthetic data
@@ -66,7 +61,7 @@ def main(data_name: str, domains: list[str | int]):
 
         domain_sources = sources[sources["domain"] == domain_name]
         noise_builder = noise_builder_dict.get(
-            noise_domain_map[domain_name], noise_builder_dict["noise"]
+            NOISE_DOMAIN_MAP.get(domain_name, "noise"), noise_builder_dict["noise"]
         )
 
         for _, row in tqdm(
@@ -89,6 +84,10 @@ def main(data_name: str, domains: list[str | int]):
 
 
 if __name__ == "__main__":
+    main(
+        data_name="dihard",
+        domains=["restaurant", "socio_field", "clinical", "meeting", "webvideo"],
+    )
     main(
         data_name="dihard",
         domains=["restaurant", "socio_field", "clinical", "meeting", "webvideo"],
