@@ -11,6 +11,7 @@ from dr_sad.data.synthetic import (
     BaseNoiseBuilder,
     IdentityNoiseBuilder,
     ResampleNoiseBuilder,
+    ReverbNoiseBuilder,
     VolumeNoiseBuilder,
 )
 
@@ -49,7 +50,7 @@ def main(data_name: str, domains: list[str | int]):
             noise_dir=NOISE_DIR / "speech", simultaneous=10, snr_db=(5, 10)
         ),
         "noise": NoiseBuilder(noise_dir=NOISE_DIR / "noise", simultaneous=1, snr_db=0),
-        "reverb": IdentityNoiseBuilder(),
+        "reverb": ReverbNoiseBuilder(ratio=2.5, reverb_volume=0.3),
         "volume": VolumeNoiseBuilder(volume_range=(0.2, 0.6), n_volume_changes=25),
         "downsample": ResampleNoiseBuilder(downsample_factor=4),
     }
@@ -88,8 +89,8 @@ if __name__ == "__main__":
     main(
         data_name="dihard",
         domains=[
-            "meeting",
             "socio_field",
+            "meeting",
             "clinical",
             "restaurant",
             "webvideo",
