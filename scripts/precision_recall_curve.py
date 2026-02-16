@@ -67,15 +67,24 @@ def main(
 
     #  create plot array for each domain and eval split
     num_domains = len(domains)
-    ncols = 2
-    nrows = int(np.ceil(num_domains / ncols)) if num_domains > 0 else 1
+    nrows = 2
+    ncols = int(np.ceil(num_domains / nrows)) if num_domains > 0 else 1
 
-    fig, axes = plt.subplots(nrows, ncols, figsize=(12, 4 * nrows))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 8))
     axes = np.atleast_1d(axes).flatten()
 
     if len(axes) > num_domains:
         for extra_ax in axes[num_domains:]:
             extra_ax.axis("off")
+
+    loaded_results = False
+    # check results already exist
+    if Path(figure_save_path.parent / "precision_recall_curve_data.yaml").is_file():
+        with open(
+            Path(figure_save_path.parent / "precision_recall_curve_data.yaml")
+        ) as file:
+            all_results = yaml.safe_load(file)
+        loaded_results = True
 
     # Loop over each domain
     for domain in tqdm(sorted(domains)):
@@ -106,48 +115,63 @@ def main(
         model_metadata = yaml.safe_load(
             (experiment_output_pattern / "model_metadata.yaml").read_text()
         )
-        for eval_split in eval_split_names:
-            for split_name in split_names:
-                prediction_path = (
-                    MAIN_DIR
-                    / "outputs"
-                    / experiment_name
-                    / split_name.removesuffix(".yaml")
-                    / f"domain_{domain}"
-                    / f"saved_predictions/{eval_split}.safetensors"
-                )
-                predictions = load_file(prediction_path)
-
-                precision, recall, inverse_weightings = (
-                    generate_precision_recall_curve_data(
-                        N_THRESHOLDS,
-                        predictions,
-                        model_metadata,
-                        MAIN_DIR / "data" / data_name,
-                        data_name,
-                        tbl_path,
+        if not loaded_results:
+            for eval_split in eval_split_names:
+                for split_name in split_names:
+                    prediction_path = (
+                        MAIN_DIR
+                        / "outputs"
+                        / experiment_name
+                        / split_name.removesuffix(".yaml")
+                        / f"domain_{domain}"
+                        / f"saved_predictions/{eval_split}.safetensors"
                     )
-                )
+                    predictions = load_file(prediction_path)
 
-                masked_precision = np.ma.masked_invalid(precision)
-                masked_recall = np.ma.masked_invalid(recall)
+                    precision, recall, inverse_weightings = (
+                        generate_precision_recall_curve_data(
+                            N_THRESHOLDS,
+                            predictions,
+                            model_metadata,
+                            MAIN_DIR / "data" / data_name,
+                            data_name,
+                            tbl_path,
+                        )
+                    )
 
-                # Save precision-recall data
-                results_dict[eval_split]["precision"].append(
-                    np.ma.average(masked_precision, axis=1, weights=inverse_weightings)
-                )
-                results_dict[eval_split]["recall"].append(
-                    np.ma.average(masked_recall, axis=1, weights=inverse_weightings)
-                )
+                    masked_precision = np.ma.masked_invalid(precision)
+                    masked_recall = np.ma.masked_invalid(recall)
 
-        # stack values
-        stacked_results = {
-            eval_split: {
-                "precision": np.array(results_dict[eval_split]["precision"]),
-                "recall": np.array(results_dict[eval_split]["recall"]),
+                    # Save precision-recall data
+                    results_dict[eval_split]["precision"].append(
+                        np.ma.average(
+                            masked_precision, axis=1, weights=inverse_weightings
+                        )
+                    )
+                    results_dict[eval_split]["recall"].append(
+                        np.ma.average(masked_recall, axis=1, weights=inverse_weightings)
+                    )
+
+            # stack values
+            stacked_results = {
+                eval_split: {
+                    "precision": np.array(results_dict[eval_split]["precision"]),
+                    "recall": np.array(results_dict[eval_split]["recall"]),
+                }
+                for eval_split in eval_split_names
             }
-            for eval_split in eval_split_names
-        }
+        else:
+            stacked_results = {
+                eval_split: {
+                    "precision": np.array(
+                        all_results[f"domain_{domain}"][eval_split]["precision"]
+                    ),
+                    "recall": np.array(
+                        all_results[f"domain_{domain}"][eval_split]["recall"]
+                    ),
+                }
+                for eval_split in eval_split_names
+            }
 
         # Store results for this domain
         for eval_split, results in stacked_results.items():
