@@ -9,7 +9,6 @@ from dr_sad.data.data_fetching import DOMAIN_SETTINGS, full_file_pull
 from dr_sad.data.noise import NoiseBuilder
 from dr_sad.data.synthetic import (
     BaseNoiseBuilder,
-    IdentityNoiseBuilder,
     ResampleNoiseBuilder,
     ReverbNoiseBuilder,
     VolumeNoiseBuilder,

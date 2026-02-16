@@ -10,11 +10,6 @@ class BaseNoiseBuilder(ABC):
         pass
 
 
-class IdentityNoiseBuilder(BaseNoiseBuilder):
-    def add_noise(self, signal: np.ndarray) -> np.ndarray:
-        return signal
-
-
 class ResampleNoiseBuilder(BaseNoiseBuilder):
     def __init__(self, downsample_factor: int):
         self.downsample_factor = downsample_factor
