@@ -1,17 +1,23 @@
-from abc import ABC, abstractmethod
+from pathlib import Path
 
 import numpy as np
-from scipy.signal import convolve, resample
+import soundfile as sf
+from scipy.interpolate import interp1d
+from scipy.signal import fftconvolve, resample
 
-
-class BaseNoiseBuilder(ABC):
-    @abstractmethod
-    def add_noise(self, signal: np.ndarray) -> np.ndarray:
-        pass
+from dr_sad.data.noise import BaseNoiseBuilder
 
 
 class ResampleNoiseBuilder(BaseNoiseBuilder):
     def __init__(self, downsample_factor: int):
+        """
+        Noise builder that adds noise by downsampling and upsampling the signal,
+        which can simulate the effect of low-quality audio.
+
+        Args:
+            downsample_factor: The factor by which to downsample the signal before
+                upsampling it back to the original rate.
+        """
         self.downsample_factor = downsample_factor
 
     def add_noise(self, signal: np.ndarray) -> np.ndarray:
@@ -21,44 +27,83 @@ class ResampleNoiseBuilder(BaseNoiseBuilder):
 
 
 class VolumeNoiseBuilder(BaseNoiseBuilder):
-    def __init__(self, volume_range: tuple[float, float], n_volume_changes: int = 10):
+    def __init__(
+        self,
+        volume_range: tuple[float, float],
+        volume_change_time: int,
+        sample_rate: int,
+        seed: int | None,
+    ):
+        """
+        Noise builder that adds volume variation to the signal. The volume changes
+        linearly between random values in the specified range every volume_change_time
+        seconds.
+
+        Args:
+            volume_range: A tuple specifying the range (min, max) of volume scaling
+                factors.
+            volume_change_time: The time interval (in seconds) at which the volume
+                scaling factor changes.
+            sample_rate: The sample rate of the audio signal, used to determine how many
+                samples correspond to volume_change_time.
+            seed: Random seed for reproducibility of the volume changes.
+                If None, a random seed will be generated.
+        """
         self.volume_range = volume_range
-        self.n_volume_changes = n_volume_changes
+        self.volume_change_time = volume_change_time
+        self.sample_rate = sample_rate
+        seed = seed if seed is not None else np.random.randint(0, 1e6)
+        self.rng = np.random.Generator(seed)
 
     def add_noise(self, signal: np.ndarray) -> np.ndarray:
-        volume_factor_shape = len(signal) // self.n_volume_changes
-        volume_factor = np.random.uniform(
-            *self.volume_range, size=signal.shape[0] // volume_factor_shape
+        num_seconds = (len(signal) // self.sample_rate) + 1
+        volume_update_time = self.volume_change_time
+
+        time_points = np.arange(0, num_seconds, volume_update_time)
+
+        volume_factors = np.power(
+            2,
+            self.rng.uniform(
+                np.log2(self.volume_range[0]),
+                np.log2(self.volume_range[1]),
+                time_points.shape[0],
+            ),
         )
-        volume_factor = np.repeat(volume_factor, volume_factor_shape + 1)[: len(signal)]
-        return signal * volume_factor
+
+        interp_func = interp1d(
+            time_points, volume_factors, kind="linear", fill_value="extrapolate"
+        )
+        sample_indices = np.linspace(0, len(signal) / self.sample_rate, num=len(signal))
+
+        interpolated_factors = interp_func(sample_indices)
+        return signal * interpolated_factors
 
 
 class ReverbNoiseBuilder(BaseNoiseBuilder):
-    def __init__(self, ratio: float, reverb_volume: float = 0.3):
-        self.ratio = ratio  # a higher power makes the reverb die out more quickly
-        self.reverb_vol = reverb_volume
+    def __init__(
+        self,
+        reverb_sample_filepath: str | Path,
+        sample_rate: int = 16000,
+    ):
+        """
+        Noise builder that adds reverberation to the signal by convolving it with a
+        reverb impulse response.
+
+        Args:
+            reverb_sample_filepath: File path to the audio sample that will be used as
+            the reverb impulse response.
+            sample_rate: The sample rate of the audio signal, used to resample the
+                reverb impulse response to match the signal's sample rate.
+        """
+        reverb_sound, rsr = sf.read(Path(reverb_sample_filepath))
+        self.reverb_sound_match = resample(
+            reverb_sound[:, 0], reverb_sound.shape[0] * sample_rate // rsr
+        )
 
     def add_noise(self, signal: np.ndarray) -> np.ndarray:
-        # Create impulse response from the signal itself
-        verb = np.abs(signal)
-        if np.max(verb) > 0:
-            verb = verb / np.max(verb)  # normalize
-        verb = np.power(verb, self.ratio)  # shape the decay
+        reverb_noise = fftconvolve(signal, self.reverb_sound_match, mode="full")[
+            : len(signal)
+        ]
+        reverb_vol = np.mean(np.abs(signal)) / np.mean(np.abs(reverb_noise))
 
-        # Make the impulse response shorter to avoid excessive reverb
-        max_reverb_len = len(signal) // 4  # limit reverb length
-        verb = verb[:max_reverb_len]
-
-        convolved = convolve(signal, verb, mode="same")
-
-        # Mix: mostly dry signal with a little wet reverb
-        dry_mix = 1.0 - self.reverb_vol
-        result = (signal * dry_mix) + (convolved * self.reverb_vol)
-
-        # Normalize to prevent clipping
-        max_val = np.max(np.abs(result))
-        if max_val > 1.0:
-            result = result / max_val
-
-        return result
+        return signal + reverb_vol * reverb_noise

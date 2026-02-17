@@ -1,10 +1,28 @@
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from scipy.io import wavfile
 
-__all__ = ("NoiseBuilder", "generate_noise_kwargs_list")
+__all__ = ("BaseNoiseBuilder", "NoiseBuilder", "generate_noise_kwargs_list")
+
+
+class BaseNoiseBuilder(ABC):
+    @abstractmethod
+    def add_noise(self, signal: np.ndarray) -> np.ndarray:
+        """
+        Abstract method to add noise to the input signal. This should be implemented by
+        subclasses to define how the noise is generated and added to the signal.
+
+        Args:
+            signal: A 1D numpy array representing the clean audio signal.
+
+        Returns:
+            A 1D numpy array representing the noisy audio signal.
+        """
+        err_msg = "BaseNoiseBuilder is an abstract class and cannot be instantiated."
+        raise NotImplementedError(err_msg)
 
 
 def _get_root_mean_square(noise_array: np.ndarray) -> float:
@@ -70,7 +88,7 @@ def _clipping_and_typecast(signal: np.ndarray, original_dtype: np.dtype) -> np.n
     return signal.astype(original_dtype)
 
 
-class NoiseBuilder:
+class NoiseBuilder(BaseNoiseBuilder):
     def __init__(
         self,
         noise_dir: Path | str,
