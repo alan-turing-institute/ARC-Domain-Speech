@@ -21,6 +21,7 @@ N_THRESHOLDS = 50
 
 def main(
     experiment_config: str,
+    use_existing_results: bool,
 ) -> None:
     """
     Main function to generate precision-recall curve for model predictions.
@@ -79,7 +80,10 @@ def main(
 
     loaded_results = False
     # check results already exist
-    if Path(figure_save_path.parent / "precision_recall_curve_data.yaml").is_file():
+    if (
+        Path(figure_save_path.parent / "precision_recall_curve_data.yaml").is_file()
+        and use_existing_results
+    ):
         with open(
             Path(figure_save_path.parent / "precision_recall_curve_data.yaml")
         ) as file:
@@ -234,7 +238,16 @@ if __name__ == "__main__":
         type=str,
         help="Path or name to the experiment configuration file.",
     )
+    parser.add_argument(
+        "--use-existing-results",
+        action="store_true",
+        help="Whether to use existing precision-recall curve data if it exists, instead"
+        " of regenerating it from predictions. If set, the script will look for a file "
+        "named 'precision_recall_curve_data.yaml'.",
+        default=False,
+    )
     args = parser.parse_args()
     main(
         args.experiment_config,
+        use_existing_results=args.use_existing_results,
     )
