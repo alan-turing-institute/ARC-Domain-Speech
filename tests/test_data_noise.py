@@ -17,9 +17,13 @@ class TestBaseNoiseBuilder:
         """Test that BaseNoiseBuilder initializes correctly."""
         with pytest.raises(
             TypeError,
+            # for Python 3.10+ the error message changed to "Can't instantiate abstract
+            # class BaseNoiseBuilder without an implementation for abstract method
+            # 'add_noise'"
             match=(
-                r"Can't instantiate abstract class BaseNoiseBuilder without an "
-                r"implementation for abstract method 'add_noise'"
+                r"Can't instantiate abstract class BaseNoiseBuilder "
+                r"(with abstract method|without an implementation for abstract method) "
+                r"'?add_noise'?"
             ),
         ):
             _ = BaseNoiseBuilder()  # type: ignore[abstract]
