@@ -134,8 +134,8 @@ class TestVolumeNoiseBuilder:
 class TestReverbNoiseBuilder:
     """Test the ReverbNoiseBuilder class."""
 
-    @pytest.fixture
-    def temp_reverb_file(self, tmp_path: Path):
+    @pytest.fixture()  # type: ignore[misc]
+    def temp_reverb_file(self, tmp_path: Path) -> Path:
         """Create a temporary reverb impulse response file."""
         # Generate a simple impulse response (exponential decay)
         sample_rate = 16000

@@ -22,7 +22,7 @@ class TestBaseNoiseBuilder:
                 r"implementation for abstract method 'add_noise'"
             ),
         ):
-            _ = BaseNoiseBuilder()
+            _ = BaseNoiseBuilder()  # type: ignore[abstract]
 
 
 class TestHelperTools:
