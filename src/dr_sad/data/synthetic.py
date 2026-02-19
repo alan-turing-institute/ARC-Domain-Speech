@@ -18,11 +18,22 @@ class ResampleNoiseBuilder(BaseNoiseBuilder):
             downsample_factor: The factor by which to downsample the signal before
                 upsampling it back to the original rate.
         """
+        if downsample_factor < 2:
+            err_msg = f"downsample_factor must be >= 2, got {downsample_factor}."
+            raise ValueError(err_msg)
         self.downsample_factor = downsample_factor
 
     def add_noise(self, signal: np.ndarray) -> np.ndarray:
         len_signal = len(signal)
-        downsample = resample(signal, len_signal // self.downsample_factor)
+        new_length = len_signal // self.downsample_factor
+        if new_length < 1:
+            err_msg = (
+                "Signal is too short for the chosen downsample_factor: "
+                f"len(signal)={len_signal}, downsample_factor={self.downsample_factor} "
+                "would result in a downsampled length of 0."
+            )
+            raise ValueError(err_msg)
+        downsample = resample(signal, new_length)
         return resample(downsample, len_signal)
 
 
@@ -54,6 +65,16 @@ class VolumeNoiseBuilder(BaseNoiseBuilder):
         self.sample_rate = sample_rate
         seed = seed if seed is not None else np.random.randint(0, 1e6)
         self.rng = np.random.Generator(np.random.PCG64(seed))
+
+        if volume_change_time <= 0:
+            err_msg = f"volume_change_time must be positive, got {volume_change_time}."
+            raise ValueError(err_msg)
+
+        if not (0 <= self.volume_range[0] <= self.volume_range[1]):
+            err_msg = (
+                f"volume_range must satisfy 0 <= min <= max, got {self.volume_range}."
+            )
+            raise ValueError(err_msg)
 
     def add_noise(self, signal: np.ndarray) -> np.ndarray:
         num_seconds = (len(signal) // self.sample_rate) + 1
@@ -96,14 +117,25 @@ class ReverbNoiseBuilder(BaseNoiseBuilder):
                 reverb impulse response to match the signal's sample rate.
         """
         reverb_sound, rsr = sf.read(Path(reverb_sample_filepath))
+        reverb_mono = reverb_sound if reverb_sound.ndim == 1 else reverb_sound[:, 0]
         self.reverb_sound_match = resample(
-            reverb_sound[:, 0], reverb_sound.shape[0] * sample_rate // rsr
+            reverb_mono, reverb_mono.shape[0] * sample_rate // rsr
         )
 
     def add_noise(self, signal: np.ndarray) -> np.ndarray:
         reverb_noise = fftconvolve(signal, self.reverb_sound_match, mode="full")[
             : len(signal)
         ]
-        reverb_vol = np.mean(np.abs(signal)) / np.mean(np.abs(reverb_noise))
+        signal_mean = np.mean(np.abs(signal))
+        noise_mean = np.mean(np.abs(reverb_noise))
 
-        return signal + reverb_vol * reverb_noise
+        # Guard against division by zero or extremely small values
+        if np.issubdtype(reverb_noise.dtype, np.floating):
+            eps = np.finfo(reverb_noise.dtype).eps
+        else:
+            eps = 1e-12
+
+        reverb_vol = 0.0 if noise_mean < eps else signal_mean / noise_mean
+
+        noisy_signal = signal + reverb_vol * reverb_noise
+        return noisy_signal.astype(signal.dtype, copy=False)

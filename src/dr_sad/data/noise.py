@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from pathlib import Path
 from typing import Any
 
@@ -8,13 +8,13 @@ from scipy.io import wavfile
 __all__ = ("BaseNoiseBuilder", "NoiseBuilder", "generate_noise_kwargs_list")
 
 
-class BaseNoiseBuilder(ABC):
+class BaseNoiseBuilder:
     def __init__(self) -> None:
         err_msg = "BaseNoiseBuilder is an abstract class and cannot be instantiated."
         raise NotImplementedError(err_msg)
 
     @abstractmethod
-    def add_noise(self, signal: np.ndarray) -> np.ndarray:
+    def add_noise(self, _signal: np.ndarray) -> np.ndarray:
         """
         Abstract method to add noise to the input signal. This should be implemented by
         subclasses to define how the noise is generated and added to the signal.

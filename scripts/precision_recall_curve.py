@@ -19,6 +19,62 @@ EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
 N_THRESHOLDS = 50
 
 
+def validate_cached_results_structure(
+    all_results: dict[str, dict[str, dict[str, list[float]]]],
+    domain_key: str,
+    eval_split_names: list[str],
+) -> None:
+    """
+    Validate that the cached precision-recall results contain the expected structure
+    for the given domain and evaluation splits.
+
+    Args:
+        all_results (dict): The loaded cached results from YAML.
+        domain_key (str): The key corresponding to the current domain
+            (e.g., "domain_0").
+        eval_split_names (list[str]): The list of expected evaluation split names.
+
+    Raises:
+        ValueError: If the cached results are missing expected keys or have an
+        incompatible structure.
+    """
+    # Validate that the cached results contain the expected structure
+    missing_reasons = []
+
+    if domain_key not in all_results:
+        missing_reasons.append(f"missing domain key '{domain_key}' in cached results")
+    else:
+        missing_eval_splits = []
+        for eval_split in eval_split_names:
+            if eval_split not in all_results[domain_key]:
+                missing_eval_splits.append(
+                    f"missing eval split '{eval_split}' under '{domain_key}'"
+                )
+            else:
+                split_entry = all_results[domain_key][eval_split]
+                if not isinstance(split_entry, dict):
+                    missing_eval_splits.append(  # type: ignore[unreachable]
+                        f"eval split '{eval_split}' under '{domain_key}' is not a dict"
+                    )
+                if "precision" not in split_entry or "recall" not in split_entry:
+                    missing_eval_splits.append(
+                        f"eval split '{eval_split}' under '{domain_key}' contains keys"
+                        f" which are not 'precision' and 'recall'. Found keys: "
+                        f"{list(split_entry.keys())}."
+                    )
+
+        if missing_eval_splits:
+            missing_reasons.extend(missing_eval_splits)
+
+    if missing_reasons:
+        raise ValueError(
+            "Cached precision-recall results are incompatible with the current "
+            "configuration. Detected the following issues:\n - "
+            + "\n - ".join(missing_reasons)
+            + "\nPlease delete or regenerate the cached YAML file and rerun."
+        )
+
+
 def main(
     experiment_config: str,
     use_existing_results: bool,
@@ -28,6 +84,8 @@ def main(
 
     Args:
         experiment_config (str): Path or name to the experiment configuration file.
+        use_existing_results (bool): Whether to use existing precision-recall curve
+            data.
     """
     set_plot_style()
     # Load predictions and ground truth based on experiment_config
@@ -165,14 +223,17 @@ def main(
                 for eval_split in eval_split_names
             }
         else:
+            domain_key = f"domain_{domain}"
+
+            # ensure the loaded results have the expected structure for this domain
+            validate_cached_results_structure(all_results, domain_key, eval_split_names)
+
             stacked_results = {
                 eval_split: {
                     "precision": np.array(
-                        all_results[f"domain_{domain}"][eval_split]["precision"]
+                        all_results[domain_key][eval_split]["precision"]
                     ),
-                    "recall": np.array(
-                        all_results[f"domain_{domain}"][eval_split]["recall"]
-                    ),
+                    "recall": np.array(all_results[domain_key][eval_split]["recall"]),
                 }
                 for eval_split in eval_split_names
             }

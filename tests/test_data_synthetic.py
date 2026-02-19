@@ -76,6 +76,21 @@ class TestResampleNoiseBuilder:
 
         assert high_freq_ratio < low_freq_ratio
 
+    def test_invalid_downsample_factor(self):
+        """Test that invalid downsample factors raise ValueError."""
+        with pytest.raises(ValueError, match="downsample_factor must be >= 2"):
+            ResampleNoiseBuilder(downsample_factor=1)
+
+    def test_signal_too_short_for_downsample_factor(self):
+        """Test that too short signals raise ValueError."""
+        builder = ResampleNoiseBuilder(downsample_factor=100)
+        short_signal = np.array([1.0, 2.0])  # Only 2 samples
+
+        with pytest.raises(
+            ValueError, match="Signal is too short for the chosen downsample_factor"
+        ):
+            builder.add_noise(short_signal)
+
 
 class TestVolumeNoiseBuilder:
     """Test the VolumeNoiseBuilder class."""
@@ -129,6 +144,40 @@ class TestVolumeNoiseBuilder:
         assert not np.array_equal(signal, noisy_signal)
         # Volume should vary, so variance should be > 0
         assert np.var(noisy_signal) > 0
+
+    def test_invalid_volume_change_time(self):
+        """Test that invalid volume_change_time raises ValueError."""
+        with pytest.raises(ValueError, match="volume_change_time must be positive"):
+            VolumeNoiseBuilder(
+                volume_range=(0.5, 2.0),
+                volume_change_time=0,  # Invalid: must be positive
+                sample_rate=16000,
+                seed=42,
+            )
+
+    def test_invalid_volume_range(self):
+        """Test that invalid volume_range raises ValueError."""
+        # Test case where min > max
+        with pytest.raises(
+            ValueError, match="volume_range must satisfy 0 <= min <= max"
+        ):
+            VolumeNoiseBuilder(
+                volume_range=(2.0, 0.5),  # Invalid: min > max
+                volume_change_time=1,
+                sample_rate=16000,
+                seed=42,
+            )
+
+        # Test case where min < 0
+        with pytest.raises(
+            ValueError, match="volume_range must satisfy 0 <= min <= max"
+        ):
+            VolumeNoiseBuilder(
+                volume_range=(-0.5, 2.0),  # Invalid: min < 0
+                volume_change_time=1,
+                sample_rate=16000,
+                seed=42,
+            )
 
 
 class TestReverbNoiseBuilder:
