@@ -3,12 +3,26 @@ import pytest
 import soundfile as sf
 
 from dr_sad.data.noise import (
+    BaseNoiseBuilder,
     NoiseBuilder,
     _clipping_and_typecast,
     _get_root_mean_square,
     _signal_to_noise_scale,
     generate_noise_kwargs_list,
 )
+
+
+class TestBaseNoiseBuilder:
+    def test_base_noise_builder_initialization_fails(self):
+        """Test that BaseNoiseBuilder initializes correctly."""
+        with pytest.raises(
+            TypeError,
+            match=(
+                r"Can't instantiate abstract class BaseNoiseBuilder without an "
+                r"implementation for abstract method 'add_noise'"
+            ),
+        ):
+            _ = BaseNoiseBuilder()
 
 
 class TestHelperTools:

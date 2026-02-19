@@ -9,6 +9,10 @@ __all__ = ("BaseNoiseBuilder", "NoiseBuilder", "generate_noise_kwargs_list")
 
 
 class BaseNoiseBuilder(ABC):
+    def __init__(self) -> None:
+        err_msg = "BaseNoiseBuilder is an abstract class and cannot be instantiated."
+        raise NotImplementedError(err_msg)
+
     @abstractmethod
     def add_noise(self, signal: np.ndarray) -> np.ndarray:
         """
