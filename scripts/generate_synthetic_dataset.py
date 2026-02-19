@@ -70,33 +70,33 @@ def main() -> None:
         "downsample": ResampleNoiseBuilder(downsample_factor=8),
     }
 
-    # loop over domains and files, add noise to each file, and save the synthetic data
-    for domain_name in NOISE_DOMAIN_MAP:
-        # get domain name and index
+    # loop over files, add noise to each file, and save the synthetic data
+    domain_sources = sources[sources["domain"].isin(NOISE_DOMAIN_MAP.keys())]
+    for _, row in tqdm(
+        domain_sources.iterrows(),
+        total=len(domain_sources),
+        desc="Processing all files",
+    ):
+        # get domain information and corresponding noise builder for the file
+        domain_name = row["domain"]
         domain_index = DOMAIN_SETTINGS[DATA_NAME]["domains_idx"][domain_name]
+        noise_builder = noise_builder_dict[NOISE_DOMAIN_MAP[domain_name]]
 
-        domain_sources = sources[sources["domain"] == domain_name]
-        noise_builder = noise_builder_dict.get(
-            NOISE_DOMAIN_MAP.get(domain_name, "noise"), noise_builder_dict["noise"]
+        # load data
+        file_id = row["file_id"]
+        file_data = full_file_pull(file_id, domain_index, str(DATA_DIR / DATA_NAME))
+        file_audio = file_data[file_id]["waveforms"]
+
+        # generate noisy sample
+        noisy_sample = noise_builder.add_noise(file_audio)
+        synthetic_audio_pth = synthetic_audio_dir / f"{file_id}.flac"
+
+        # Save the noisy sample as a FLAC file and copy the corresponding RTTM file
+        sf.write(synthetic_audio_pth, noisy_sample, samplerate=16000)
+        copy(
+            DATA_DIR / DATA_NAME / "rttm" / f"{file_id}.rttm",
+            rttm_dir / f"{file_id}.rttm",
         )
-
-        for _, row in tqdm(
-            domain_sources.iterrows(),
-            total=len(domain_sources),
-            desc=f"Processing domain {domain_name}",
-        ):
-            file_id = row["file_id"]
-            file_data = full_file_pull(file_id, domain_index, str(DATA_DIR / DATA_NAME))
-            file_audio = file_data[file_id]["waveforms"]
-            noisy_sample = noise_builder.add_noise(file_audio)
-            synthetic_audio_pth = synthetic_audio_dir / f"{file_id}.flac"
-
-            # Save the noisy sample as a FLAC file and copy the corresponding RTTM file
-            sf.write(synthetic_audio_pth, noisy_sample, samplerate=16000)
-            copy(
-                DATA_DIR / DATA_NAME / "rttm" / f"{file_id}.rttm",
-                rttm_dir / f"{file_id}.rttm",
-            )
 
 
 if __name__ == "__main__":

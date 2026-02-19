@@ -53,7 +53,7 @@ class VolumeNoiseBuilder(BaseNoiseBuilder):
         self.volume_change_time = volume_change_time
         self.sample_rate = sample_rate
         seed = seed if seed is not None else np.random.randint(0, 1e6)
-        self.rng = np.random.Generator(seed)
+        self.rng = np.random.Generator(np.random.PCG64(seed))
 
     def add_noise(self, signal: np.ndarray) -> np.ndarray:
         num_seconds = (len(signal) // self.sample_rate) + 1
