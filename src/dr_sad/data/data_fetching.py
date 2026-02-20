@@ -51,6 +51,17 @@ DOMAIN_SETTINGS: dict[str, DomainSetting] = {
             "clinical": 4,
         },
     },
+    "dihard_synthetic": {
+        "file_name": "dihard_synthetic",
+        "domain_column": "domain",
+        "domains_idx": {
+            "webvideo": 0,
+            "restaurant": 1,
+            "meeting": 2,
+            "socio_field": 3,
+            "clinical": 4,
+        },
+    },
     "test": {
         "file_name": "test_dataset",
         "domain_column": "domain",
