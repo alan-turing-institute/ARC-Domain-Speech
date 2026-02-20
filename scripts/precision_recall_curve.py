@@ -19,14 +19,73 @@ EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
 N_THRESHOLDS = 50
 
 
+def validate_cached_results_structure(
+    all_results: dict[str, dict[str, dict[str, list[float]]]],
+    domain_key: str,
+    eval_split_names: list[str],
+) -> None:
+    """
+    Validate that the cached precision-recall results contain the expected structure
+    for the given domain and evaluation splits.
+
+    Args:
+        all_results (dict): The loaded cached results from YAML.
+        domain_key (str): The key corresponding to the current domain
+            (e.g., "domain_0").
+        eval_split_names (list[str]): The list of expected evaluation split names.
+
+    Raises:
+        ValueError: If the cached results are missing expected keys or have an
+        incompatible structure.
+    """
+    # Validate that the cached results contain the expected structure
+    missing_reasons = []
+
+    if domain_key not in all_results:
+        missing_reasons.append(f"missing domain key '{domain_key}' in cached results")
+    else:
+        missing_eval_splits = []
+        for eval_split in eval_split_names:
+            if eval_split not in all_results[domain_key]:
+                missing_eval_splits.append(
+                    f"missing eval split '{eval_split}' under '{domain_key}'"
+                )
+            else:
+                split_entry = all_results[domain_key][eval_split]
+                if not isinstance(split_entry, dict):
+                    missing_eval_splits.append(  # type: ignore[unreachable]
+                        f"eval split '{eval_split}' under '{domain_key}' is not a dict"
+                    )
+                if "precision" not in split_entry or "recall" not in split_entry:
+                    missing_eval_splits.append(
+                        f"eval split '{eval_split}' under '{domain_key}' contains keys"
+                        f" which are not 'precision' and 'recall'. Found keys: "
+                        f"{list(split_entry.keys())}."
+                    )
+
+        if missing_eval_splits:
+            missing_reasons.extend(missing_eval_splits)
+
+    if missing_reasons:
+        raise ValueError(
+            "Cached precision-recall results are incompatible with the current "
+            "configuration. Detected the following issues:\n - "
+            + "\n - ".join(missing_reasons)
+            + "\nPlease delete or regenerate the cached YAML file and rerun."
+        )
+
+
 def main(
     experiment_config: str,
+    use_existing_results: bool,
 ) -> None:
     """
     Main function to generate precision-recall curve for model predictions.
 
     Args:
         experiment_config (str): Path or name to the experiment configuration file.
+        use_existing_results (bool): Whether to use existing precision-recall curve
+            data.
     """
     set_plot_style()
     # Load predictions and ground truth based on experiment_config
@@ -67,15 +126,27 @@ def main(
 
     #  create plot array for each domain and eval split
     num_domains = len(domains)
-    ncols = 2
-    nrows = int(np.ceil(num_domains / ncols)) if num_domains > 0 else 1
+    nrows = 2
+    ncols = int(np.ceil(num_domains / nrows)) if num_domains > 0 else 1
 
-    fig, axes = plt.subplots(nrows, ncols, figsize=(12, 4 * nrows))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 8))
     axes = np.atleast_1d(axes).flatten()
 
     if len(axes) > num_domains:
         for extra_ax in axes[num_domains:]:
             extra_ax.axis("off")
+
+    loaded_results = False
+    # check results already exist
+    if (
+        Path(figure_save_path.parent / "precision_recall_curve_data.yaml").is_file()
+        and use_existing_results
+    ):
+        with open(
+            Path(figure_save_path.parent / "precision_recall_curve_data.yaml")
+        ) as file:
+            all_results = yaml.safe_load(file)
+        loaded_results = True
 
     # Loop over each domain
     for domain in tqdm(sorted(domains)):
@@ -106,48 +177,66 @@ def main(
         model_metadata = yaml.safe_load(
             (experiment_output_pattern / "model_metadata.yaml").read_text()
         )
-        for eval_split in eval_split_names:
-            for split_name in split_names:
-                prediction_path = (
-                    MAIN_DIR
-                    / "outputs"
-                    / experiment_name
-                    / split_name.removesuffix(".yaml")
-                    / f"domain_{domain}"
-                    / f"saved_predictions/{eval_split}.safetensors"
-                )
-                predictions = load_file(prediction_path)
-
-                precision, recall, inverse_weightings = (
-                    generate_precision_recall_curve_data(
-                        N_THRESHOLDS,
-                        predictions,
-                        model_metadata,
-                        MAIN_DIR / "data" / data_name,
-                        data_name,
-                        tbl_path,
+        if not loaded_results:
+            for eval_split in eval_split_names:
+                for split_name in split_names:
+                    prediction_path = (
+                        MAIN_DIR
+                        / "outputs"
+                        / experiment_name
+                        / split_name.removesuffix(".yaml")
+                        / f"domain_{domain}"
+                        / f"saved_predictions/{eval_split}.safetensors"
                     )
-                )
+                    predictions = load_file(prediction_path)
 
-                masked_precision = np.ma.masked_invalid(precision)
-                masked_recall = np.ma.masked_invalid(recall)
+                    precision, recall, inverse_weightings = (
+                        generate_precision_recall_curve_data(
+                            N_THRESHOLDS,
+                            predictions,
+                            model_metadata,
+                            MAIN_DIR / "data" / data_name,
+                            data_name,
+                            tbl_path,
+                        )
+                    )
 
-                # Save precision-recall data
-                results_dict[eval_split]["precision"].append(
-                    np.ma.average(masked_precision, axis=1, weights=inverse_weightings)
-                )
-                results_dict[eval_split]["recall"].append(
-                    np.ma.average(masked_recall, axis=1, weights=inverse_weightings)
-                )
+                    masked_precision = np.ma.masked_invalid(precision)
+                    masked_recall = np.ma.masked_invalid(recall)
 
-        # stack values
-        stacked_results = {
-            eval_split: {
-                "precision": np.array(results_dict[eval_split]["precision"]),
-                "recall": np.array(results_dict[eval_split]["recall"]),
+                    # Save precision-recall data
+                    results_dict[eval_split]["precision"].append(
+                        np.ma.average(
+                            masked_precision, axis=1, weights=inverse_weightings
+                        )
+                    )
+                    results_dict[eval_split]["recall"].append(
+                        np.ma.average(masked_recall, axis=1, weights=inverse_weightings)
+                    )
+
+            # stack values
+            stacked_results = {
+                eval_split: {
+                    "precision": np.array(results_dict[eval_split]["precision"]),
+                    "recall": np.array(results_dict[eval_split]["recall"]),
+                }
+                for eval_split in eval_split_names
             }
-            for eval_split in eval_split_names
-        }
+        else:
+            domain_key = f"domain_{domain}"
+
+            # ensure the loaded results have the expected structure for this domain
+            validate_cached_results_structure(all_results, domain_key, eval_split_names)
+
+            stacked_results = {
+                eval_split: {
+                    "precision": np.array(
+                        all_results[domain_key][eval_split]["precision"]
+                    ),
+                    "recall": np.array(all_results[domain_key][eval_split]["recall"]),
+                }
+                for eval_split in eval_split_names
+            }
 
         # Store results for this domain
         for eval_split, results in stacked_results.items():
@@ -210,7 +299,16 @@ if __name__ == "__main__":
         type=str,
         help="Path or name to the experiment configuration file.",
     )
+    parser.add_argument(
+        "--use-existing-results",
+        action="store_true",
+        help="Whether to use existing precision-recall curve data if it exists, instead"
+        " of regenerating it from predictions. If set, the script will look for a file "
+        "named 'precision_recall_curve_data.yaml'.",
+        default=False,
+    )
     args = parser.parse_args()
     main(
         args.experiment_config,
+        use_existing_results=args.use_existing_results,
     )
