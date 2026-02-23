@@ -1,0 +1,2 @@
+model_name: adversarial_net
+grl_lambda: 0.1

@@ -1,0 +1,3 @@
+model_name: "vrex_model"
+lambda_vrex: 0.2
+lambda_scheduling_steps: 5000
