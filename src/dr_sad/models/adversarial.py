@@ -288,3 +288,45 @@ class AdversarialNet(PyanNet):
         self.log("val_speaker_loss", speaker_loss)
         self.log("val_domain_loss", domain_loss)
         self.log("val_domain_accuracy", domain_accuracy)
+
+
+class AdversarialLSTM(AdversarialNet):
+    def __init__(self, *args, lstm_bidirectional: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.adversarial_lstm = nn.LSTM(
+            input_size=self.sincnet.out_features,
+            hidden_size=self.hparams.lstm.hidden_size,
+            num_layers=self.hparams.lstm.num_layers,
+            batch_first=True,
+            bidirectional=lstm_bidirectional,
+        )
+
+    def forward(
+        self,
+        waveforms: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass with both speaker and domain predictions.
+
+        Args:
+            waveforms: (batch, channel, samples), channel must be 1.
+
+        Returns:
+            speaker_scores: (batch, frames, num_speaker_classes)
+            domain_logits: (batch, frames, num_domains)
+        """
+        # shared feature extractor
+        features = self.sincnet(waveforms)
+
+        # --- speaker head (original path) ---
+        lstm_out, _ = self.lstm(features)
+        speaker_hidden = self.linear(lstm_out)
+        speaker_logits = self.classifier(speaker_hidden)
+        speaker_scores = self.final_activation(speaker_logits)
+
+        # --- domain head (adversarial path) ---
+        domain_feat = self.domain_grl(features)  # Reverse gradients
+        domain_lstm_out, _ = self.adversarial_lstm(domain_feat)
+        domain_hidden = self.domain_linear(domain_lstm_out)
+        domain_logits = self.domain_classifier(domain_hidden)
+
+        return speaker_scores, domain_logits
