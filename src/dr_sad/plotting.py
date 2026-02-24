@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -268,3 +269,98 @@ def plot_general_pr_curve(
     )
     plt.close(fig)
     return mean_results
+
+
+def format_value_with_std(value_str: str, std_digits: str) -> str:
+    """
+    The rightmost digit in parentheses corresponds to the last decimal place of the
+    value, each digit to the left represents the next higher decimal place.
+
+        eg. "1.23(4)" means 1.23 ± 0.04, "1.2(34)" means 1.2 ± 0.34, "1(234)"
+        means 1 ± 2.34
+
+    args:
+        value_str: The mean value as a string, e.g. "1.23"
+        std_digits: The digits representing the standard deviation, e.g. "4"
+
+    """
+    decimal_places = len(value_str.split(".")[1]) if "." in value_str else 0
+    std_value = int(std_digits) * (10**-decimal_places)
+    string_representation = f"{value_str} ± {std_value:.{decimal_places}f}"
+    return string_representation, float(value_str), std_value
+
+
+def parse_parentheses_notation(notation: str) -> str:
+    """Parse parentheses notation into ± format."""
+
+    match = re.match(r"([0-9]+\.?[0-9]*)\(([0-9]+)\)", notation)
+    if not match:
+        err_msg = (
+            f"Invalid notation format: {notation}. Expected format is 'mean(std)'."
+        )
+        raise ValueError(err_msg)
+
+    value_str, std_digits = match.groups()
+
+    return format_value_with_std(value_str, std_digits)
+
+
+vectorized_parse_csv = np.vectorize(parse_parentheses_notation)
+
+
+def get_hparam_sweep_results_from_csv(csv_path: str) -> np.ndarray:
+    """Read baseline results from a CSV file and parse the parentheses notation."""
+    vals = np.loadtxt(
+        csv_path,
+        delimiter=",",
+        skiprows=1,
+        dtype=object,
+    )[-2, 1:3]
+    return vectorized_parse_csv(vals)
+
+
+def plot_hparam_sweep_with_error_bands(
+    axis: plt.Axes,
+    data: dict[str, list],
+    label: str,
+    color: str,
+    plot_with_error_bands: bool = True,
+):
+    """
+    Plot hparam sweep results with optional error bands.
+
+    args:
+        axis: Matplotlib axis to plot on
+        data: Dictionary containing 'lambdas', 'means', and 'stds' lists
+        label: Label for the plot
+        color: Color for the plot
+        plot_with_error_bands: Whether to plot error bands using std values
+    returns:
+        the unsorted lambda values for potential use in plotting other curves on
+        the same axis.
+    """
+
+    sorted_indices = np.argsort(data["lambdas"])
+    lambdas = np.array(data["lambdas"])[sorted_indices]
+    means = np.stack(data["means"])[sorted_indices]
+    stds = np.stack(data["stds"])[sorted_indices]
+
+    axis.plot(lambdas, means[:, 0], label=label, color=color)
+    if plot_with_error_bands:
+        axis.fill_between(
+            lambdas,
+            means[:, 0] - stds[:, 0],
+            means[:, 0] + stds[:, 0],
+            alpha=0.2,
+            color=color,
+        )
+    axis.plot(lambdas, means[:, 1], "--", color=color, alpha=0.7)
+    if plot_with_error_bands:
+        axis.fill_between(
+            lambdas,
+            means[:, 1] - stds[:, 1],
+            means[:, 1] + stds[:, 1],
+            alpha=0.2,
+            color=color,
+        )
+    return lambdas
