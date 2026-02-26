@@ -7,6 +7,7 @@ from torch.nn.functional import binary_cross_entropy, cross_entropy
 
 from dr_sad.pyannet import PyanNet
 from dr_sad.pyannet.linearnet import LinearNet
+from dr_sad.pyannet.lstmnet import LSTMNet
 
 
 class GradientReversalFunction(Function):  # type: ignore[misc]
@@ -291,14 +292,12 @@ class AdversarialNet(PyanNet):
 
 
 class AdversarialLSTM(AdversarialNet):
-    def __init__(self, *args, lstm_bidirectional: bool = False, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.adversarial_lstm = nn.LSTM(
+
+        self.adversarial_lstm = LSTMNet(
             input_size=self.sincnet.out_features,
-            hidden_size=self.hparams.lstm.hidden_size,
-            num_layers=self.hparams.lstm.num_layers,
-            batch_first=True,
-            bidirectional=lstm_bidirectional,
+            **self.hparams.lstm,
         )
 
     def forward(

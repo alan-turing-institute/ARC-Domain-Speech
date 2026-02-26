@@ -1,0 +1,2 @@
+model_name: adversarial_lstm
+grl_lambda: 1.0

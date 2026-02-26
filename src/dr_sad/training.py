@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
-from dr_sad.models import AdversarialNet, IRMv1Model, VRExModel
+from dr_sad.models import AdversarialLSTM, AdversarialNet, IRMv1Model, VRExModel
 from dr_sad.pyannet import PyanNet
 
 # model registry
@@ -17,6 +17,7 @@ MODEL_DICT: dict[str, type[LightningModule]] = {
     "irm_model": IRMv1Model,
     "vrex_model": VRExModel,
     "adversarial_net": AdversarialNet,
+    "adversarial_lstm": AdversarialLSTM,
 }
 
 
@@ -154,7 +155,7 @@ def create_model(
     constructor_kwargs = {k: v for k, v in model_cfg.items() if k != "model_name"}
 
     # Add adversarial_net specific arguments
-    if model_name == "adversarial_net":
+    if model_name == "adversarial_net" or model_name == "adversarial_lstm":
         num_domains = _get_domain_num_from_data_cfg(data_cfg)
         constructor_kwargs["num_domains"] = num_domains
 
