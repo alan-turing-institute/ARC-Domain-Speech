@@ -13,7 +13,12 @@ from dr_sad.plotting import (
 def main():
     set_plot_style()
 
-    models = {"adversarial": "Adversarial", "irm": "IRM", "vrex": "V-REx"}
+    models = {
+        "adversarial_lambda": "Adversarial @ Linear",
+        "adversarial_lstm_lambda": "Adversarial @ LSTM",
+        "irm_lambda": "IRM",
+        "vrex_lambda": "V-REx",
+    }
 
     results = {model: {"lambdas": [], "means": [], "stds": []} for model in models}
 
@@ -77,7 +82,7 @@ def main():
             handles=legend_elements,
             title="Data",
             loc="upper left",
-            bbox_to_anchor=(0.16, 1.00),
+            bbox_to_anchor=(0.24, 1.00),
         )
     )
 

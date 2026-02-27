@@ -360,7 +360,7 @@ def plot_hparam_sweep_with_error_bands(
             lambdas,
             means[:, 1] - stds[:, 1],
             means[:, 1] + stds[:, 1],
-            alpha=0.2,
+            alpha=0.1,
             color=color,
         )
     return lambdas
