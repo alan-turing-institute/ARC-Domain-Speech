@@ -11,25 +11,32 @@ class IRMv1Model(PyanNet):
     def __init__(
         self,
         lambda_irm: float,
-        lambda_scheduling_steps: int | None = None,
-        lambda_start_step: int | None = None,
+        lambda_scheduling_epochs: int | None = None,
+        lambda_start_epoch: int | None = None,
+        dataloader_length: int | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.save_hyperparameters()
 
-        self.lambda_scheduling_steps = lambda_scheduling_steps
+        self.lambda_scheduling_steps = (
+            lambda_scheduling_epochs * dataloader_length
+            if lambda_scheduling_epochs is not None and dataloader_length is not None
+            else None
+        )
         self.target_lambda = float(lambda_irm)
 
         # Type annotations (appeases mypy)
         self.anneal_step: int | None
         self.lambda_start_step: int | None
 
-        if lambda_scheduling_steps is not None:
+        if self.lambda_scheduling_steps is not None:
             self.lambda_irm = 0.0  # Start at 0
             self.anneal_step = 0
             self.lambda_start_step = (
-                lambda_start_step if lambda_start_step is not None else 0
+                lambda_start_epoch * dataloader_length
+                if lambda_start_epoch is not None and dataloader_length is not None
+                else 0
             )
         else:
             self.lambda_irm = self.target_lambda  # Use target immediately

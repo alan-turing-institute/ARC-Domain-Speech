@@ -172,10 +172,13 @@ def main(args) -> None:
         early_stopping_cfg=trainer_cfg["early_stopping"],
     )
 
+    print(len(train_loader))
+
     model = create_model(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
         data_cfg=data_cfg,
+        dataloader_length=len(train_loader),
     )
 
     # Train the model

@@ -13,19 +13,24 @@ class TestIRMLoss:
     def test_irm_loss_initialization(self):
         """Test IRMLoss initialization."""
         custom_lambda = 50.0
-        lambda_scheduling_steps = 200
+        lambda_scheduling_epochs = 2
+        dataloader_length = 100
         model = IRMv1Model(
             lambda_irm=custom_lambda,
-            lambda_scheduling_steps=lambda_scheduling_steps,
+            lambda_scheduling_epochs=lambda_scheduling_epochs,
+            dataloader_length=dataloader_length,
         )
         assert model.lambda_irm == 0.0  # Starts at 0 with scheduling
-        assert model.lambda_scheduling_steps == lambda_scheduling_steps
+        assert (
+            model.lambda_scheduling_steps
+            == lambda_scheduling_epochs * dataloader_length
+        )
         assert model.target_lambda == custom_lambda
 
         # test without scheduling
         model_no_schedule = IRMv1Model(
             lambda_irm=custom_lambda,
-            lambda_scheduling_steps=None,
+            lambda_scheduling_epochs=None,
         )
         assert model_no_schedule.lambda_irm == custom_lambda
         assert model_no_schedule.target_lambda == custom_lambda
@@ -33,7 +38,7 @@ class TestIRMLoss:
 
     def test_irm_loss_forward_single_environment(self):
         """Test IRMLoss forward pass with a single environment."""
-        model = IRMv1Model(lambda_irm=10.0, lambda_scheduling_steps=None)
+        model = IRMv1Model(lambda_irm=10.0, lambda_scheduling_epochs=None)
 
         # Create test data: (batch=2, channels=1, frames=4) for binary classification
         batch_size, num_classes, num_frames = 2, 1, 4
@@ -61,7 +66,7 @@ class TestIRMLoss:
 
     def test_irm_loss_forward_multiple_environments(self):
         """Test IRMLoss forward pass with multiple environments."""
-        model = IRMv1Model(lambda_irm=5.0, lambda_scheduling_steps=None)
+        model = IRMv1Model(lambda_irm=5.0, lambda_scheduling_epochs=None)
 
         # Create test data: (batch=6, channels=1, frames=3) for binary classification
         batch_size, num_classes, num_frames = 6, 1, 3
@@ -88,7 +93,7 @@ class TestIRMLoss:
 
     def test_irm_loss_backward_pass(self):
         """Test that IRMLoss supports gradient computation."""
-        model = IRMv1Model(lambda_irm=1.0, lambda_scheduling_steps=None)
+        model = IRMv1Model(lambda_irm=1.0, lambda_scheduling_epochs=None)
 
         # Create test data for binary classification
         batch_size, num_classes, num_frames = 3, 1, 5
@@ -109,7 +114,7 @@ class TestIRMLoss:
 
     def test_erm_loss_equals_cross_entropy_when_lambda_zero(self):
         """Test that ERM loss equals standard binary cross-entropy when lambda_irm=0."""
-        model = IRMv1Model(lambda_irm=0.0)
+        model = IRMv1Model(lambda_irm=0.0, lambda_scheduling_epochs=None)
 
         # Create test data with single environment for binary classification
         batch_size, num_classes, num_frames = 4, 1, 5
@@ -143,7 +148,7 @@ class TestIRMModel:
     def test_irm_model_initialization(self):
         """Test IRMModel initialization."""
         # Test with explicit lambda (no default)
-        model = IRMv1Model(lambda_irm=1e2)
+        model = IRMv1Model(lambda_irm=1e2, lambda_scheduling_epochs=None)
         # IRMLoss is now a method, not a class instance
         # Check that IRMLoss is callable
         assert callable(model.irm_loss)

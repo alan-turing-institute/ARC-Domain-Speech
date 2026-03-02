@@ -19,18 +19,23 @@ class VRExModel(PyanNet):
     def __init__(
         self,
         lambda_vrex: float,
-        lambda_scheduling_steps: int | None = None,
+        lambda_scheduling_epochs: int | None = None,
+        dataloader_length: int | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.lambda_vrex = lambda_vrex
-        self.lambda_scheduling_steps = lambda_scheduling_steps
+        self.lambda_scheduling_steps = (
+            lambda_scheduling_epochs * dataloader_length
+            if lambda_scheduling_epochs is not None and dataloader_length is not None
+            else None
+        )
         self.save_hyperparameters()
 
         # Type annotations (appeases mypy)
         self.anneal_step: int | None
 
-        if lambda_scheduling_steps is not None:
+        if self.lambda_scheduling_steps is not None:
             self.target_lambda = lambda_vrex  # Store the target value
             self.lambda_vrex = 0.0  # Start at 0
             self.anneal_step = 0

@@ -271,7 +271,7 @@ def plot_general_pr_curve(
     return mean_results
 
 
-def format_value_with_std(value_str: str, std_digits: str) -> str:
+def format_value_with_std(value_str: str, std_digits: str) -> tuple[str, float, float]:
     """
     The rightmost digit in parentheses corresponds to the last decimal place of the
     value, each digit to the left represents the next higher decimal place.
@@ -287,10 +287,10 @@ def format_value_with_std(value_str: str, std_digits: str) -> str:
     decimal_places = len(value_str.split(".")[1]) if "." in value_str else 0
     std_value = int(std_digits) * (10**-decimal_places)
     string_representation = f"{value_str} ± {std_value:.{decimal_places}f}"
-    return string_representation, float(value_str), std_value
+    return string_representation, float(value_str), float(std_value)
 
 
-def parse_parentheses_notation(notation: str) -> str:
+def parse_parentheses_notation(notation: str) -> tuple[str, float, float]:
     """Parse parentheses notation into ± format."""
 
     match = re.match(r"([0-9]+\.?[0-9]*)\(([0-9]+)\)", notation)
@@ -321,7 +321,7 @@ def get_hparam_sweep_results_from_csv(csv_path: str) -> np.ndarray:
 
 def plot_hparam_sweep_with_error_bands(
     axis: plt.Axes,
-    data: dict[str, list],
+    data: dict[str, list[float]],
     label: str,
     color: str,
     plot_with_error_bands: bool = True,

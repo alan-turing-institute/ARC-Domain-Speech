@@ -1,7 +1,7 @@
 from typing import Any
 
 import pytest
-from lightning.pytorch.callbacks import EarlyStopping, LearningRateMonitor
+from lightning.pytorch.callbacks import LearningRateMonitor
 
 from dr_sad import training
 
@@ -23,7 +23,7 @@ class TestDrSadTrainer:
             enable_progress_bar=False,
         )
         cb_types = {type(c) for c in trainer.callbacks}
-        assert EarlyStopping in cb_types
+        assert training.DrSadEarlyStopping in cb_types
         assert LearningRateMonitor in cb_types
 
     def test_create_trainer_without_early_stopping(self):
@@ -34,7 +34,7 @@ class TestDrSadTrainer:
             enable_progress_bar=False,
         )
         cb_types = {type(c) for c in trainer.callbacks}
-        assert EarlyStopping not in cb_types
+        assert training.DrSadEarlyStopping not in cb_types
         assert LearningRateMonitor in cb_types
 
 
@@ -81,7 +81,10 @@ class TestCreateModel:
             "scheduler": {"enabled": True, "type": "ReduceLROnPlateau", "patience": 2},
             "learning_rate": 1e-3,
         }
-        model = training.create_model(model_cfg, trainer_cfg)
+        dataloader_length = 10
+        model = training.create_model(
+            model_cfg, trainer_cfg, dataloader_length=dataloader_length
+        )
         assert isinstance(model, DummyModel)
         assert model.scheduler_config == {"type": "ReduceLROnPlateau", "patience": 2}
         assert model.learning_rate == 1e-3

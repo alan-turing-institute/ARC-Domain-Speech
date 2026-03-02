@@ -10,7 +10,7 @@ from dr_sad.plotting import (
 )
 
 
-def main():
+def main() -> None:
     set_plot_style()
 
     models = {
@@ -20,7 +20,9 @@ def main():
         "vrex_lambda": "V-REx",
     }
 
-    results = {model: {"lambdas": [], "means": [], "stds": []} for model in models}
+    results: dict[str, dict[str, list[float]]] = {
+        model: {"lambdas": [], "means": [], "stds": []} for model in models
+    }
 
     for model in models:
         experiment_names = glob(f"outputs/hpsweep_dihard_synthetic_{model}*")
@@ -33,8 +35,8 @@ def main():
 
             _, means, stds = get_hparam_sweep_results_from_csv(experiment_results_file)
             results[model]["lambdas"].append(float(lambda_value))
-            results[model]["means"].append(means)
-            results[model]["stds"].append(stds)
+            results[model]["means"].append(float(means))
+            results[model]["stds"].append(float(stds))
 
     fig, ax = plt.subplots(figsize=(12, 8))
 

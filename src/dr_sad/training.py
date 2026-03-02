@@ -47,6 +47,28 @@ def save_predictions(
     save_file(outputs, save_path)
 
 
+class DrSadEarlyStopping(EarlyStopping):  # type: ignore[misc]
+    """
+    Custom EarlyStopping callback for DrSad.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """
+        Initialize the DrSadEarlyStopping callback.
+
+        Args:
+            **kwargs: Keyword arguments to pass to the base EarlyStopping class.
+        """
+        self.delay_steps = kwargs.pop("delay_epochs")
+        super().__init__(**kwargs)
+
+    def _should_skip_check(self, trainer: Trainer) -> bool:
+        return bool(
+            trainer.current_epoch < self.delay_steps
+            or super()._should_skip_check(trainer)
+        )
+
+
 class DrSadTrainer(Trainer):  # type: ignore[misc]
     """
     PyTorch Lightning Trainer factory implementing early stopping and LR scheduling.
@@ -76,8 +98,10 @@ class DrSadTrainer(Trainer):  # type: ignore[misc]
         if early_stopping_cfg["enabled"]:
             es_cfg = early_stopping_cfg.copy()
             es_cfg.pop("enabled")
+            # use the config step value
+            es_cfg["delay_epochs"] = early_stopping_cfg.pop("delay_epochs", 0)
             callbacks = [
-                EarlyStopping(**es_cfg),
+                DrSadEarlyStopping(**es_cfg),
                 LearningRateMonitor(logging_interval="epoch"),
             ]
 
@@ -158,6 +182,18 @@ def create_model(
     if model_name == "adversarial_net" or model_name == "adversarial_lstm":
         num_domains = _get_domain_num_from_data_cfg(data_cfg)
         constructor_kwargs["num_domains"] = num_domains
+
+    if (model_name == "irm_model" or model_name == "vrex_model") and (
+        trainer_cfg["scheduler"]["enabled"]
+    ):
+        dataloader_length = extra_kwargs.pop("dataloader_length", None)
+        if not dataloader_length:
+            err_msg = (
+                "dataloader_length must be provided in extra_kwargs for "
+                "IRM and VREx models when scheduler is enabled"
+            )
+            raise ValueError(err_msg)
+        constructor_kwargs["dataloader_length"] = dataloader_length
 
     # Merge in any additional kwargs passed to this function
     constructor_kwargs.update(extra_kwargs)
