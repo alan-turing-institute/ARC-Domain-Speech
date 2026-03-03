@@ -25,6 +25,15 @@ class VRExModel(PyanNet):
     ) -> None:
         super().__init__(**kwargs)
         self.lambda_vrex = lambda_vrex
+        if lambda_scheduling_epochs is not None and dataloader_length is None:
+            err_msg = (
+                "lambda_scheduling_epochs is not None but dataloader_length is None. "
+                "dataloader_length must be provided for lambda scheduling.\n"
+                f"Received: lambda_scheduling_epochs={lambda_scheduling_epochs}, "
+                f"dataloader_length={dataloader_length}"
+            )
+            raise ValueError(err_msg)
+
         self.lambda_scheduling_steps = (
             lambda_scheduling_epochs * dataloader_length
             if lambda_scheduling_epochs is not None and dataloader_length is not None

@@ -183,16 +183,11 @@ def create_model(
         num_domains = _get_domain_num_from_data_cfg(data_cfg)
         constructor_kwargs["num_domains"] = num_domains
 
-    if (model_name == "irm_model" or model_name == "vrex_model") and (
-        trainer_cfg["scheduler"]["enabled"]
-    ):
+    if (model_name == "irm_model" or model_name == "vrex_model") and model_cfg.get(
+        "lambda_scheduling_epochs"
+    ) is not None:
+        # Error is now raised in the model constructors if dataloader_length is missing
         dataloader_length = extra_kwargs.pop("dataloader_length", None)
-        if not dataloader_length:
-            err_msg = (
-                "dataloader_length must be provided in extra_kwargs for "
-                "IRM and VREx models when scheduler is enabled"
-            )
-            raise ValueError(err_msg)
         constructor_kwargs["dataloader_length"] = dataloader_length
 
     # Merge in any additional kwargs passed to this function
