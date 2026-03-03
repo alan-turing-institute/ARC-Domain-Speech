@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 from safetensors.torch import load_file
 
-from dr_sad.analysis import load_annotations
+from dr_sad.analysis import inverse_weightings_by_domain, load_annotations
 from dr_sad.segment import SegmentEvaluator
 from dr_sad.utils import get_experiment_name
 
@@ -25,13 +25,14 @@ MIN_DURATION_ON = 0.3
 def get_best_parameters(
     validation_data_path: Path,
     data_name: str,
+    inverse_weightings: bool = True,
 ) -> dict[str, float | None]:
     """Get the best parameters for the given validation data.
 
     Args:
         validation_data_path (Path): Path to the validation data file.
         data_name (str): Name of the dataset used.
-
+        inverse_weightings (bool): Whether to inverse weightings by domain.
     Returns:
         best_params (dict): Dictionary containing the best parameter values.
     """
@@ -56,6 +57,15 @@ def get_best_parameters(
         speech_segments = load_annotations(file_id, data_dir)
         references[file_id] = speech_segments
 
+    if inverse_weightings:
+        sample_weights = inverse_weightings_by_domain(
+            file_ids=list(predictions.keys()),
+            data_tbl_path=data_dir / "sources.tbl",
+            data_name=data_name,
+        )
+    else:
+        sample_weights = None
+
     # Evaluate predictions
     seg_evaluator = SegmentEvaluator(
         prediction_set=predictions,
@@ -63,6 +73,7 @@ def get_best_parameters(
         time_start=time_start,
         time_step=time_step,
         tolerance=TOLERANCE_SECONDS,
+        sample_weighting=sample_weights,
         speech_threshold=SPEECH_THRESHOLD,
         gap_threshold=GAP_THRESHOLD,
         min_duration_off=MIN_DURATION_OFF,
@@ -82,6 +93,7 @@ def get_best_parameters(
 def evaluate_set(
     prediction_data_path: Path,
     data_name: str,
+    inverse_weightings: bool = True,
     speech_threshold: float = SPEECH_THRESHOLD,
     gap_threshold: float | None = GAP_THRESHOLD,
     min_duration_off: float | None = MIN_DURATION_OFF,
@@ -92,6 +104,8 @@ def evaluate_set(
     Args:
         prediction_data_path (Path): Path to the prediction data file.
         data_name (str): Name of the dataset used.
+        inverse_weightings (bool): Whether to inverse weightings by domain when
+            calculating mean results across files.
 
     Returns:
         set_name (str): Name of the evaluated set.
@@ -121,12 +135,22 @@ def evaluate_set(
         speech_segments = load_annotations(file_id, data_dir)
         references[file_id] = speech_segments
 
+    if inverse_weightings:
+        sample_weights = inverse_weightings_by_domain(
+            file_ids=list(predictions.keys()),
+            data_tbl_path=data_dir / "sources.tbl",
+            data_name=data_name,
+        )
+    else:
+        sample_weights = None
+
     # Evaluate predictions
     seg_evaluator = SegmentEvaluator(
         prediction_set=predictions,
         reference_set=references,
         time_start=time_start,
         time_step=time_step,
+        sample_weighting=sample_weights,
         tolerance=TOLERANCE_SECONDS,
         speech_threshold=speech_threshold,
         gap_threshold=gap_threshold,
@@ -144,6 +168,7 @@ def main(
     experiment_config_path: str,
     domain: int | None,
     split_idx: int,
+    inverse_weightings: bool = True,
 ) -> None:
     # load experiment config to get data name
     _, experiment_path = get_experiment_name(
@@ -191,12 +216,15 @@ def main(
         msg = f"Validation predictions not found at {validation_path}"
         raise FileNotFoundError(msg)
 
-    optimised_params = get_best_parameters(validation_path, data_name=data_name)
+    optimised_params = get_best_parameters(
+        validation_path, data_name=data_name, inverse_weightings=inverse_weightings
+    )
 
     for prediction_path in predictions_paths:
         set_name, set_f1 = evaluate_set(
             prediction_data_path=prediction_path,
             data_name=data_name,
+            inverse_weightings=inverse_weightings,
             **optimised_params,  # type: ignore[arg-type]
         )
         f1_scores[set_name] = set_f1
@@ -232,9 +260,15 @@ if __name__ == "__main__":
             " when domain_type is 'single_domain'."
         ),
     )
+    parser.add_argument(
+        "--no-inverse-weightings",
+        action="store_true",
+        help="Disable inverse weighting of samples by domain.",
+    )
     args = parser.parse_args()
     main(
         args.experiment_config,
         domain=args.domain,
         split_idx=args.split_idx,
+        inverse_weightings=not args.no_inverse_weightings,
     )
