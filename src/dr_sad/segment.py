@@ -175,6 +175,9 @@ def f1_score_set(
     sample_weights: list[float] | None = None,
 ) -> float:
     """Calculate the F1 score over a set of predicted and reference segments.
+    The score is calculated by summing true positives, false positives, and false
+    negatives across the entire set. If a weighting is provided, these values are
+    weighted individually before summing.
 
     Args:
         predicted_segments: List of lists of (start_time, end_time) tuples for
@@ -486,6 +489,9 @@ class SegmentEvaluator:
 
     def f1_score(self) -> float:
         """Calculate the F1 score using the current threshold parameters.
+        This is calculated by generating the true positives, false positives, and false
+        negatives across the entire set and then calculating the F1 score from these
+        totals. If weighing is provided counts are weighted before summing.
 
         Returns:
             f1_score (float): The F1 score calculated over the entire set.

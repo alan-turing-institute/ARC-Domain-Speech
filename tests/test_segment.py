@@ -644,7 +644,7 @@ class TestDiffEvolOptimizer:
             np.array([0.2, 0.7, 0.8, 0.7, 0.4]),
         ]
         references = [[(0.5, 1.5)], [(0.5, 2.0)]]
-        sample_weights = [0.5, 1.0]  # Weight for the single sample
+        sample_weights = [0.5, 1.0]
         start_parameters: dict[str, float | None] = {
             "speech_threshold": 0.5,
             "gap_threshold": 0.1,
