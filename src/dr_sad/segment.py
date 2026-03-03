@@ -172,8 +172,12 @@ def f1_score_set(
     predicted_segments: list[list[tuple[float, float]]],
     reference_segments: list[list[tuple[float, float]]],
     tolerance: float,
+    sample_weights: list[float] | None = None,
 ) -> float:
     """Calculate the F1 score over a set of predicted and reference segments.
+    The score is calculated by summing true positives, false positives, and false
+    negatives across the entire set. If a weighting is provided, these values are
+    weighted individually before summing.
 
     Args:
         predicted_segments: List of lists of (start_time, end_time) tuples for
@@ -181,25 +185,36 @@ def f1_score_set(
         reference_segments: List of lists of (start_time, end_time) tuples for
             reference segments.
         tolerance: Time tolerance for matching segments.
+        sample_weights: Optional list of weights for each sample. If provided,
+            the F1 score will be calculated as a weighted average.
 
     Returns:
         f1_score (float): The F1 score calculated over the entire set.
     """
-    total_tp = 0
-    total_fp = 0
-    total_fn = 0
+    total_tp = 0.0
+    total_fp = 0.0
+    total_fn = 0.0
 
     if len(predicted_segments) != len(reference_segments):
         msg = "Predicted and reference segments lists must have the same length"
         raise ValueError(msg)
+    if sample_weights is not None and len(sample_weights) != len(predicted_segments):
+        msg = (
+            "Length of sample_weights must match length of predicted_segments "
+            "if provided"
+        )
+        raise ValueError(msg)
 
-    for pred_segs, ref_segs in zip(predicted_segments, reference_segments, strict=True):
-        tp, fp, fn = segment_scores(pred_segs, ref_segs, tolerance)
-        total_tp += tp
-        total_fp += fp
-        total_fn += fn
+    for n in range(len(predicted_segments)):
+        tp, fp, fn = segment_scores(
+            predicted_segments[n], reference_segments[n], tolerance
+        )
+        factor = 1.0 if sample_weights is None else sample_weights[n]
+        total_tp += tp * factor
+        total_fp += fp * factor
+        total_fn += fn * factor
 
-    if total_tp + total_fp == 0 or total_tp + total_fn == 0:
+    if np.abs(total_tp + total_fp) < 1e-9 or np.abs(total_tp + total_fn) < 1e-9:
         return 0.0
 
     precision = total_tp / (total_tp + total_fp)
@@ -257,6 +272,7 @@ class DiffEvolOptimizer:
         self,
         predictions: list[np.ndarray],
         references: list[list[tuple[float, float]]],
+        sample_weights: list[float] | None,
         start_parameters: dict[str, float | None],
         optimise_parameters: list[str],
         time_start: float,
@@ -265,6 +281,7 @@ class DiffEvolOptimizer:
     ):
         self.predictions = predictions
         self.references = references
+        self.sample_weights = sample_weights
         self.parameters = start_parameters
         self.optimise_parameters = optimise_parameters
         self.time_start = time_start
@@ -300,7 +317,9 @@ class DiffEvolOptimizer:
             min_duration_on=self.parameters["min_duration_on"],
         )
 
-        return -f1_score_set(segments, self.references, self.tolerance)
+        return -f1_score_set(
+            segments, self.references, self.tolerance, self.sample_weights
+        )
 
 
 class SegmentEvaluator:
@@ -315,6 +334,7 @@ class SegmentEvaluator:
         time_start: float,
         time_step: float,
         tolerance: float,
+        sample_weighting: dict[str, float] | None = None,
         speech_threshold: float = 0.5,
         gap_threshold: float | None = None,
         min_duration_off: float | None = None,
@@ -329,6 +349,8 @@ class SegmentEvaluator:
             time_start: Center time for the first frame.
             time_step: Time difference between consecutive frames.
             tolerance: Time tolerance for matching segments.
+            sample_weighting: Optional dictionary mapping keys to weights for
+                calculating weighted F1 scores.
 
         Optional Args:
             speech_threshold: Center threshold for speech detection.
@@ -341,12 +363,23 @@ class SegmentEvaluator:
         self.keys = []
         self.predictions = []
         self.references = []
+        self.sample_weights: list[float] | None = (
+            [] if sample_weighting is not None else None
+        )
 
         for key, prediction in prediction_set.items():
             if key in reference_set:
                 self.keys.append(key)
                 self.predictions.append(prediction)
                 self.references.append(reference_set[key])
+                if isinstance(sample_weighting, dict):
+                    if key not in sample_weighting:
+                        msg = f"Key {key} not found in sample_weighting"
+                        raise ValueError(msg)
+                    if not isinstance(self.sample_weights, list):
+                        msg = "Unreachable sample weights type error"
+                        raise RuntimeError(msg)
+                    self.sample_weights.append(sample_weighting[key])
             else:
                 msg = f"Key {key} not found in reference set"
                 raise ValueError(msg)
@@ -456,6 +489,9 @@ class SegmentEvaluator:
 
     def f1_score(self) -> float:
         """Calculate the F1 score using the current threshold parameters.
+        This is calculated by generating the true positives, false positives, and false
+        negatives across the entire set and then calculating the F1 score from these
+        totals. If weighing is provided counts are weighted before summing.
 
         Returns:
             f1_score (float): The F1 score calculated over the entire set.
@@ -465,7 +501,12 @@ class SegmentEvaluator:
 
         reference_segments = self.references
 
-        return f1_score_set(predicted_segments, reference_segments, self.tolerance)
+        return f1_score_set(
+            predicted_segments,
+            reference_segments,
+            self.tolerance,
+            sample_weights=self.sample_weights,
+        )
 
     def optimise_diff_evol(
         self,
@@ -516,6 +557,7 @@ class SegmentEvaluator:
         optimiser = DiffEvolOptimizer(
             predictions=self.predictions,
             references=self.references,
+            sample_weights=self.sample_weights,
             start_parameters=self.get_parameters(),
             optimise_parameters=param_names,
             time_start=self.time_start,

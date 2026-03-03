@@ -388,6 +388,45 @@ class TestSegmentEvaluator:
         expected_f1_updated = 1.0
         assert np.isclose(f1_updated, expected_f1_updated)
 
+    def test_sample_weighting_effect_f1(self):
+        prediction_set = {
+            "test01": np.array([0.1, 0.8, 0.9, 0.8, 0.2]),
+            "test02": np.array([0.7, 0.2, 0.9, 0.8, 0.47]),
+        }
+        reference_set = {
+            "test01": [(1.5, 4.5)],
+            "test02": [(0.0, 1.5), (2.5, 6.0)],
+        }
+        sample_weights = {"test01": 1.0, "test02": 0.1}
+
+        seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.5,
+        )
+
+        f1_default = seg_eval.f1_score()
+        expected_f1_default = 2 / 3
+        assert np.isclose(f1_default, expected_f1_default)
+
+        weighted_seg_eval = SegmentEvaluator(
+            prediction_set,
+            reference_set,
+            sample_weighting=sample_weights,
+            time_start=1.0,
+            time_step=1.0,
+            tolerance=0.5,
+        )
+
+        f1_weighted = weighted_seg_eval.f1_score()
+        tp = 1.0 * 1 + 0.1 * 1
+        fp = 1.0 * 0 + 0.1 * 1
+        fn = 1.0 * 0 + 0.1 * 1
+        expected_f1_weighted = 2 * tp / (2 * tp + fp + fn)
+        assert np.isclose(f1_weighted, expected_f1_weighted)
+
     def test_optimize_parameters(self):
         prediction_set = {
             "test01": np.array([0.1, 0.8, 0.9, 0.8, 0.2]),
@@ -507,6 +546,7 @@ class TestDiffEvolOptimizer:
         optimizer = DiffEvolOptimizer(
             predictions=predictions,
             references=references,
+            sample_weights=None,
             start_parameters=start_parameters,
             optimise_parameters=optimise_parameters,
             time_start=0.0,
@@ -537,6 +577,7 @@ class TestDiffEvolOptimizer:
         optimizer = DiffEvolOptimizer(
             predictions=predictions,
             references=references,
+            sample_weights=None,
             start_parameters=start_parameters,
             optimise_parameters=optimise_parameters,
             time_start=0.0,
@@ -573,6 +614,7 @@ class TestDiffEvolOptimizer:
         optimizer = DiffEvolOptimizer(
             predictions=predictions,
             references=references,
+            sample_weights=None,
             start_parameters=start_parameters,
             optimise_parameters=optimise_parameters,
             time_start=0.0,
@@ -594,3 +636,44 @@ class TestDiffEvolOptimizer:
         # Result should be a float (negative F1 score)
         assert isinstance(result, float)
         assert result <= 0.0
+
+    def test_call_with_sample_weights(self):
+        """Test the __call__ method with sample weights."""
+        predictions = [
+            np.array([0.1, 0.8, 0.9, 0.2, 0.3]),
+            np.array([0.2, 0.7, 0.8, 0.7, 0.4]),
+        ]
+        references = [[(0.5, 1.5)], [(0.5, 2.0)]]
+        sample_weights = [0.5, 1.0]
+        start_parameters: dict[str, float | None] = {
+            "speech_threshold": 0.5,
+            "gap_threshold": 0.1,
+            "min_duration_off": 1.0,
+            "min_duration_on": 0.5,
+        }
+        optimise_parameters = ["speech_threshold"]
+
+        optimizer = DiffEvolOptimizer(
+            predictions=predictions,
+            references=references,
+            sample_weights=sample_weights,
+            start_parameters=start_parameters,
+            optimise_parameters=optimise_parameters,
+            time_start=0.0,
+            time_step=0.5,
+            tolerance=0.1,
+        )
+
+        # Call with new speech_threshold value
+        result = optimizer([0.7])
+
+        # Check that parameter was updated
+        assert optimizer.parameters["speech_threshold"] == 0.7
+        # Other parameters should remain unchanged
+        assert optimizer.parameters["gap_threshold"] == 0.1
+        assert optimizer.parameters["min_duration_off"] == 1.0
+        assert optimizer.parameters["min_duration_on"] == 0.5
+
+        # Result should be a float (negative F1 score)
+        assert isinstance(result, float)
+        assert result <= 0.0  # F1 score is negated for minimization
