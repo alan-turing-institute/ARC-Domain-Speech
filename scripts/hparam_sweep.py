@@ -20,7 +20,7 @@ def main() -> None:
         "vrex_lambda": "V-REx",
     }
 
-    results: dict[str, dict[str, list[float] | list[list[float]]]] = {
+    results: dict[str, dict[str, list[float]]] = {
         model: {"lambdas": [], "means": [], "stds": []} for model in models
     }
 
