@@ -182,6 +182,7 @@ def create_model(
     if model_name == "adversarial_net" or model_name == "adversarial_lstm":
         num_domains = _get_domain_num_from_data_cfg(data_cfg)
         constructor_kwargs["num_domains"] = num_domains
+        extra_kwargs.pop("dataloader_length", None)
 
     if (model_name == "irm_model" or model_name == "vrex_model") and model_cfg.get(
         "lambda_scheduling_epochs"
