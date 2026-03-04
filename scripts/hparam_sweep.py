@@ -20,7 +20,7 @@ def main() -> None:
         "vrex_lambda": "V-REx",
     }
 
-    results: dict[str, dict[str, list[float]]] = {
+    results: dict[str, dict[str, list[float] | list[list[float]]]] = {
         model: {"lambdas": [], "means": [], "stds": []} for model in models
     }
 
@@ -35,8 +35,8 @@ def main() -> None:
 
             _, means, stds = get_hparam_sweep_results_from_csv(experiment_results_file)
             results[model]["lambdas"].append(float(lambda_value))
-            results[model]["means"].append(float(means))
-            results[model]["stds"].append(float(stds))
+            results[model]["means"].append(means)
+            results[model]["stds"].append(stds)
 
     fig, ax = plt.subplots(figsize=(12, 8))
 
