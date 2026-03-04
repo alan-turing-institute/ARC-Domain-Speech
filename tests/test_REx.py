@@ -192,7 +192,7 @@ class TestVRExLoss:
         assert model.anneal_step == 3
         assert model.lambda_vrex == 10.0
 
-        # Verify calls for second step
+        # Verify calls for third step
         model.prepare_annotation.assert_called_once_with(waveforms, annotations)
         model.forward.assert_called_once_with(waveforms)
         assert model.log.call_count == 4

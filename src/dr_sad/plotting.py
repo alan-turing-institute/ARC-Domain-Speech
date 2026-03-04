@@ -277,7 +277,7 @@ def format_value_with_std(value_str: str, std_digits: str) -> tuple[str, float, 
     value, each digit to the left represents the next higher decimal place.
 
         eg. "1.23(4)" means 1.23 ± 0.04, "1.2(34)" means 1.2 ± 0.34, "1(234)"
-        means 1 ± 2.34
+        means 1 ± 234
 
     args:
         value_str: The mean value as a string, e.g. "1.23"
@@ -364,3 +364,137 @@ def plot_hparam_sweep_with_error_bands(
             color=color,
         )
     return lambdas
+
+
+def plot_hparam_sweep_points_error_bars(
+    axis: plt.Axes,
+    data: dict[str, list[float]],
+    color: str,
+    label: str | None = None,
+    plot_with_error_bands: bool = True,
+):
+    """
+    Plot hparam sweep results with optional error bands.
+
+    args:
+        axis: Matplotlib axis to plot on
+        data: Dictionary containing 'lambdas', 'means', and 'stds' lists
+        label: Label for the plot
+        color: Color for the plot
+        plot_with_error_bands: Whether to plot error bands using std values
+    returns:
+        the unsorted lambda values for potential use in plotting other curves on
+        the same axis.
+    """
+
+    sorted_indices = np.argsort(data["lambdas"])
+    lambdas = np.array(data["lambdas"])[sorted_indices]
+    means = np.stack(data["means"])[sorted_indices]
+    stds = np.stack(data["stds"])[sorted_indices]
+
+    axis.scatter(
+        lambdas,
+        means[:, 0],
+        label=label,
+        color=color,
+    )
+    axis.plot(lambdas, means[:, 0], color=color, alpha=0.3)
+
+    if plot_with_error_bands:
+        axis.errorbar(
+            lambdas,
+            means[:, 0],
+            yerr=stds[:, 0],
+            fmt="none",
+            ecolor=color,
+            alpha=0.7,
+        )
+    axis.scatter(
+        lambdas,
+        means[:, 1],
+        marker="x",
+        color=color,
+        alpha=0.7,
+    )
+    axis.plot(lambdas, means[:, 1], "--", color=color, alpha=0.3)
+
+    if plot_with_error_bands:
+        axis.errorbar(
+            lambdas,
+            means[:, 1],
+            yerr=stds[:, 1],
+            fmt="none",
+            ecolor=color,
+            alpha=0.7,
+        )
+    return lambdas
+
+
+def plot_baseline(
+    axis: plt.Axes,
+    baseline_result_dict: dict[str, list[list[float]]],
+    color: str = "dimgrey",
+    mean_linewidth: float = 0.5,
+    std_linewidth: float = 0.25,
+):
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [baseline_result_dict["means"][0][0], baseline_result_dict["means"][0][0]],
+        color=color,
+        linestyle="-",
+        linewidth=mean_linewidth,
+        alpha=0.7,
+    )
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [
+            baseline_result_dict["means"][0][0] + baseline_result_dict["stds"][0][0],
+            baseline_result_dict["means"][0][0] + baseline_result_dict["stds"][0][0],
+        ],
+        color=color,
+        linestyle="-",
+        linewidth=std_linewidth,
+        alpha=0.7,
+    )
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [
+            baseline_result_dict["means"][0][0] - baseline_result_dict["stds"][0][0],
+            baseline_result_dict["means"][0][0] - baseline_result_dict["stds"][0][0],
+        ],
+        color=color,
+        linestyle="-",
+        linewidth=std_linewidth,
+        alpha=0.7,
+    )
+
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [baseline_result_dict["means"][1][1], baseline_result_dict["means"][1][1]],
+        color=color,
+        linestyle="--",
+        linewidth=mean_linewidth,
+        alpha=0.7,
+    )
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [
+            baseline_result_dict["means"][1][1] + baseline_result_dict["stds"][1][1],
+            baseline_result_dict["means"][1][1] + baseline_result_dict["stds"][1][1],
+        ],
+        color=color,
+        linestyle="--",
+        linewidth=std_linewidth,
+        alpha=0.7,
+    )
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [
+            baseline_result_dict["means"][1][1] - baseline_result_dict["stds"][1][1],
+            baseline_result_dict["means"][1][1] - baseline_result_dict["stds"][1][1],
+        ],
+        color=color,
+        linestyle="--",
+        linewidth=std_linewidth,
+        alpha=0.7,
+    )

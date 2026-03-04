@@ -59,12 +59,12 @@ class DrSadEarlyStopping(EarlyStopping):  # type: ignore[misc]
         Args:
             **kwargs: Keyword arguments to pass to the base EarlyStopping class.
         """
-        self.delay_steps = kwargs.pop("delay_epochs")
+        self.delay_epochs = kwargs.pop("delay_epochs", 0)
         super().__init__(**kwargs)
 
     def _should_skip_check(self, trainer: Trainer) -> bool:
         return bool(
-            trainer.current_epoch < self.delay_steps
+            trainer.current_epoch < self.delay_epochs
             or super()._should_skip_check(trainer)
         )
 
@@ -99,7 +99,6 @@ class DrSadTrainer(Trainer):  # type: ignore[misc]
             es_cfg = early_stopping_cfg.copy()
             es_cfg.pop("enabled")
             # use the config step value
-            es_cfg["delay_epochs"] = early_stopping_cfg.pop("delay_epochs", 0)
             callbacks = [
                 DrSadEarlyStopping(**es_cfg),
                 LearningRateMonitor(logging_interval="epoch"),

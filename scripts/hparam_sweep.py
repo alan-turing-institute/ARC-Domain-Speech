@@ -1,11 +1,13 @@
 from glob import glob
 
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.lines import Line2D
 
 from dr_sad.plotting import (
     get_hparam_sweep_results_from_csv,
-    plot_hparam_sweep_with_error_bands,
+    plot_baseline,
+    plot_hparam_sweep_points_error_bars,
     set_plot_style,
 )
 
@@ -24,6 +26,9 @@ def main() -> None:
         model: {"lambdas": [], "means": [], "stds": []} for model in models
     }
 
+    max_DER = 0.0
+    min_DER = float("inf")
+
     for model in models:
         experiment_names = glob(f"outputs/hpsweep_dihard_synthetic_{model}*")
 
@@ -37,59 +42,71 @@ def main() -> None:
             results[model]["lambdas"].append(float(lambda_value))
             results[model]["means"].append(means)
             results[model]["stds"].append(stds)
+            max_DER = max(max_DER, max(means) + max(stds))
+            min_DER = min(min_DER, min(means) - max(stds))
 
-    fig, ax = plt.subplots(figsize=(12, 8))
+    n_rows = 2
+    n_cols = len(models) // n_rows + int(len(models) % n_rows > 0)
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(8 * n_cols, 10))
+    axes = np.atleast_1d(axes).flatten()
+
+    max_DER = ((max_DER // 5) + 1) * 5
+    min_DER = ((min_DER // 5) - 1) * 5
 
     for i, model in enumerate(models):
-        lambdas = plot_hparam_sweep_with_error_bands(
-            ax, results[model], label=models[model], color=f"C{i}"
+        lambdas = plot_hparam_sweep_points_error_bars(
+            axes[i], results[model], label=None, color=f"C{i}"
         )
 
-    baseline_results = get_hparam_sweep_results_from_csv(
-        "outputs/dihard_synthetic_domain_30/der_table.csv"
-    )
+        baseline_results = get_hparam_sweep_results_from_csv(
+            "outputs/dihard_synthetic_domain_30/der_table.csv"
+        )
 
-    basline_result_dict = {
-        "lambdas": [min(lambdas), max(lambdas)],
-        "means": [baseline_results[1], baseline_results[1]],
-        "stds": [baseline_results[2], baseline_results[2]],
-    }
+        baseline_result_dict = {
+            "lambdas": [min(lambdas), max(lambdas)],
+            "means": [baseline_results[1], baseline_results[1]],
+            "stds": [baseline_results[2], baseline_results[2]],
+        }
+        plot_baseline(
+            axes[i],
+            baseline_result_dict,
+            color="dimgrey",
+            mean_linewidth=1.0,
+            std_linewidth=0.5,
+        )
 
-    plot_hparam_sweep_with_error_bands(
-        ax,
-        basline_result_dict,
-        label="Baseline",
-        color="black",
-        plot_with_error_bands=False,
-    )
+        axes[i].set_title(models[model])
+        axes[i].set_xscale("symlog", linthresh=0.0001)
+        axes[i].set_ylim(min_DER, max_DER)
 
-    ax.set_xscale("log")
-    ax.set_ylim(20, 45)
+        if len(axes[i].get_legend_handles_labels()[0]) > 0:
+            axes[i].add_artist(axes[i].legend(loc="upper left", title="Model"))
 
-    ax.add_artist(ax.legend(loc="upper left", title="Model"))
-
-    ax.set_xlabel("$\\lambda$")
-    ax.set_ylabel("DER (%)")
-    ax.set_title("Hparam Sweep Results")
+        axes[i].set_xlabel("$\\lambda$")
+        axes[i].set_ylabel("DER (%)")
 
     # Create legend elements to denote the different data splits
-    legend_elements = [
-        Line2D([0], [0], color="dimgrey", lw=1, label="Held-out domain"),
-        Line2D([0], [0], color="dimgrey", lw=1, linestyle="--", label="Test"),
+    split_legend_elements = [
+        Line2D([0], [0], color="dimgrey", lw=1, label="Held-out domain", alpha=0.7),
+        Line2D(
+            [0], [0], color="dimgrey", lw=1, linestyle="--", label="Test", alpha=0.7
+        ),
     ]
 
-    # Add a second legend
-    ax.add_artist(
-        ax.legend(
-            handles=legend_elements,
-            title="Data",
-            loc="upper left",
-            bbox_to_anchor=(0.24, 1.00),
-        )
+    fig.legend(
+        handles=split_legend_elements,
+        title="Data Split",
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.95),
+        ncols=len(split_legend_elements),
     )
 
+    fig.suptitle("Hparam Sweep Results", fontsize=16)
     fig.savefig(
-        "outputs/figures/hparam_sweep_results.pdf", dpi=300, bbox_inches="tight"
+        "outputs/figures/hparam_sweep_results_multi_ax.pdf",
+        dpi=300,
+        bbox_inches="tight",
     )
 
 

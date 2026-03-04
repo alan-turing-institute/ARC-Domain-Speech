@@ -171,9 +171,6 @@ def main(args) -> None:
         max_epochs=trainer_cfg["max_epochs"],
         early_stopping_cfg=trainer_cfg["early_stopping"],
     )
-
-    print(len(train_loader))
-
     model = create_model(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
