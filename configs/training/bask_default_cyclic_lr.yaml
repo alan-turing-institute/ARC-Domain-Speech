@@ -1,0 +1,21 @@
+# Trainer configuration
+max_epochs: 50
+batch_size: 4
+num_workers: 30
+learning_rate: 0.001
+checkpoint:
+  enabled: true
+  monitor: val_loss
+  save_top_k: 1
+  mode: min
+early_stopping:
+  enabled: true
+  delay_epochs: 25
+  monitor: val_loss
+  patience: 5
+  mode: min
+scheduler:
+  enabled: true
+  type: CyclicLR
+  max_lr: 0.01
+  step_size_up_epoch: 5 # matches PyanNote 10 epochs per cycle
