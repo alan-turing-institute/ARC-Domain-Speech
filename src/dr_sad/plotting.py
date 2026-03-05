@@ -3,6 +3,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import yaml
 
 
 def set_plot_style() -> None:
@@ -305,18 +306,18 @@ def parse_parentheses_notation(notation: str) -> tuple[str, float, float]:
     return format_value_with_std(value_str, std_digits)
 
 
-vectorized_parse_csv = np.vectorize(parse_parentheses_notation)
-
-
-def get_hparam_sweep_results_from_csv(csv_path: str) -> np.ndarray:
-    """Read baseline results from a CSV file and parse the parentheses notation."""
-    vals = np.loadtxt(
-        csv_path,
-        delimiter=",",
-        skiprows=1,
-        dtype=object,
-    )[-2, 1:3]
-    return vectorized_parse_csv(vals)
+def get_hparam_sweep_results_from_all_metrics(yaml_path: str) -> np.ndarray:
+    """Read all metrics results from a YAML file and extract DER mean and std."""
+    all_metrics_dict = yaml.safe_load(Path(yaml_path).read_text())
+    der_mean_ood = all_metrics_dict["out_of_domain"]["der"]["mean"]["mean"]
+    der_std_ood = all_metrics_dict["out_of_domain"]["der"]["mean"]["std"]
+    der_mean_test = all_metrics_dict["test"]["der"]["mean"]["mean"]
+    der_std_test = all_metrics_dict["test"]["der"]["mean"]["std"]
+    return (
+        # returning as percentages
+        np.array([der_mean_ood, der_mean_test]) * 100,
+        np.array([der_std_ood, der_std_test]) * 100,
+    )
 
 
 def plot_hparam_sweep_with_error_bands(
@@ -406,6 +407,7 @@ def plot_hparam_sweep_points_error_bars(
             means[:, 0],
             yerr=stds[:, 0],
             fmt="none",
+            capsize=2,
             ecolor=color,
             alpha=0.7,
         )
@@ -424,6 +426,7 @@ def plot_hparam_sweep_points_error_bars(
             means[:, 1],
             yerr=stds[:, 1],
             fmt="none",
+            capsize=2,
             ecolor=color,
             alpha=0.7,
         )
@@ -432,14 +435,14 @@ def plot_hparam_sweep_points_error_bars(
 
 def plot_baseline(
     axis: plt.Axes,
-    baseline_result_dict: dict[str, list[list[float]]],
+    baseline_result_dict: dict[str, list[float]],
     color: str = "dimgrey",
     mean_linewidth: float = 0.5,
     std_linewidth: float = 0.25,
 ):
     axis.plot(
         baseline_result_dict["lambdas"],
-        [baseline_result_dict["means"][0][0], baseline_result_dict["means"][0][0]],
+        [baseline_result_dict["means"][0], baseline_result_dict["means"][0]],
         color=color,
         linestyle="-",
         linewidth=mean_linewidth,
@@ -448,8 +451,8 @@ def plot_baseline(
     axis.plot(
         baseline_result_dict["lambdas"],
         [
-            baseline_result_dict["means"][0][0] + baseline_result_dict["stds"][0][0],
-            baseline_result_dict["means"][0][0] + baseline_result_dict["stds"][0][0],
+            baseline_result_dict["means"][0] + baseline_result_dict["stds"][0],
+            baseline_result_dict["means"][0] + baseline_result_dict["stds"][0],
         ],
         color=color,
         linestyle="-",
@@ -459,8 +462,8 @@ def plot_baseline(
     axis.plot(
         baseline_result_dict["lambdas"],
         [
-            baseline_result_dict["means"][0][0] - baseline_result_dict["stds"][0][0],
-            baseline_result_dict["means"][0][0] - baseline_result_dict["stds"][0][0],
+            baseline_result_dict["means"][0] - baseline_result_dict["stds"][0],
+            baseline_result_dict["means"][0] - baseline_result_dict["stds"][0],
         ],
         color=color,
         linestyle="-",
@@ -470,7 +473,7 @@ def plot_baseline(
 
     axis.plot(
         baseline_result_dict["lambdas"],
-        [baseline_result_dict["means"][1][1], baseline_result_dict["means"][1][1]],
+        [baseline_result_dict["means"][1], baseline_result_dict["means"][1]],
         color=color,
         linestyle="--",
         linewidth=mean_linewidth,
@@ -479,8 +482,8 @@ def plot_baseline(
     axis.plot(
         baseline_result_dict["lambdas"],
         [
-            baseline_result_dict["means"][1][1] + baseline_result_dict["stds"][1][1],
-            baseline_result_dict["means"][1][1] + baseline_result_dict["stds"][1][1],
+            baseline_result_dict["means"][1] + baseline_result_dict["stds"][1],
+            baseline_result_dict["means"][1] + baseline_result_dict["stds"][1],
         ],
         color=color,
         linestyle="--",
@@ -490,8 +493,8 @@ def plot_baseline(
     axis.plot(
         baseline_result_dict["lambdas"],
         [
-            baseline_result_dict["means"][1][1] - baseline_result_dict["stds"][1][1],
-            baseline_result_dict["means"][1][1] - baseline_result_dict["stds"][1][1],
+            baseline_result_dict["means"][1] - baseline_result_dict["stds"][1],
+            baseline_result_dict["means"][1] - baseline_result_dict["stds"][1],
         ],
         color=color,
         linestyle="--",

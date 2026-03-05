@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib.lines import Line2D
 
 from dr_sad.plotting import (
-    get_hparam_sweep_results_from_csv,
+    get_hparam_sweep_results_from_all_metrics,
     plot_baseline,
     plot_hparam_sweep_points_error_bars,
     set_plot_style,
@@ -36,9 +36,11 @@ def main() -> None:
             lambda_value = experiment_name.split("_")[-1].removeprefix("lambda")
             lambda_value = lambda_value.replace("p", ".")
 
-            experiment_results_file = f"{experiment_name}/der_table.csv"
+            experiment_results_file = f"{experiment_name}/all_metrics.yaml"
 
-            _, means, stds = get_hparam_sweep_results_from_csv(experiment_results_file)
+            means, stds = get_hparam_sweep_results_from_all_metrics(
+                experiment_results_file
+            )
             results[model]["lambdas"].append(float(lambda_value))
             results[model]["means"].append(means)
             results[model]["stds"].append(stds)
@@ -59,14 +61,14 @@ def main() -> None:
             axes[i], results[model], label=None, color=f"C{i}"
         )
 
-        baseline_results = get_hparam_sweep_results_from_csv(
-            "outputs/dihard_synthetic_domain_30/der_table.csv"
+        baseline_means, baseline_stds = get_hparam_sweep_results_from_all_metrics(
+            "outputs/dihard_synthetic_domain_30/all_metrics.yaml"
         )
 
         baseline_result_dict = {
-            "lambdas": [min(lambdas), max(lambdas)],
-            "means": [baseline_results[1], baseline_results[1]],
-            "stds": [baseline_results[2], baseline_results[2]],
+            "lambdas": np.array([min(lambdas), max(lambdas)]),
+            "means": baseline_means,
+            "stds": baseline_stds,
         }
         plot_baseline(
             axes[i],
@@ -88,9 +90,24 @@ def main() -> None:
 
     # Create legend elements to denote the different data splits
     split_legend_elements = [
-        Line2D([0], [0], color="dimgrey", lw=1, label="Held-out domain", alpha=0.7),
         Line2D(
-            [0], [0], color="dimgrey", lw=1, linestyle="--", label="Test", alpha=0.7
+            [0],
+            [0],
+            color="dimgrey",
+            lw=1,
+            label="Held-out domain",
+            marker="o",
+            alpha=0.7,
+        ),
+        Line2D(
+            [0],
+            [0],
+            color="dimgrey",
+            lw=1,
+            linestyle="--",
+            marker="x",
+            label="Test",
+            alpha=0.7,
         ),
     ]
 

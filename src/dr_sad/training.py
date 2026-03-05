@@ -47,7 +47,7 @@ def save_predictions(
     save_file(outputs, save_path)
 
 
-class DrSadEarlyStopping(EarlyStopping):  # type: ignore[misc]
+class DelayedEarlyStopping(EarlyStopping):  # type: ignore[misc]
     """
     Custom EarlyStopping callback for DrSad.
     """
@@ -100,7 +100,7 @@ class DrSadTrainer(Trainer):  # type: ignore[misc]
             es_cfg.pop("enabled")
             # use the config step value
             callbacks = [
-                DrSadEarlyStopping(**es_cfg),
+                DelayedEarlyStopping(**es_cfg),
                 LearningRateMonitor(logging_interval="epoch"),
             ]
 

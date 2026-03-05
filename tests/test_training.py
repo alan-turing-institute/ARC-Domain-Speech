@@ -23,7 +23,7 @@ class TestDrSadTrainer:
             enable_progress_bar=False,
         )
         cb_types = {type(c) for c in trainer.callbacks}
-        assert training.DrSadEarlyStopping in cb_types
+        assert training.DelayedEarlyStopping in cb_types
         assert LearningRateMonitor in cb_types
 
     def test_create_trainer_without_early_stopping(self):
@@ -34,7 +34,7 @@ class TestDrSadTrainer:
             enable_progress_bar=False,
         )
         cb_types = {type(c) for c in trainer.callbacks}
-        assert training.DrSadEarlyStopping not in cb_types
+        assert training.DelayedEarlyStopping not in cb_types
         assert LearningRateMonitor in cb_types
 
 
