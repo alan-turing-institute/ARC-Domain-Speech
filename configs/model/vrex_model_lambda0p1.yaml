@@ -1,0 +1,3 @@
+model_name: "vrex_model"
+lambda_vrex: 0.1
+lambda_scheduling_epochs: 15

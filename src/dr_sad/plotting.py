@@ -1,7 +1,9 @@
+import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import yaml
 
 
 def set_plot_style() -> None:
@@ -268,3 +270,234 @@ def plot_general_pr_curve(
     )
     plt.close(fig)
     return mean_results
+
+
+def format_value_with_std(value_str: str, std_digits: str) -> tuple[str, float, float]:
+    """
+    The rightmost digit in parentheses corresponds to the last decimal place of the
+    value, each digit to the left represents the next higher decimal place.
+
+        eg. "1.23(4)" means 1.23 ± 0.04, "1.2(34)" means 1.2 ± 0.34, "1(234)"
+        means 1 ± 234
+
+    args:
+        value_str: The mean value as a string, e.g. "1.23"
+        std_digits: The digits representing the standard deviation, e.g. "4"
+
+    """
+    decimal_places = len(value_str.split(".")[1]) if "." in value_str else 0
+    std_value = int(std_digits) * (10**-decimal_places)
+    string_representation = f"{value_str} ± {std_value:.{decimal_places}f}"
+    return string_representation, float(value_str), float(std_value)
+
+
+def parse_parentheses_notation(notation: str) -> tuple[str, float, float]:
+    """Parse parentheses notation into ± format."""
+
+    match = re.match(r"([0-9]+\.?[0-9]*)\(([0-9]+)\)", notation)
+    if not match:
+        err_msg = (
+            f"Invalid notation format: {notation}. Expected format is 'mean(std)'."
+        )
+        raise ValueError(err_msg)
+
+    value_str, std_digits = match.groups()
+
+    return format_value_with_std(value_str, std_digits)
+
+
+def get_hparam_sweep_results_from_all_metrics(yaml_path: str) -> np.ndarray:
+    """Read all metrics results from a YAML file and extract DER mean and std."""
+    all_metrics_dict = yaml.safe_load(Path(yaml_path).read_text())
+    der_mean_ood = all_metrics_dict["out_of_domain"]["der"]["mean"]["mean"]
+    der_std_ood = all_metrics_dict["out_of_domain"]["der"]["mean"]["std"]
+    der_mean_test = all_metrics_dict["test"]["der"]["mean"]["mean"]
+    der_std_test = all_metrics_dict["test"]["der"]["mean"]["std"]
+    return (
+        # returning as percentages
+        np.array([der_mean_ood, der_mean_test]) * 100,
+        np.array([der_std_ood, der_std_test]) * 100,
+    )
+
+
+def plot_hparam_sweep_with_error_bands(
+    axis: plt.Axes,
+    data: dict[str, list[float]],
+    label: str,
+    color: str,
+    plot_with_error_bands: bool = True,
+):
+    """
+    Plot hparam sweep results with optional error bands.
+
+    args:
+        axis: Matplotlib axis to plot on
+        data: Dictionary containing 'lambdas', 'means', and 'stds' lists
+        label: Label for the plot
+        color: Color for the plot
+        plot_with_error_bands: Whether to plot error bands using std values
+    returns:
+        the unsorted lambda values for potential use in plotting other curves on
+        the same axis.
+    """
+
+    sorted_indices = np.argsort(data["lambdas"])
+    lambdas = np.array(data["lambdas"])[sorted_indices]
+    means = np.stack(data["means"])[sorted_indices]
+    stds = np.stack(data["stds"])[sorted_indices]
+
+    axis.plot(lambdas, means[:, 0], label=label, color=color)
+    if plot_with_error_bands:
+        axis.fill_between(
+            lambdas,
+            means[:, 0] - stds[:, 0],
+            means[:, 0] + stds[:, 0],
+            alpha=0.2,
+            color=color,
+        )
+    axis.plot(lambdas, means[:, 1], "--", color=color, alpha=0.7)
+    if plot_with_error_bands:
+        axis.fill_between(
+            lambdas,
+            means[:, 1] - stds[:, 1],
+            means[:, 1] + stds[:, 1],
+            alpha=0.1,
+            color=color,
+        )
+    return lambdas
+
+
+def plot_hparam_sweep_points_error_bars(
+    axis: plt.Axes,
+    data: dict[str, list[float]],
+    color: str,
+    label: str | None = None,
+    plot_with_error_bands: bool = True,
+):
+    """
+    Plot hparam sweep results with optional error bands.
+
+    args:
+        axis: Matplotlib axis to plot on
+        data: Dictionary containing 'lambdas', 'means', and 'stds' lists
+        label: Label for the plot
+        color: Color for the plot
+        plot_with_error_bands: Whether to plot error bands using std values
+    returns:
+        the unsorted lambda values for potential use in plotting other curves on
+        the same axis.
+    """
+
+    sorted_indices = np.argsort(data["lambdas"])
+    lambdas = np.array(data["lambdas"])[sorted_indices]
+    means = np.stack(data["means"])[sorted_indices]
+    stds = np.stack(data["stds"])[sorted_indices]
+
+    axis.scatter(
+        lambdas,
+        means[:, 0],
+        label=label,
+        color=color,
+    )
+    axis.plot(lambdas, means[:, 0], color=color, alpha=0.3)
+
+    if plot_with_error_bands:
+        axis.errorbar(
+            lambdas,
+            means[:, 0],
+            yerr=stds[:, 0],
+            fmt="none",
+            capsize=2,
+            ecolor=color,
+            alpha=0.7,
+        )
+    axis.scatter(
+        lambdas,
+        means[:, 1],
+        marker="x",
+        color=color,
+        alpha=0.7,
+    )
+    axis.plot(lambdas, means[:, 1], "--", color=color, alpha=0.3)
+
+    if plot_with_error_bands:
+        axis.errorbar(
+            lambdas,
+            means[:, 1],
+            yerr=stds[:, 1],
+            fmt="none",
+            capsize=2,
+            ecolor=color,
+            alpha=0.7,
+        )
+    return lambdas
+
+
+def plot_baseline(
+    axis: plt.Axes,
+    baseline_result_dict: dict[str, list[float]],
+    color: str = "dimgrey",
+    mean_linewidth: float = 0.5,
+    std_linewidth: float = 0.25,
+):
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [baseline_result_dict["means"][0], baseline_result_dict["means"][0]],
+        color=color,
+        linestyle="-",
+        linewidth=mean_linewidth,
+        alpha=0.7,
+    )
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [
+            baseline_result_dict["means"][0] + baseline_result_dict["stds"][0],
+            baseline_result_dict["means"][0] + baseline_result_dict["stds"][0],
+        ],
+        color=color,
+        linestyle="-",
+        linewidth=std_linewidth,
+        alpha=0.7,
+    )
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [
+            baseline_result_dict["means"][0] - baseline_result_dict["stds"][0],
+            baseline_result_dict["means"][0] - baseline_result_dict["stds"][0],
+        ],
+        color=color,
+        linestyle="-",
+        linewidth=std_linewidth,
+        alpha=0.7,
+    )
+
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [baseline_result_dict["means"][1], baseline_result_dict["means"][1]],
+        color=color,
+        linestyle="--",
+        linewidth=mean_linewidth,
+        alpha=0.7,
+    )
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [
+            baseline_result_dict["means"][1] + baseline_result_dict["stds"][1],
+            baseline_result_dict["means"][1] + baseline_result_dict["stds"][1],
+        ],
+        color=color,
+        linestyle="--",
+        linewidth=std_linewidth,
+        alpha=0.7,
+    )
+    axis.plot(
+        baseline_result_dict["lambdas"],
+        [
+            baseline_result_dict["means"][1] - baseline_result_dict["stds"][1],
+            baseline_result_dict["means"][1] - baseline_result_dict["stds"][1],
+        ],
+        color=color,
+        linestyle="--",
+        linewidth=std_linewidth,
+        alpha=0.7,
+    )

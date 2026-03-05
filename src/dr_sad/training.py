@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
-from dr_sad.models import AdversarialNet, IRMv1Model, VRExModel
+from dr_sad.models import AdversarialLSTM, AdversarialNet, IRMv1Model, VRExModel
 from dr_sad.pyannet import PyanNet
 
 # model registry
@@ -17,6 +17,7 @@ MODEL_DICT: dict[str, type[LightningModule]] = {
     "irm_model": IRMv1Model,
     "vrex_model": VRExModel,
     "adversarial_net": AdversarialNet,
+    "adversarial_lstm": AdversarialLSTM,
 }
 
 
@@ -44,6 +45,28 @@ def save_predictions(
             outputs[file_id] = prediction[index].cpu()
 
     save_file(outputs, save_path)
+
+
+class DelayedEarlyStopping(EarlyStopping):  # type: ignore[misc]
+    """
+    Custom EarlyStopping callback for DrSad.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """
+        Initialize the DrSadEarlyStopping callback.
+
+        Args:
+            **kwargs: Keyword arguments to pass to the base EarlyStopping class.
+        """
+        self.delay_epochs = kwargs.pop("delay_epochs", 0)
+        super().__init__(**kwargs)
+
+    def _should_skip_check(self, trainer: Trainer) -> bool:
+        return bool(
+            trainer.current_epoch < self.delay_epochs
+            or super()._should_skip_check(trainer)
+        )
 
 
 class DrSadTrainer(Trainer):  # type: ignore[misc]
@@ -75,8 +98,9 @@ class DrSadTrainer(Trainer):  # type: ignore[misc]
         if early_stopping_cfg["enabled"]:
             es_cfg = early_stopping_cfg.copy()
             es_cfg.pop("enabled")
+            # use the config step value
             callbacks = [
-                EarlyStopping(**es_cfg),
+                DelayedEarlyStopping(**es_cfg),
                 LearningRateMonitor(logging_interval="epoch"),
             ]
 
@@ -154,9 +178,17 @@ def create_model(
     constructor_kwargs = {k: v for k, v in model_cfg.items() if k != "model_name"}
 
     # Add adversarial_net specific arguments
-    if model_name == "adversarial_net":
+    if model_name == "adversarial_net" or model_name == "adversarial_lstm":
         num_domains = _get_domain_num_from_data_cfg(data_cfg)
         constructor_kwargs["num_domains"] = num_domains
+        extra_kwargs.pop("dataloader_length", None)
+
+    if (model_name == "irm_model" or model_name == "vrex_model") and model_cfg.get(
+        "lambda_scheduling_epochs"
+    ) is not None:
+        # Error is now raised in the model constructors if dataloader_length is missing
+        dataloader_length = extra_kwargs.pop("dataloader_length", None)
+        constructor_kwargs["dataloader_length"] = dataloader_length
 
     # Merge in any additional kwargs passed to this function
     constructor_kwargs.update(extra_kwargs)

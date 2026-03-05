@@ -141,6 +141,10 @@ def load_model_eval(
     Returns:
         torch.nn.Module: The model loaded with weights and set to evaluation mode.
     """
+    # Remove lambda scheduling keys if present, not needed for evaluation
+    model_cfg.pop("lambda_scheduling_epochs", None)
+    model_cfg.pop("lambda_start_epoch", None)
+
     weightless_model = create_model(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,

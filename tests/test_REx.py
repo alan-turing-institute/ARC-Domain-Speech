@@ -120,7 +120,9 @@ class TestVRExLoss:
 
     def test_vrex_model_training_step_with_scheduling(self):
         """Test VRExModel training_step with lambda scheduling."""
-        model = VRExModel(lambda_vrex=10.0, lambda_scheduling_steps=1)
+        model = VRExModel(
+            lambda_vrex=10.0, lambda_scheduling_epochs=1, dataloader_length=2
+        )
 
         # Verify initial state
         assert model.lambda_vrex == 0.0
@@ -166,9 +168,9 @@ class TestVRExLoss:
         # Run second training step - should update lambda_vrex to target_lambda
         loss2 = model.training_step(batch, batch_idx=1)
 
-        # After second step: lambda_vrex should now be target_lambda
+        # After second step: still in the same epoch, so lambda_vrex should still be 0.0
         assert model.anneal_step == 2
-        assert model.lambda_vrex == 10.0
+        assert model.lambda_vrex == 0.0
 
         # Verify calls for second step
         model.prepare_annotation.assert_called_once_with(waveforms, annotations)
@@ -177,3 +179,23 @@ class TestVRExLoss:
 
         # Verify loss is computed
         assert isinstance(loss2, torch.Tensor)
+
+        # Reset mock call counts for second step
+        model.log.reset_mock()
+        model.forward.reset_mock()
+        model.prepare_annotation.reset_mock()
+
+        # Run third training step - should update lambda_vrex to target_lambda
+        loss3 = model.training_step(batch, batch_idx=0)
+
+        # After third step, second epoch: lambda_vrex should now be target_lambda
+        assert model.anneal_step == 3
+        assert model.lambda_vrex == 10.0
+
+        # Verify calls for third step
+        model.prepare_annotation.assert_called_once_with(waveforms, annotations)
+        model.forward.assert_called_once_with(waveforms)
+        assert model.log.call_count == 4
+
+        # Verify loss is computed
+        assert isinstance(loss3, torch.Tensor)
