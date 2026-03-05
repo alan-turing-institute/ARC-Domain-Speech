@@ -177,6 +177,8 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
                 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                     optimizer, **scheduler_params
                 )
+                interval = "epoch"
+                frequency = 1
             elif scheduler_type == "CyclicLR":
                 scheduler_params["base_lr"] = self.learning_rate
                 step_epochs = scheduler_params.pop("step_size_up_epoch")
@@ -189,6 +191,8 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
                 scheduler = torch.optim.lr_scheduler.CyclicLR(
                     optimizer, **scheduler_params
                 )
+                interval = "step"
+                frequency = 1
 
             else:
                 err_msg = f"Unknown scheduler type: {scheduler_type}"
@@ -199,8 +203,8 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
                 "lr_scheduler": {
                     "scheduler": scheduler,
                     "monitor": monitor_metric,
-                    "interval": "epoch",
-                    "frequency": 1,
+                    "interval": interval,
+                    "frequency": frequency,
                 },
             }
 
