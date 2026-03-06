@@ -30,7 +30,7 @@ def main() -> None:
     min_DER = float("inf")
 
     for model in models:
-        experiment_names = glob(f"outputs/hpsweep_dihard_synthetic_{model}*")
+        experiment_names = glob(f"outputs/cyclicLR_hparam_sweep_{model}*")
 
         for experiment_name in experiment_names:
             lambda_value = experiment_name.split("_")[-1].removeprefix("lambda")
@@ -62,7 +62,7 @@ def main() -> None:
         )
 
         baseline_means, baseline_stds = get_hparam_sweep_results_from_all_metrics(
-            "outputs/dihard_synthetic_domain_30/all_metrics.yaml"
+            "outputs/cyclicLR_baseline_domain/all_metrics.yaml"
         )
 
         baseline_result_dict = {
@@ -79,7 +79,7 @@ def main() -> None:
         )
 
         axes[i].set_title(models[model])
-        axes[i].set_xscale("symlog", linthresh=0.0001)
+        axes[i].set_xscale("symlog", linthresh=sorted(lambdas)[1])
         axes[i].set_ylim(min_DER, max_DER)
 
         if len(axes[i].get_legend_handles_labels()[0]) > 0:
@@ -121,7 +121,7 @@ def main() -> None:
 
     fig.suptitle("Hparam Sweep Results", fontsize=16)
     fig.savefig(
-        "outputs/figures/hparam_sweep_results_multi_ax.pdf",
+        "outputs/figures/CyclicLR_hparam_sweep.pdf",
         dpi=300,
         bbox_inches="tight",
     )
