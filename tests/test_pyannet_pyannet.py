@@ -152,7 +152,7 @@ class TestPyanNet:
         )
         expected_msg = "step_size_up_epoch requires dataloader_length to be set."
         with pytest.raises(ValueError, match=expected_msg):
-            p.configure_optimizers()
+            _ = p.configure_optimizers()
 
     def test_configure_optimizers_reduce_lr_on_plateau_interval_epoch(self):
         """Test that ReduceLROnPlateau scheduler returns interval='epoch'."""

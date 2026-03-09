@@ -157,7 +157,7 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         outputs = self.classifier(outputs)
         return self.final_activation(outputs)
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> torch.optim.Optimizer:
         """Configure optimizer and optionally a learning rate scheduler.
 
         Returns:
