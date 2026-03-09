@@ -8,6 +8,7 @@
 
 __all__ = ("PyanNet",)
 
+import warnings
 from typing import Any
 
 import lightning.pytorch as pl
@@ -181,13 +182,36 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
                 frequency = 1
             elif scheduler_type == "CyclicLR":
                 scheduler_params["base_lr"] = self.learning_rate
-                step_epochs = scheduler_params.pop("step_size_up_epoch")
-                if step_epochs is not None and self.dataloader_length is None:
-                    err_msg = "step_size_up_epoch requires dataloader_length to be set"
-                    raise ValueError(err_msg)
+
+                # Handle step size configuration
+                step_epochs = scheduler_params.pop("step_size_up_epoch", None)
+
                 if step_epochs is not None:
-                    step_size_up = step_epochs * self.dataloader_length
-                    scheduler_params["step_size_up"] = step_size_up
+                    # Using epoch-based configuration
+                    if self.dataloader_length is None:
+                        err_msg = (
+                            "step_size_up_epoch requires dataloader_length to be set."
+                        )
+                        raise ValueError(err_msg)
+                    scheduler_params["step_size_up"] = (
+                        step_epochs * self.dataloader_length
+                    )
+                elif "step_size_up" not in scheduler_params:
+                    # Neither step_size_up_epoch nor step_size_up provided, use default
+
+                    default_step_size = 2000
+                    msg = (
+                        "Neither 'step_size_up' nor 'step_size_up_epoch' specified in "
+                        "CyclicLR config. Using default step_size_up"
+                        f"={default_step_size}"
+                    )
+                    warnings.warn(
+                        msg,
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    scheduler_params["step_size_up"] = default_step_size
+
                 scheduler = torch.optim.lr_scheduler.CyclicLR(
                     optimizer, **scheduler_params
                 )

@@ -61,6 +61,13 @@ def main() -> None:
             axes[i], results[model], label=None, color=f"C{i}"
         )
 
+        if len(lambdas) < 2:
+            err_msg = (
+                f"Warning: Not enough lambda values found for model {model} to plot a "
+                f"meaningful curve. Found lambdas: {lambdas}"
+            )
+            raise ValueError(err_msg)
+
         baseline_means, baseline_stds = get_hparam_sweep_results_from_all_metrics(
             "outputs/cyclicLR_baseline_domain/all_metrics.yaml"
         )
