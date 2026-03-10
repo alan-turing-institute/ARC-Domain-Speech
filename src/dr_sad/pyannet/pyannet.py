@@ -51,6 +51,7 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         num_classes: int = 1,
         scheduler_config: dict[str, Any] | None = None,
         learning_rate: float = 1e-3,
+        dataloader_length: int | None = None,
     ):
         super().__init__()
 
@@ -71,9 +72,15 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         # Store optimizer and scheduler configuration
         self.learning_rate = learning_rate
         self.scheduler_config = scheduler_config
+        self.dataloader_length = dataloader_length
 
         self.save_hyperparameters(
-            "sincnet", "lstm", "linear", "scheduler_config", "learning_rate"
+            "sincnet",
+            "lstm",
+            "linear",
+            "scheduler_config",
+            "learning_rate",
+            "dataloader_length",
         )
 
         self.sincnet = SincNet(**self.hparams.sincnet)
@@ -149,7 +156,7 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
         outputs = self.classifier(outputs)
         return self.final_activation(outputs)
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> torch.optim.Optimizer:
         """Configure optimizer and optionally a learning rate scheduler.
 
         Returns:
@@ -170,6 +177,39 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
                 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                     optimizer, **scheduler_params
                 )
+                interval = "epoch"
+                frequency = 1
+            elif scheduler_type == "CyclicLR":
+                scheduler_params["base_lr"] = self.learning_rate
+
+                # Handle step size configuration
+                step_epochs = scheduler_params.pop("step_size_up_epoch", None)
+
+                if step_epochs is not None:
+                    # Using epoch-based configuration
+                    if self.dataloader_length is None:
+                        err_msg = (
+                            "step_size_up_epoch requires dataloader_length to be set."
+                        )
+                        raise ValueError(err_msg)
+                    scheduler_params["step_size_up"] = (
+                        step_epochs * self.dataloader_length
+                    )
+                elif "step_size_up" not in scheduler_params:
+                    # Neither step_size_up_epoch nor step_size_up provided, use default
+
+                    err_msg = (
+                        "CyclicLR requires either step_size_up_epoch or "
+                        "step_size_up to be set in scheduler_config.\n"
+                    )
+                    raise ValueError(err_msg)
+
+                scheduler = torch.optim.lr_scheduler.CyclicLR(
+                    optimizer, **scheduler_params
+                )
+                interval = "step"
+                frequency = 1
+
             else:
                 err_msg = f"Unknown scheduler type: {scheduler_type}"
                 raise ValueError(err_msg)
@@ -179,8 +219,8 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
                 "lr_scheduler": {
                     "scheduler": scheduler,
                     "monitor": monitor_metric,
-                    "interval": "epoch",
-                    "frequency": 1,
+                    "interval": interval,
+                    "frequency": frequency,
                 },
             }
 
