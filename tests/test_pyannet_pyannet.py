@@ -1,5 +1,3 @@
-import warnings
-
 import numpy as np
 import pytest
 import torch
@@ -201,20 +199,9 @@ class TestPyanNet:
         }
         p = PyanNet(scheduler_config=scheduler_config, learning_rate=1e-3)
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            result = p.configure_optimizers()
-
-            # Check that a warning was issued
-            assert len(w) == 1
-            assert issubclass(w[0].category, UserWarning)
-            msg = (
-                "Neither 'step_size_up' nor 'step_size_up_epoch' specified in "
-                "CyclicLR config. Using default step_size_up=2000"
-            )
-            assert str(w[0].message) == msg
-
-        scheduler = result["lr_scheduler"]["scheduler"]
-        assert isinstance(scheduler, torch.optim.lr_scheduler.CyclicLR)
-        # Default step_size_up = 2000, so total_size = 4000
-        assert scheduler.total_size == 2 * 2000
+        expected_msg = (
+            "CyclicLR requires either step_size_up_epoch or step_size_up"
+            " to be set in scheduler_config."
+        )
+        with pytest.raises(ValueError, match=expected_msg):
+            _ = p.configure_optimizers()

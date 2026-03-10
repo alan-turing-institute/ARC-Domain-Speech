@@ -8,7 +8,6 @@
 
 __all__ = ("PyanNet",)
 
-import warnings
 from typing import Any
 
 import lightning.pytorch as pl
@@ -199,18 +198,11 @@ class PyanNet(pl.LightningModule):  # type: ignore[misc]
                 elif "step_size_up" not in scheduler_params:
                     # Neither step_size_up_epoch nor step_size_up provided, use default
 
-                    default_step_size = 2000
-                    msg = (
-                        "Neither 'step_size_up' nor 'step_size_up_epoch' specified in "
-                        "CyclicLR config. Using default step_size_up"
-                        f"={default_step_size}"
+                    err_msg = (
+                        "CyclicLR requires either step_size_up_epoch or "
+                        "step_size_up to be set in scheduler_config.\n"
                     )
-                    warnings.warn(
-                        msg,
-                        UserWarning,
-                        stacklevel=2,
-                    )
-                    scheduler_params["step_size_up"] = default_step_size
+                    raise ValueError(err_msg)
 
                 scheduler = torch.optim.lr_scheduler.CyclicLR(
                     optimizer, **scheduler_params
