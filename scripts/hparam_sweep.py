@@ -128,7 +128,7 @@ def main() -> None:
 
     fig.suptitle("Hparam Sweep Results", fontsize=16)
     fig.savefig(
-        "outputs/figures/CyclicLR_hparam_sweep.pdf",
+        "outputs/figures/CyclicLR_hparam_sweep.png",
         dpi=300,
         bbox_inches="tight",
     )
