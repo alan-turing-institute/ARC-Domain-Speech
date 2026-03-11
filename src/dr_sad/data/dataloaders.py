@@ -62,7 +62,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
                 - start_choice (bool, optional): Randomise starting point for cropping.
                 - noise_files_list (list[str], optional): Specific noise file names.
         """
-        self.noise_kwargs = noise_kwargs
+        self.noise_kwargs = generate_noise_kwargs_list
         if noise_kwargs is not None:
             noise_builder = NoiseBuilder(**noise_kwargs)
             augmented_waveforms = pd.Series(dtype=object)
@@ -166,9 +166,15 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         val_data = data.loc[list(set(val_keys) & set(domain_keys))]
         test_data = data.loc[list(set(test_keys) & set(domain_keys))]
 
-        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
-            generate_noise_kwargs_list(noise_kwargs, 3)
-        )
+        if noise_kwargs is not None and noise_kwargs.pop("train_only", False):
+            train_noise_kwargs = noise_kwargs
+            val_noise_kwargs = None
+            test_noise_kwargs = None
+        else:
+            train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
+                generate_noise_kwargs_list(noise_kwargs, 3)
+            )
+
         return (
             cls(
                 train_data,
@@ -242,6 +248,18 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         train_noise_kwargs, val_noise_kwargs, test_noise_kwargs, domain_noise_kwargs = (
             generate_noise_kwargs_list(noise_kwargs, 4)
         )
+        if noise_kwargs is not None and noise_kwargs.pop("train_only", False):
+            train_noise_kwargs = noise_kwargs
+            val_noise_kwargs = None
+            test_noise_kwargs = None
+            domain_noise_kwargs = None
+        else:
+            (
+                train_noise_kwargs,
+                val_noise_kwargs,
+                test_noise_kwargs,
+                domain_noise_kwargs,
+            ) = generate_noise_kwargs_list(noise_kwargs, 4)
 
         return (
             cls(
@@ -308,9 +326,14 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         val_data = data.loc[val_keys]
         test_data = data.loc[test_keys]
 
-        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
-            generate_noise_kwargs_list(noise_kwargs, 3)
-        )
+        if noise_kwargs is not None and noise_kwargs.pop("train_only", False):
+            train_noise_kwargs = noise_kwargs
+            val_noise_kwargs = None
+            test_noise_kwargs = None
+        else:
+            train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
+                generate_noise_kwargs_list(noise_kwargs, 3)
+            )
         return (
             cls(
                 train_data,
@@ -373,9 +396,15 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             test_ratio=test_ratio,
             random_seed=random_seed,
         )
-        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
-            generate_noise_kwargs_list(noise_kwargs, 3)
-        )
+
+        if noise_kwargs is not None and noise_kwargs.pop("train_only", False):
+            train_noise_kwargs = noise_kwargs
+            val_noise_kwargs = None
+            test_noise_kwargs = None
+        else:
+            train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
+                generate_noise_kwargs_list(noise_kwargs, 3)
+            )
 
         # Create DrSadDataset objects
         return (
