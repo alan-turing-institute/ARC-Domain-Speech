@@ -62,7 +62,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
                 - start_choice (bool, optional): Randomise starting point for cropping.
                 - noise_files_list (list[str], optional): Specific noise file names.
         """
-        self.noise_kwargs = generate_noise_kwargs_list
+        self.noise_kwargs = noise_kwargs
         if noise_kwargs is not None:
             noise_builder = NoiseBuilder(**noise_kwargs)
             augmented_waveforms = pd.Series(dtype=object)
@@ -166,10 +166,15 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         val_data = data.loc[list(set(val_keys) & set(domain_keys))]
         test_data = data.loc[list(set(test_keys) & set(domain_keys))]
 
-        if noise_kwargs is not None and noise_kwargs.pop("train_only", False):
-            train_noise_kwargs = noise_kwargs
-            val_noise_kwargs = None
-            test_noise_kwargs = None
+        train_only = noise_kwargs is not None and noise_kwargs.get("train_only", False)
+        if train_only:
+            train_noise_kwargs: dict[str, Any] | None = {
+                k: v
+                for k, v in noise_kwargs.items()  # type: ignore[union-attr]
+                if k != "train_only"
+            }
+            val_noise_kwargs: dict[str, Any] | None = None
+            test_noise_kwargs: dict[str, Any] | None = None
         else:
             train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
                 generate_noise_kwargs_list(noise_kwargs, 3)
@@ -245,14 +250,16 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         test_data = data.loc[list(set(test_keys) - set(domain_keys))]
         domain_data = data.loc[domain_keys]
 
-        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs, domain_noise_kwargs = (
-            generate_noise_kwargs_list(noise_kwargs, 4)
-        )
-        if noise_kwargs is not None and noise_kwargs.pop("train_only", False):
-            train_noise_kwargs = noise_kwargs
-            val_noise_kwargs = None
-            test_noise_kwargs = None
-            domain_noise_kwargs = None
+        train_only = noise_kwargs is not None and noise_kwargs.get("train_only", False)
+        if train_only:
+            train_noise_kwargs: dict[str, Any] | None = {
+                k: v
+                for k, v in noise_kwargs.items()  # type: ignore[union-attr]
+                if k != "train_only"
+            }
+            val_noise_kwargs: dict[str, Any] | None = None
+            test_noise_kwargs: dict[str, Any] | None = None
+            domain_noise_kwargs: dict[str, Any] | None = None
         else:
             (
                 train_noise_kwargs,
@@ -326,14 +333,20 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         val_data = data.loc[val_keys]
         test_data = data.loc[test_keys]
 
-        if noise_kwargs is not None and noise_kwargs.pop("train_only", False):
-            train_noise_kwargs = noise_kwargs
-            val_noise_kwargs = None
-            test_noise_kwargs = None
+        train_only = noise_kwargs is not None and noise_kwargs.get("train_only", False)
+        if train_only:
+            train_noise_kwargs: dict[str, Any] | None = {
+                k: v
+                for k, v in noise_kwargs.items()  # type: ignore[union-attr]
+                if k != "train_only"
+            }
+            val_noise_kwargs: dict[str, Any] | None = None
+            test_noise_kwargs: dict[str, Any] | None = None
         else:
             train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
                 generate_noise_kwargs_list(noise_kwargs, 3)
             )
+
         return (
             cls(
                 train_data,
@@ -397,10 +410,15 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             random_seed=random_seed,
         )
 
-        if noise_kwargs is not None and noise_kwargs.pop("train_only", False):
-            train_noise_kwargs = noise_kwargs
-            val_noise_kwargs = None
-            test_noise_kwargs = None
+        train_only = noise_kwargs is not None and noise_kwargs.get("train_only", False)
+        if train_only:
+            train_noise_kwargs: dict[str, Any] | None = {
+                k: v
+                for k, v in noise_kwargs.items()  # type: ignore[union-attr]
+                if k != "train_only"
+            }
+            val_noise_kwargs: dict[str, Any] | None = None
+            test_noise_kwargs: dict[str, Any] | None = None
         else:
             train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
                 generate_noise_kwargs_list(noise_kwargs, 3)

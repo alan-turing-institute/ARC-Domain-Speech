@@ -96,7 +96,7 @@ class NoiseBuilder(BaseNoiseBuilder):
     def __init__(
         self,
         noise_dir: Path | str,
-        snr_db: float | tuple[float, float],
+        snr_db: float | tuple[float, float] | list[float],
         simultaneous: int = 1,
         seed: int | None = None,
         start_choice: bool = True,
@@ -169,6 +169,8 @@ class NoiseBuilder(BaseNoiseBuilder):
 
         # Set the SNR
         self.snr_db: float | tuple[float, float] = 0.0
+        if isinstance(snr_db, list):
+            snr_db = tuple(snr_db)  # type: ignore[assignment]
         if isinstance(snr_db, tuple):
             if len(snr_db) == 1:
                 print("Warning: snr_db tuple has length 1")  # type: ignore[unreachable]
@@ -183,9 +185,7 @@ class NoiseBuilder(BaseNoiseBuilder):
         elif isinstance(snr_db, int | float | np.floating):
             self.snr_db = float(snr_db)
         else:
-            msg = (  # type: ignore[unreachable]
-                "snr_db must be a float or a tuple of two floats."
-            )
+            msg = "snr_db must be a float or a tuple of two floats."
             raise ValueError(msg)
 
         # Set the number of simultaneous noise files
