@@ -177,11 +177,13 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             test_noise_kwargs: dict[str, Any] | None = None
         else:
             # remove "train_only" key if present and false
-            new_noise_kwargs: dict[str, Any] | None = {
-                k: v
-                for k, v in noise_kwargs.items()  # type: ignore[union-attr]
-                if k != "train_only"
-            }
+            if noise_kwargs is not None:
+                # remove "train_only" key if present and false
+                new_noise_kwargs: dict[str, Any] | None = {
+                    k: v for k, v in noise_kwargs.items() if k != "train_only"
+                }
+            else:
+                new_noise_kwargs = noise_kwargs
             train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
                 generate_noise_kwargs_list(new_noise_kwargs, 3)
             )
@@ -268,11 +270,13 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             domain_noise_kwargs: dict[str, Any] | None = None
         else:
             # remove "train_only" key if present and false
-            new_noise_kwargs: dict[str, Any] | None = {
-                k: v
-                for k, v in noise_kwargs.items()  # type: ignore[union-attr]
-                if k != "train_only"
-            }
+            if noise_kwargs is not None:
+                # remove "train_only" key if present and false
+                new_noise_kwargs: dict[str, Any] | None = {
+                    k: v for k, v in noise_kwargs.items() if k != "train_only"
+                }
+            else:
+                new_noise_kwargs = noise_kwargs
             (
                 train_noise_kwargs,
                 val_noise_kwargs,
@@ -356,11 +360,13 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             test_noise_kwargs: dict[str, Any] | None = None
         else:
             # remove "train_only" key if present and false
-            new_noise_kwargs: dict[str, Any] | None = {
-                k: v
-                for k, v in noise_kwargs.items()  # type: ignore[union-attr]
-                if k != "train_only"
-            }
+            if noise_kwargs is not None:
+                # remove "train_only" key if present and false
+                new_noise_kwargs: dict[str, Any] | None = {
+                    k: v for k, v in noise_kwargs.items() if k != "train_only"
+                }
+            else:
+                new_noise_kwargs = noise_kwargs
             train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
                 generate_noise_kwargs_list(new_noise_kwargs, 3)
             )
@@ -439,11 +445,12 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             test_noise_kwargs: dict[str, Any] | None = None
         else:
             # remove "train_only" key if present and false
-            new_noise_kwargs: dict[str, Any] | None = {
-                k: v
-                for k, v in noise_kwargs.items()  # type: ignore[union-attr]
-                if k != "train_only"
-            }
+            if noise_kwargs is not None:
+                new_noise_kwargs: dict[str, Any] | None = {
+                    k: v for k, v in noise_kwargs.items() if k != "train_only"
+                }
+            else:
+                new_noise_kwargs = noise_kwargs
             train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
                 generate_noise_kwargs_list(new_noise_kwargs, 3)
             )
