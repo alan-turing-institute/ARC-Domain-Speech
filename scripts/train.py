@@ -57,7 +57,8 @@ def main(args) -> None:
         exp_config.get("seed_pytorch", True)
         and exp_config.get("random_seed") is not None
     ):
-        pl.seed_everything(exp_config["random_seed"], workers=True)
+        print("Seeding pytorch with seed:", exp_config["random_seed"])
+        pl.seed_everything(exp_config["random_seed"], workers=True, verbose=False)
         deterministic = True
     else:
         deterministic = False
