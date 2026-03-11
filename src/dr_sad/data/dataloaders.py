@@ -64,7 +64,10 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         """
         self.noise_kwargs = noise_kwargs
         if noise_kwargs is not None:
-            noise_builder = NoiseBuilder(**noise_kwargs)
+            noise_builder_kwargs = {
+                k: v for k, v in noise_kwargs.items() if k != "train_only"
+            }
+            noise_builder = NoiseBuilder(**noise_builder_kwargs)
             augmented_waveforms = pd.Series(dtype=object)
             for key, waveform in data["waveforms"].items():
                 augmented_waveforms.loc[key] = noise_builder.add_noise(waveform)
