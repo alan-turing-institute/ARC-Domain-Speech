@@ -41,8 +41,8 @@ class AdversarialNet(PyanNet):
         self,
         *args,
         num_domains: int,
-        grl_lambda: float,
-        domain_loss_weight: float = 1.0,
+        domain_loss_weight: float,
+        grl_lambda: float = 1.0,
         **kwargs,
     ):
         """

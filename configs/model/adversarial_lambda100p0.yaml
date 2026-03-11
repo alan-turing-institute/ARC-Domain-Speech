@@ -1,2 +1,2 @@
 model_name: adversarial_net
-grl_lambda: 100.0
+domain_loss_weight: 100.0
