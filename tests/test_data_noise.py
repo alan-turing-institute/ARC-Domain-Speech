@@ -122,6 +122,12 @@ class TestNoiseBuilder:
         assert noise.ndim == 1  # Mono audio
         assert noise.size > 0  # Non-empty array
 
+    def test_convert_list_to_tuple(self, noise_dataset):
+        noise_dir = noise_dataset / "noise"
+        builder = NoiseBuilder(noise_dir, snr_db=[10, 20], simultaneous=1, seed=42)
+        assert isinstance(builder.snr_db, tuple)
+        assert builder.snr_db == (10, 20)
+
     def test_get_multiple_noises(self, noise_dataset):
         noise_dir = noise_dataset / "noise"
         builder = NoiseBuilder(noise_dir, 0, simultaneous=2, seed=42)

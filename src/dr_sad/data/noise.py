@@ -114,8 +114,9 @@ class NoiseBuilder(BaseNoiseBuilder):
                 1) If noise_dir is a valid path, it uses that.
                 2) If not, it looks for the directory in the default data/noise
                 directory relative to the project root.
-            snr_db (float | tuple[float, float]): The desired signal-to-noise ratio
-                in decibels (dB), can be a value or a range.
+            snr_db (float | tuple[float, float] | list[float]): The desired
+                signal-to-noise ratio in decibels (dB), can be a value or a range.
+                If it is a list it should be of length 2.
             simultaneous (int, optional): The number of noise files to use
                 simultaneously. Defaults to 1, which means only one noise file
                 will be used.
@@ -185,7 +186,10 @@ class NoiseBuilder(BaseNoiseBuilder):
         elif isinstance(snr_db, int | float | np.floating):
             self.snr_db = float(snr_db)
         else:
-            msg = "snr_db must be a float or a tuple of two floats."
+            msg = (
+                "snr_db must be a float or a tuple of two floats, "
+                "or a list of two floats."
+            )
             raise ValueError(msg)
 
         # Set the number of simultaneous noise files

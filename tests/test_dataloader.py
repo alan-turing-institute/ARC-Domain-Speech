@@ -1442,7 +1442,7 @@ class TestNoiseAugmentation:
         assert val_indices.isdisjoint(test_indices)
 
 
-class DataloadersWithNoise:
+class TestDataloadersWithNoise:
     def test_train_test_split_dataloaders_with_noise(
         self, example_dataset, noise_dataset
     ):
@@ -1682,3 +1682,271 @@ class DataloadersWithNoise:
         assert "waveforms" in test_batch
         assert "annotations" in test_batch
         assert "domains" in test_batch
+
+    def test_train_test_split_dataloaders_with_train_only_noise(
+        self,
+        example_dataset,
+        noise_dataset,
+    ):
+        """
+        Test train_test_split_dataloaders with noise_kwargs that only apply to train.
+        """
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        noise_dir = noise_dataset / "noise"
+
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": 42,
+            "start_choice": True,
+            "train_only": True,
+        }
+
+        train_loader, val_loader, test_loader = train_test_split_dataloaders(
+            data,
+            batch_size=2,
+            val_ratio=0.2,
+            test_ratio=0.2,
+            random_seed=42,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were propagated to train dataset but not val/test
+        assert train_loader.dataset.noise_kwargs is not None
+        assert train_loader.dataset.noise_kwargs["noise_dir"] == noise_dir
+        assert train_loader.dataset.noise_kwargs["seed"] == noise_kwargs["seed"]
+        assert val_loader.dataset.noise_kwargs is None
+        assert test_loader.dataset.noise_kwargs is None
+
+    def test_domain_split_dataloaders_with_train_only_noise(
+        self,
+        example_dataset,
+        noise_dataset,
+    ):
+        """
+        Test domain_split_dataloaders with noise_kwargs that only apply to the train
+        split.
+        """
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        domain = 1
+
+        noise_dir = noise_dataset / "noise"
+
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": 42,
+            "start_choice": True,
+            "train_only": True,
+        }
+
+        (
+            train_loader,
+            val_loader,
+            test_loader,
+            domain_loader,
+        ) = domain_split_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            domain,
+            batch_size=2,
+            random_seed=42,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were propagated to domain dataset but not train/val/test
+        assert train_loader.dataset.noise_kwargs is not None
+        assert train_loader.dataset.noise_kwargs["noise_dir"] == noise_dir
+        assert train_loader.dataset.noise_kwargs["seed"] == noise_kwargs["seed"]
+        assert domain_loader.dataset.noise_kwargs is None
+        assert val_loader.dataset.noise_kwargs is None
+        assert test_loader.dataset.noise_kwargs is None
+
+    def test_single_domain_dataloaders_with_train_only_noise(
+        self,
+        example_dataset,
+        noise_dataset,
+    ):
+        """
+        Test single_domain_dataloaders with noise_kwargs that only apply to the train.
+        """
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+        target_domain = 1
+
+        noise_dir = noise_dataset / "noise"
+
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": 42,
+            "start_choice": True,
+            "train_only": True,
+        }
+
+        train_loader, val_loader, test_loader = single_domain_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            target_domain,
+            batch_size=2,
+            random_seed=42,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were propagated to datasets but only affect target domain
+        assert train_loader.dataset.noise_kwargs is not None
+        assert train_loader.dataset.noise_kwargs["noise_dir"] == noise_dir
+        assert train_loader.dataset.noise_kwargs["seed"] == noise_kwargs["seed"]
+        assert val_loader.dataset.noise_kwargs is None
+        assert test_loader.dataset.noise_kwargs is None
+
+    def test_from_keys_dataloaders_with_train_only_noise(
+        self,
+        example_dataset,
+        noise_dataset,
+    ):
+        """Test from_keys_dataloaders with noise_kwargs where train_only is True."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        train_keys = data.index[:12].tolist()
+        val_keys = data.index[12:16].tolist()
+        test_keys = data.index[16:].tolist()
+
+        noise_dir = noise_dataset / "noise"
+
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": 42,
+            "start_choice": True,
+            "train_only": True,
+        }
+
+        train_loader, val_loader, test_loader = from_keys_dataloaders(
+            data,
+            train_keys,
+            val_keys,
+            test_keys,
+            batch_size=2,
+            random_seed=42,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were set on train dataset but not val/test
+        assert train_loader.dataset.noise_kwargs is not None
+        assert train_loader.dataset.noise_kwargs["noise_dir"] == noise_dir
+        assert train_loader.dataset.noise_kwargs["seed"] == noise_kwargs["seed"]
+        assert val_loader.dataset.noise_kwargs is None
+        assert test_loader.dataset.noise_kwargs is None
+
+    def test_from_target_domain_with_train_only_noise(
+        self,
+        example_dataset,
+        noise_dataset,
+    ):
+        """Test from_target_domain with noise_kwargs where train_only is True."""
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        noise_dir = noise_dataset / "noise"
+
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": 42,
+            "train_only": True,
+        }
+
+        train, val, test = DrSadDataset.from_target_domain(
+            data,
+            train_keys=data.index[:12].tolist(),
+            val_keys=data.index[12:16].tolist(),
+            test_keys=data.index[16:].tolist(),
+            domain=1,
+            time_slice=None,
+            sample_rate=16000,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were set on train dataset but not val/test
+        assert train.noise_kwargs is not None
+        assert train.noise_kwargs["noise_dir"] == noise_dir
+        assert train.noise_kwargs["seed"] == noise_kwargs["seed"]
+        assert val.noise_kwargs is None
+        assert test.noise_kwargs is None
+
+    def test_one_test_dataloader_with_train_only_noise(
+        self,
+        example_dataset,
+        noise_dataset,
+    ):
+        """
+        Test one_test_dataloader with noise_kwargs where train_only is True.
+        """
+        data = load_data(
+            data_choice=None,
+            data_set_path=example_dataset,
+            domain_column="domain",
+            domains_idx={"AAA": 0, "BBB": 1, "CCC": 2},
+        )
+
+        noise_dir = noise_dataset / "noise"
+
+        noise_kwargs = {
+            "noise_dir": noise_dir,
+            "snr_db": 10.0,
+            "simultaneous": 1,
+            "seed": 42,
+            "train_only": True,
+        }
+
+        test_loader = one_test_dataloader(
+            data,
+            data_keys=data.index.tolist()[:6],
+            batch_size=2,
+            noise_kwargs=noise_kwargs,
+        )
+
+        # Verify noise_kwargs were propagated to dataset
+        assert test_loader.dataset.noise_kwargs is None

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import lightning.pytorch as pl
 import yaml
-from pytorch_lightning.loggers import CSVLogger
+from lightning.pytorch.loggers import CSVLogger
 from safetensors.torch import save_model
 
 from dr_sad.data.data_fetching import load_data
