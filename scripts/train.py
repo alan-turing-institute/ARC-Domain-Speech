@@ -1,8 +1,9 @@
 import argparse
 from pathlib import Path
 
+import lightning.pytorch as pl
 import yaml
-from pytorch_lightning.loggers import CSVLogger
+from lightning.pytorch.loggers import CSVLogger
 from safetensors.torch import save_model
 
 from dr_sad.data.data_fetching import load_data
@@ -50,6 +51,17 @@ def main(args) -> None:
         data_cfg = yaml.safe_load(f)
     with open(model_cfg_pth) as f:
         model_cfg = yaml.safe_load(f)
+
+    # Set seed early for reproducibility
+    if (
+        exp_config.get("seed_pytorch", True)
+        and exp_config.get("random_seed") is not None
+    ):
+        print("Seeding pytorch with seed:", exp_config["random_seed"])
+        pl.seed_everything(exp_config["random_seed"], workers=True, verbose=False)
+        deterministic = True
+    else:
+        deterministic = False
 
     time_slice = exp_config.get("time_slice")
     if time_slice is not None:
@@ -170,6 +182,7 @@ def main(args) -> None:
         log_every_n_steps=log_steps,
         max_epochs=trainer_cfg["max_epochs"],
         early_stopping_cfg=trainer_cfg["early_stopping"],
+        deterministic=deterministic,
     )
     model = create_model(
         model_cfg=model_cfg,

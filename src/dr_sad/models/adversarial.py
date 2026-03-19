@@ -41,15 +41,15 @@ class AdversarialNet(PyanNet):
         self,
         *args,
         num_domains: int,
-        grl_lambda: float,
         domain_loss_weight: float = 1.0,
+        grl_lambda: float = 1.0,
         **kwargs,
     ):
         """
         Args:
             num_domains (int): Number of domain classes.
-            grl_lambda (float): Strength of the gradient reversal.
             domain_loss_weight (float, optional): Weight for the domain loss term.
+            grl_lambda (float, optional): Strength of the gradient reversal.
             *args, **kwargs: Passed through to PyanNet.
         """
         super().__init__(*args, **kwargs)

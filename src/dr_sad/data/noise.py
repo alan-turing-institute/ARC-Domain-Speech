@@ -96,7 +96,7 @@ class NoiseBuilder(BaseNoiseBuilder):
     def __init__(
         self,
         noise_dir: Path | str,
-        snr_db: float | tuple[float, float],
+        snr_db: float | tuple[float, float] | list[float],
         simultaneous: int = 1,
         seed: int | None = None,
         start_choice: bool = True,
@@ -114,8 +114,9 @@ class NoiseBuilder(BaseNoiseBuilder):
                 1) If noise_dir is a valid path, it uses that.
                 2) If not, it looks for the directory in the default data/noise
                 directory relative to the project root.
-            snr_db (float | tuple[float, float]): The desired signal-to-noise ratio
-                in decibels (dB), can be a value or a range.
+            snr_db (float | tuple[float, float] | list[float]): The desired
+                signal-to-noise ratio in decibels (dB), can be a value or a range.
+                If it is a list it should be of length 2.
             simultaneous (int, optional): The number of noise files to use
                 simultaneously. Defaults to 1, which means only one noise file
                 will be used.
@@ -169,6 +170,8 @@ class NoiseBuilder(BaseNoiseBuilder):
 
         # Set the SNR
         self.snr_db: float | tuple[float, float] = 0.0
+        if isinstance(snr_db, list):
+            snr_db = tuple(snr_db)  # type: ignore[assignment]
         if isinstance(snr_db, tuple):
             if len(snr_db) == 1:
                 print("Warning: snr_db tuple has length 1")  # type: ignore[unreachable]
@@ -183,8 +186,9 @@ class NoiseBuilder(BaseNoiseBuilder):
         elif isinstance(snr_db, int | float | np.floating):
             self.snr_db = float(snr_db)
         else:
-            msg = (  # type: ignore[unreachable]
-                "snr_db must be a float or a tuple of two floats."
+            msg = (
+                "snr_db must be a float or a tuple of two floats, "
+                "or a list of two floats."
             )
             raise ValueError(msg)
 

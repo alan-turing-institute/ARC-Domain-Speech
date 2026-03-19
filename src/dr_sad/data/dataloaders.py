@@ -64,7 +64,10 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         """
         self.noise_kwargs = noise_kwargs
         if noise_kwargs is not None:
-            noise_builder = NoiseBuilder(**noise_kwargs)
+            noise_builder_kwargs = {
+                k: v for k, v in noise_kwargs.items() if k != "train_only"
+            }
+            noise_builder = NoiseBuilder(**noise_builder_kwargs)
             augmented_waveforms = pd.Series(dtype=object)
             for key, waveform in data["waveforms"].items():
                 augmented_waveforms.loc[key] = noise_builder.add_noise(waveform)
@@ -166,9 +169,16 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         val_data = data.loc[list(set(val_keys) & set(domain_keys))]
         test_data = data.loc[list(set(test_keys) & set(domain_keys))]
 
-        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
-            generate_noise_kwargs_list(noise_kwargs, 3)
-        )
+        train_only = noise_kwargs is not None and noise_kwargs.get("train_only", False)
+        if train_only:
+            train_noise_kwargs: dict[str, Any] | None = noise_kwargs
+            val_noise_kwargs: dict[str, Any] | None = None
+            test_noise_kwargs: dict[str, Any] | None = None
+        else:
+            train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
+                generate_noise_kwargs_list(noise_kwargs, 3)
+            )
+
         return (
             cls(
                 train_data,
@@ -239,9 +249,19 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         test_data = data.loc[list(set(test_keys) - set(domain_keys))]
         domain_data = data.loc[domain_keys]
 
-        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs, domain_noise_kwargs = (
-            generate_noise_kwargs_list(noise_kwargs, 4)
-        )
+        train_only = noise_kwargs is not None and noise_kwargs.get("train_only", False)
+        if train_only:
+            train_noise_kwargs: dict[str, Any] | None = noise_kwargs
+            val_noise_kwargs: dict[str, Any] | None = None
+            test_noise_kwargs: dict[str, Any] | None = None
+            domain_noise_kwargs: dict[str, Any] | None = None
+        else:
+            (
+                train_noise_kwargs,
+                val_noise_kwargs,
+                test_noise_kwargs,
+                domain_noise_kwargs,
+            ) = generate_noise_kwargs_list(noise_kwargs, 4)
 
         return (
             cls(
@@ -308,9 +328,16 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         val_data = data.loc[val_keys]
         test_data = data.loc[test_keys]
 
-        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
-            generate_noise_kwargs_list(noise_kwargs, 3)
-        )
+        train_only = noise_kwargs is not None and noise_kwargs.get("train_only", False)
+        if train_only:
+            train_noise_kwargs: dict[str, Any] | None = noise_kwargs
+            val_noise_kwargs: dict[str, Any] | None = None
+            test_noise_kwargs: dict[str, Any] | None = None
+        else:
+            train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
+                generate_noise_kwargs_list(noise_kwargs, 3)
+            )
+
         return (
             cls(
                 train_data,
@@ -373,9 +400,16 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
             test_ratio=test_ratio,
             random_seed=random_seed,
         )
-        train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
-            generate_noise_kwargs_list(noise_kwargs, 3)
-        )
+
+        train_only = noise_kwargs is not None and noise_kwargs.get("train_only", False)
+        if train_only:
+            train_noise_kwargs: dict[str, Any] | None = noise_kwargs
+            val_noise_kwargs: dict[str, Any] | None = None
+            test_noise_kwargs: dict[str, Any] | None = None
+        else:
+            train_noise_kwargs, val_noise_kwargs, test_noise_kwargs = (
+                generate_noise_kwargs_list(noise_kwargs, 3)
+            )
 
         # Create DrSadDataset objects
         return (
@@ -802,6 +836,8 @@ def one_test_dataloader(
         dataloader_kwargs = {}
 
     test_data = data.loc[data_keys]
+    if noise_kwargs is not None and noise_kwargs.get("train_only", False):
+        noise_kwargs = None
     test = DrSadDataset(
         test_data,
         domain=domain,

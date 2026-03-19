@@ -1,3 +1,4 @@
+import argparse
 from glob import glob
 
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ from dr_sad.plotting import (
 )
 
 
-def main() -> None:
+def main(filepath_pattern: str) -> None:
     set_plot_style()
 
     models = {
@@ -30,7 +31,7 @@ def main() -> None:
     min_DER = float("inf")
 
     for model in models:
-        experiment_names = glob(f"outputs/cyclicLR_hparam_sweep_{model}*")
+        experiment_names = glob(f"outputs/{filepath_pattern}_{model}*")
 
         for experiment_name in experiment_names:
             lambda_value = experiment_name.split("_")[-1].removeprefix("lambda")
@@ -69,7 +70,7 @@ def main() -> None:
             raise ValueError(err_msg)
 
         baseline_means, baseline_stds = get_hparam_sweep_results_from_all_metrics(
-            "outputs/cyclicLR_baseline_domain/all_metrics.yaml"
+            f"outputs/{filepath_pattern}_baseline_domain/all_metrics.yaml"
         )
 
         baseline_result_dict = {
@@ -128,11 +129,22 @@ def main() -> None:
 
     fig.suptitle("Hparam Sweep Results", fontsize=16)
     fig.savefig(
-        "outputs/figures/CyclicLR_hparam_sweep.pdf",
+        f"outputs/figures/{filepath_pattern}_hparam_sweep.png",
         dpi=300,
         bbox_inches="tight",
     )
 
 
 if __name__ == "__main__":
-    main()
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument(
+        "filepath_pattern",
+        type=str,
+        help=(
+            "The pattern to match experiment directories for the hparam sweep"
+            " (e.g., 'hparam_sweep' to match directories like "
+            "'hparam_sweep_adversarial_lambda0.1')"
+        ),
+    )
+    args = argparser.parse_args()
+    main(args.filepath_pattern)
