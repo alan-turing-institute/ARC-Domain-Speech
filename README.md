@@ -53,6 +53,8 @@ Datasets are **not** included in this repository. Each dataset must be obtained
 separately and placed under the `data/<dataset-name>/` directory. See the data
 configuration files in `configs/data/` for the expected directory names.
 
+Notes on dataset preparation can be found in `data/README.md`.
+
 ## Installation
 
 **Python 3.10 or later is required.**
