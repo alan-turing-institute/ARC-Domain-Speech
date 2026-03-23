@@ -1,8 +1,8 @@
 # Data
 
 This directory contains all datasets used for training, evaluation, and noise augmentation.
-**No data is included in the repository.** Each dataset must be obtained or generated
-separately and placed in its named subdirectory before running experiments.
+**No data is included in the repository.**
+Each dataset must be obtained or generated separately and placed in its named subdirectory before running experiments.
 
 ## Common Directory Structure
 
@@ -30,9 +30,8 @@ Fields: `type | file_id | channel | onset(s) | duration(s) | <NA> | <NA> | speak
 
 ### DIHARD (`dihard/`)
 
-The primary benchmark. Requires an [LDC licence (LDC2022S14)](https://catalog.ldc.upenn.edu/LDC2022S14).
-Download and extract the corpus, then place the audio and annotation files under
-`data/dihard/flac/` and `data/dihard/rttm/` following the naming conventions above.
+The primary benchmark requires an [LDC licence (LDC2022S14)](https://catalog.ldc.upenn.edu/LDC2022S14).
+Download and extract the corpus, then place the audio and annotation files under `data/dihard/flac/` and `data/dihard/rttm/` following the naming conventions above.
 
 Contains recordings from 10 acoustic domains:
 
@@ -49,20 +48,18 @@ Contains recordings from 10 acoustic domains:
 | 8 | webvideo |
 | 9 | broadcast_interview |
 
-**`dihard_five/`** is a 5-domain subset (webvideo, restaurant, meeting, socio_field,
-clinical) drawn from the same files. No separate download is needed and it is populated
-during data preparation.
+**`dihard_five/`** is a 5-domain subset (webvideo, restaurant, meeting, socio_field, clinical) drawn from the same files.
+No separate download is needed and it is populated during data preparation.
 
 ### MUSAN (`musan/`)
 
-Freely available corpus of music, noise, and speech used for noise augmentation and
-synthetic data generation. Download from [OpenSLR](https://openslr.org/17/) and extract
-into `data/musan/`.
+Freely available corpus of music, noise, and speech used for noise augmentation and synthetic data generation.
+Download from [OpenSLR](https://openslr.org/17/) and extract into `data/musan/`.
 
 ### Elveden Hall (`elveden-hall-suffolk-england/`)
 
-A small set of room impulse response recordings used for reverb augmentation in the
-synthetic dataset. These files can be downloaded [using the following link](https://webfiles.york.ac.uk/OPENAIR/IRs/elveden-hall-suffolk-england/elveden-hall-suffolk-england.zip), and the unzipped folder should be placed in the `data/` directory.
+A small set of room impulse response recordings used for reverb augmentation in the synthetic dataset.
+These files can be downloaded [using the following link](https://webfiles.york.ac.uk/OPENAIR/IRs/elveden-hall-suffolk-england/elveden-hall-suffolk-england.zip), and the unzipped folder should be placed in the `data/` directory.
 
 ### CallHome (`callhome/`) — generated automatically
 
@@ -99,8 +96,7 @@ RTTM annotations are copied unchanged from `dihard/`.
 
 ## Creating Data Splits
 
-Split files (`split_A.yaml` … `split_E.yaml`) define the train/val/test keys for each
-cross-validation fold and are stored alongside `sources.tbl` in each dataset directory.
+Split files (`split_A.yaml` … `split_E.yaml`) define the train/val/test keys for each cross-validation fold and are stored alongside `sources.tbl` in each dataset directory.
 
 **5-fold cross-validation splits** (recommended; produces `split_A.yaml` … `split_E.yaml`):
 
@@ -126,11 +122,12 @@ The `domain_column` argument is `domain` for DIHARD datasets and `lang` for Call
    ```bash
    python scripts/callhome_generation.py
    ```
-4. Generate synthetic DIHARD data:
+4. Download and place `elveden-hall-suffolk-england/` under `data/`
+5. Generate synthetic DIHARD data:
    ```bash
    python scripts/generate_synthetic_dataset.py
    ```
-5. Generate cross-validation splits for each dataset, e.g.:
+6. Generate cross-validation splits for each dataset, e.g.:
    ```bash
    python scripts/cross_validation_data.py data/dihard/sources.tbl domain
    python scripts/cross_validation_data.py data/dihard_synthetic/sources.tbl domain

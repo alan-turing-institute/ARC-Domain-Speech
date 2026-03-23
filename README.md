@@ -1,21 +1,14 @@
 # ARC-Domain-Speech
 
-[![Actions Status][actions-badge]][actions-link]
-
 ARC project on domain-robust speech activity detection (DRSAD).
 
 ## Overview
 
-Speech activity detection models are typically trained on data from a single acoustic
-domain (e.g. telephone calls, broadcast news, or meeting recordings). Performance often
-degrades significantly when such models are deployed in conditions that differ from
-training. This project investigates domain robustness techniques that improve
-performance across diverse acoustic environments.
+Speech activity detection models are typically trained on data from a single acoustic domain (e.g. telephone calls, broadcast news, or meeting recordings).
+Performance often degrades significantly when such models are deployed in conditions that differ from training.
+This project investigates domain robustness techniques that improve performance across diverse acoustic environments.
 
-The package implements a PyTorch Lightning training pipeline built around the
-[PyanNet](https://github.com/pyannote/pyannote-audio) architecture and several
-domain adaptation methods — adversarial training, Invariant Risk Minimisation (IRM),
-and Variance Risk Extrapolation (V-REx) — predominantly evaluated on configurations of the DIHARD dataset.
+The package implements a PyTorch Lightning training pipeline built around the [PyanNet](https://github.com/pyannote/pyannote-audio) architecture and several domain adaptation methods — adversarial training, Invariant Risk Minimisation (IRM), and Variance Risk Extrapolation (V-REx) — predominantly evaluated on configurations of the DIHARD dataset.
 
 ## Architecture
 
@@ -32,15 +25,20 @@ Waveforms -> SincNet (learnable sinc filterbanks -> Conv1d blocks -> max-pool)
 
 ### Domain Adaptation Methods
 
+Each domain adaptation method trains a base model (`default_pyannet`) with an additional loss term designed to promote domain agnostic representations in the base model.
+We use three distinct methods for this, but all include a term in the loss, $\lambda$, which acts as a coefficient to this additional term in the loss.
+
 | Model key | Method | Summary |
 |---|---|---|
-| `default_pyannet` | Baseline | PyanNet with no domain adaptation, trains via ERM $L_{\text{ERM}}$ |
+| `default_pyannet` | Baseline | PyanNet with no domain adaptation, trains via ERM: $L_{\text{ERM}}$ |
 | `adversarial_net` | Adversarial (at Linear) | Gradient reversal after the linear head forces domain-invariant features; loss weighted by $\lambda$ |
 | `adversarial_lstm` | Adversarial (at LSTM) | Adversarial head applied after the LSTM layer; loss also weighted by $\lambda$ |
 | `irm_model` | IRMv1 | Finds a feature representation with equal risk across domains; supports $\lambda$ scheduling |
 | `vrex_model` | V-REx | Penalises high variance of per-domain losses: $L = L_\text{ERM} + \lambda \cdot \text{Var}(L_e)$ |
 
 ## Datasets
+
+Notes on dataset preparation can be found in [`data/README.md`](data/README.md).
 
 | Dataset | Split role | Notes |
 |---|---|---|
@@ -49,11 +47,10 @@ Waveforms -> SincNet (learnable sinc filterbanks -> Conv1d blocks -> max-pool)
 | MUSAN | Noise augmentation | Background noise applied at configurable SNR during training |
 | CallHome | Supplementary | Telephone-speech recordings |
 
-Datasets are **not** included in this repository. Each dataset must be obtained
-separately and placed under the `data/<dataset-name>/` directory. See the data
-configuration files in `configs/data/` for the expected directory names.
+Datasets are **not** included in this repository.
+Each dataset must be obtained separately and placed under the `data/<dataset-name>/` directory.
+See the data configuration files in `configs/data/` for the expected directory names.
 
-Notes on dataset preparation can be found in `data/README.md`.
 
 ## Installation
 
@@ -175,9 +172,8 @@ After training, generate frame-level speech probability predictions:
 python scripts/predict.py <experiment_config> <split_idx> [--domain DOMAIN]
 ```
 
-Arguments match those of `train.py`. Predictions are saved as
-[safetensors](https://github.com/huggingface/safetensors) files alongside model
-metadata:
+Arguments match those of `train.py`.
+Predictions are saved as [safetensors](https://github.com/huggingface/safetensors) files alongside model metadata:
 
 ```
 outputs/<experiment_name>/<split_name>/
@@ -234,42 +230,46 @@ After running sweeps across multiple $\lambda$ values, plot the results:
 python scripts/hparam_sweep.py <filepath_pattern>
 ```
 
-`filepath_pattern` is matched against `outputs/` to locate sweep experiment
-directories (e.g. `hparam_sweep` matches directories like
-`hparam_sweep_adversarial_lambda_0p02`). The script produces a DER vs $\lambda$
-plot saved to `outputs/figures/`.
+`filepath_pattern` is matched against `outputs/` to locate sweep experiment directories (e.g. `hparam_sweep` matches directories like `hparam_sweep_adversarial_lambda_0p02`).
+The script produces a DER vs $\lambda$ plot saved to `outputs/figures/`.
 
-It requires files be named with a common prefix (eg. `hparam_sweep`), a set of model identifiers (eg. `adversarial`, `IRM`, etc.. ) and a lambda value (eg. `_lambda_0p02` -> $\lambda$ = 0.02). Baseline runs (`domain`, `single`, and `all`) should be named with the prefix and then `_baseline_[RUN_TYPE]` (eg. `hparam_sweep_baseline_single`).
+It requires files be named with a common prefix (eg. `hparam_sweep`), a set of model identifiers (eg. `adversarial`, `IRM`, etc.. ) and a lambda value (eg. `_lambda_0p02` -> $\lambda$ = 0.02).
+Baseline runs (`domain`, `single`, and `all`) should be named with the prefix and then `_baseline_[RUN_TYPE]` (eg. `hparam_sweep_baseline_single`).
 
 ## Project Structure
 
 ```
 ARC-Domain-Speech/
 ├── configs/
-│   ├── data/          # dataset and domain-split configs
-│   ├── experiment/    # top-level experiment configs
-│   ├── model/         # model + hyperparameter configs
-│   └── training/      # trainer, LR scheduler, early stopping configs
-├── data/              # datasets (not included)
-├── outputs/           # training artefacts and predictions (git-ignored)
+│   ├── data/                   # dataset and domain-split configs
+│   ├── experiment/             # top-level experiment configs
+│   ├── model/                  # model + hyperparameter configs
+│   └── training/               # trainer, LR scheduler, early stopping configs
+|
+├── data/                       # datasets (not included)
+|
+├── outputs/                    # training artefacts and predictions (git-ignored)
+|
 ├── scripts/
-│   ├── train.py                  # train a model
-│   ├── predict.py                # generate predictions from a trained model
-│   ├── frame_analysis.py         # compute frame-level metrics
-│   ├── segment_analysis.py       # optimise post-processing and compute segment-level metrics
-│   ├── collate_all_metrics.py    # aggregate metrics across all domains and splits
-│   ├── hparam_sweep.py           # plot λ-sweep results
-│   ├── data_splitting.py         # create train/val/test splits
+│   ├── train.py                # train a model
+│   ├── predict.py              # generate predictions from a trained model
+│   ├── frame_analysis.py       # compute frame-level metrics
+│   ├── segment_analysis.py     # optimise post-processing and compute segment-level metrics
+│   ├── collate_all_metrics.py  # aggregate metrics across all domains and splits
+│   ├── hparam_sweep.py         # plot λ-sweep results
+│   ├── data_splitting.py       # create train/val/test splits
 │   └── ...
+|
 ├── src/dr_sad/
-│   ├── pyannet/       # SincNet, BiLSTM, PyanNet model
-│   ├── models/        # AdversarialNet, IRMv1Model, VRExModel, AdversarialLSTM
-│   ├── data/          # dataset loading, dataloaders, noise augmentation
-│   ├── training.py    # DrSadTrainer, MODEL_DICT, create_model()
-│   ├── predicting.py  # inference pipeline
-│   ├── analysis.py    # F1, precision, recall, ROC-AUC
+│   ├── pyannet/                # SincNet, BiLSTM, PyanNet model
+│   ├── models/                 # AdversarialNet, IRMv1Model, VRExModel, AdversarialLSTM
+│   ├── data/                   # dataset loading, dataloaders, noise augmentation
+│   ├── training.py             # DrSadTrainer, MODEL_DICT, create_model()
+│   ├── predicting.py           # inference pipeline
+│   ├── analysis.py             # F1, precision, recall, ROC-AUC
 │   └── ...
-└── tests/             # pytest test suite
+|
+└── tests/                      # pytest test suite
 ```
 
 ## License
