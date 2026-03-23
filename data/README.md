@@ -62,7 +62,7 @@ into `data/musan/`.
 ### Elveden Hall (`elveden-hall-suffolk-england/`)
 
 A small set of room impulse response recordings used for reverb augmentation in the
-synthetic dataset. These files are already present in the repository.
+synthetic dataset. These files can be downloaded [using the following link](https://webfiles.york.ac.uk/OPENAIR/IRs/elveden-hall-suffolk-england/elveden-hall-suffolk-england.zip), and the unzipped folder should be placed in the `data/` directory.
 
 ### CallHome (`callhome/`) — generated automatically
 
