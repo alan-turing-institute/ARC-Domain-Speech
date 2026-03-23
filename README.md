@@ -240,16 +240,17 @@ Baseline runs (`domain`, `single`, and `all`) should be named with the prefix an
 
 ```
 ARC-Domain-Speech/
+│
 ├── configs/
 │   ├── data/                   # dataset and domain-split configs
 │   ├── experiment/             # top-level experiment configs
 │   ├── model/                  # model + hyperparameter configs
 │   └── training/               # trainer, LR scheduler, early stopping configs
-|
+│
 ├── data/                       # datasets (not included)
-|
+│
 ├── outputs/                    # training artefacts and predictions (git-ignored)
-|
+│
 ├── scripts/
 │   ├── train.py                # train a model
 │   ├── predict.py              # generate predictions from a trained model
@@ -259,7 +260,7 @@ ARC-Domain-Speech/
 │   ├── hparam_sweep.py         # plot λ-sweep results
 │   ├── data_splitting.py       # create train/val/test splits
 │   └── ...
-|
+│
 ├── src/dr_sad/
 │   ├── pyannet/                # SincNet, BiLSTM, PyanNet model
 │   ├── models/                 # AdversarialNet, IRMv1Model, VRExModel, AdversarialLSTM
@@ -268,7 +269,7 @@ ARC-Domain-Speech/
 │   ├── predicting.py           # inference pipeline
 │   ├── analysis.py             # F1, precision, recall, ROC-AUC
 │   └── ...
-|
+│
 └── tests/                      # pytest test suite
 ```
 
