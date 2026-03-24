@@ -340,7 +340,7 @@ class AdversarialDomainGen(AdversarialNet):
     def _compute_losses(
         self,
         speaker_truth: torch.Tensor,
-        domains: list[int],
+        domains: torch.Tensor,
         speaker_outputs: torch.Tensor,
         domain_logits: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -349,14 +349,14 @@ class AdversarialDomainGen(AdversarialNet):
 
         Args:
             _speaker_truth (torch.Tensor): Annotations for speaker (not used).
-            domains (list[int]): List of domain indices for each sample.
+            domains (torch.Tensor): Tensor of domain indices for each sample.
             domain_logits (torch.Tensor): Domain logits from the model.
 
         Returns:
             loss (torch.Tensor): Computed domain generation loss.
         """
         """Internal helper: returns (total, speaker, domain) losses."""
-        non_target_mask = torch.tensor([d != self.target_domain for d in domains])
+        non_target_mask = domains != self.target_domain
 
         if non_target_mask.sum() == 0:
             # If all samples are from the target domain, skip speaker loss
@@ -365,7 +365,7 @@ class AdversarialDomainGen(AdversarialNet):
         else:
             speaker_loss = self.loss_output_function(
                 speaker_truth[non_target_mask],
-                [d for d in domains if d != self.target_domain],
+                domains[non_target_mask].tolist(),
                 speaker_outputs[non_target_mask],
             )
         domain_loss = self.loss_domain_function(speaker_truth, domains, domain_logits)
