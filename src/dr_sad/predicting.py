@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import (
+    domain_gen_dataloaders,
     domain_split_dataloaders,
     from_keys_dataloaders,
     single_domain_dataloaders,
@@ -126,6 +127,7 @@ def load_model_eval(
     model_cfg: dict[str, str | int | float],
     trainer_cfg: dict[str, str | int | float],
     data_cfg: dict[str, str | int | float] | None = None,
+    **model_kwargs,
 ) -> torch.nn.Module:
     """
     Loads a model from a safetensors file and prepares it for evaluation.
@@ -149,6 +151,7 @@ def load_model_eval(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
         data_cfg=data_cfg,
+        **model_kwargs,
     )
 
     # Load the model state dict from the safetensors file
@@ -203,7 +206,7 @@ def load_data_eval(
         )
         raise ValueError(msg)
 
-    if data_cfg["domain_type"] != "exclude_one":
+    if data_cfg["domain_type"] not in ("exclude_one", "domain_gen"):
         if exclude_domain is not None:
             err_msg = (
                 "Cannot exclude domain when domain_type is 'all' or 'single_domain'."
@@ -254,6 +257,24 @@ def load_data_eval(
             raise ValueError(err_msg)
         # Use domain_split_dataloaders to exclude the specified domain
         _, validation_loader, test_loader, domain_loader = domain_split_dataloaders(
+            data,
+            train_keys=data_split["train"],
+            val_keys=data_split["val"],
+            test_keys=data_split["test"],
+            domain=exclude_domain,
+            batch_size=int(trainer_cfg["batch_size"]),
+            random_seed=int(exp_config["random_seed"]),
+            noise_kwargs=data_cfg.get("noise_augmentation"),
+        )
+
+        return validation_loader, test_loader, domain_loader
+
+    if data_cfg["domain_type"] == "domain_gen":
+        if exclude_domain is None:
+            err_msg = "Must specify exclude_domain when domain_type is 'exclude_one'."
+            raise ValueError(err_msg)
+        # Use domain_split_dataloaders to exclude the specified domain
+        _, validation_loader, test_loader, domain_loader = domain_gen_dataloaders(
             data,
             train_keys=data_split["train"],
             val_keys=data_split["val"],

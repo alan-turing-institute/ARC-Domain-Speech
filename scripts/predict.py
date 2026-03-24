@@ -116,11 +116,17 @@ def main(
 
     model_folder = Path(experiment_folder)
 
+    model_kwargs = {}
+
+    if data_cfg.get("domain_type") == "domain_gen":
+        model_kwargs["target_domain"] = domain
+
     model = load_model_eval(
         model_path=model_folder / "trained_model_weights.safetensors",
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
         data_cfg=data_cfg,
+        **model_kwargs,
     )
     # Determine how to use domain based on training type
     if data_cfg.get("domain_type") == "all" and domain is not None:
@@ -129,7 +135,9 @@ def main(
         )
         print("------------------\n", warning_msg, "\n------------------")
     # Determine how to use domain based on training type
-    exclude_domain = domain if train_type == "exclude_one" else None
+    exclude_domain = (
+        domain if train_type == "exclude_one" or train_type == "domain_gen" else None
+    )
     train_domain = domain if train_type == "single_domain" else None
 
     validation_loader, test_loader, domain_loader = load_data_eval(

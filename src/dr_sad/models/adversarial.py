@@ -229,6 +229,7 @@ class AdversarialNet(PyanNet):
                 domains, dtype=torch.long, device=domain_logits.device
             )
 
+        # take mean temporally to get one prediction per utterance
         pooled_logits = domain_logits.mean(dim=1)
         preds = pooled_logits.argmax(dim=-1)
         correct = (preds == domains).float()
@@ -408,13 +409,26 @@ class AdversarialDomainGen(AdversarialNet):
         outputs = outputs.swapaxes(1, 2)
         speaker_truth = self.prepare_annotation(waveforms, annotations)
 
-        # No domain masking at test time — dataloader has already filtered appropriately
-        speaker_loss = self.loss_output_function(speaker_truth, domains, outputs)
-        domain_loss = self.loss_domain_function(speaker_truth, domains, domain_logits)
+        if self.binary_classification:
+            domains_tensor = torch.tensor(
+                domains, dtype=torch.long, device=domain_logits.device
+            )
+            domain_targets = self.get_domain_targets(domains_tensor)
+        else:
+            domain_targets = domains
+
+        speaker_loss = self.loss_output_function(speaker_truth, domain_targets, outputs)
+        domain_loss = self.loss_domain_function(
+            speaker_truth,
+            domain_targets.tolist()
+            if torch.is_tensor(domain_targets)
+            else domain_targets,
+            domain_logits,
+        )
         total_loss = speaker_loss + self.domain_loss_weight * domain_loss
 
-        accuracy = self.accuracy_function(speaker_truth, domains, outputs)
-        domain_accuracy = self.domain_accuracy_function(domains, domain_logits)
+        accuracy = self.accuracy_function(speaker_truth, domain_targets, outputs)
+        domain_accuracy = self.domain_accuracy_function(domain_targets, domain_logits)
 
         self.log("test_loss", total_loss)
         self.log("test_accuracy", accuracy)
