@@ -357,8 +357,11 @@ class AdversarialDomainGen(AdversarialNet):
         speaker_outputs: torch.Tensor,
         domain_logits: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Modified Internal helper: returns (total, speaker, domain) losses. Screens
-        OOD samples for ERM loss but uses the it for domain loss.
+        """
+        Modified Internal helper: returns (total, speaker, domain) losses.
+        Screens OOD samples for ERM loss but uses the it for domain loss. If
+        binary_classification is True, converts domain indices to binary targets for
+        the speaker loss.
 
         Args:
             _speaker_truth (torch.Tensor): Annotations for speaker (not used).
@@ -368,11 +371,10 @@ class AdversarialDomainGen(AdversarialNet):
         Returns:
             loss (torch.Tensor): Computed domain generation loss.
         """
-        """Internal helper: returns (total, speaker, domain) losses."""
+
         if self.binary_classification:
             domain_targets = self.get_domain_targets(domains)
             non_target_mask = ~domain_targets.bool()
-
         else:
             domain_targets = domains
             non_target_mask = domains != self.target_domain
