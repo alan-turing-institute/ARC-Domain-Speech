@@ -396,6 +396,32 @@ class AdversarialDomainGen(AdversarialNet):
         total_loss = speaker_loss + self.domain_loss_weight * domain_loss
         return total_loss, speaker_loss, domain_loss
 
+    # Override test_step to use the inherited loss functions as we want to compute
+    # the metrics on all samples, not just the in-domain ones
+    def test_step(self, batch: Any, batch_idx: int) -> None:  # noqa: ARG002
+        waveforms, annotations, domains = (
+            batch["waveforms"],
+            batch["annotations"],
+            batch["domains"],
+        )
+        outputs, domain_logits = self(waveforms)
+        outputs = outputs.swapaxes(1, 2)
+        speaker_truth = self.prepare_annotation(waveforms, annotations)
+
+        # No domain masking at test time — dataloader has already filtered appropriately
+        speaker_loss = self.loss_output_function(speaker_truth, domains, outputs)
+        domain_loss = self.loss_domain_function(speaker_truth, domains, domain_logits)
+        total_loss = speaker_loss + self.domain_loss_weight * domain_loss
+
+        accuracy = self.accuracy_function(speaker_truth, domains, outputs)
+        domain_accuracy = self.domain_accuracy_function(domains, domain_logits)
+
+        self.log("test_loss", total_loss)
+        self.log("test_accuracy", accuracy)
+        self.log("test_speaker_loss", speaker_loss)
+        self.log("test_domain_loss", domain_loss)
+        self.log("test_domain_accuracy", domain_accuracy)
+
 
 class AdversarialLSTMDomainGen(AdversarialDomainGen, AdversarialLSTM):
     pass

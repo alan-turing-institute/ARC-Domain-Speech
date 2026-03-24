@@ -231,7 +231,10 @@ def main(args) -> None:
     print("Evaluating on In-Domain Test data:")
     result_in_domain = trainer.test(model, test_loader)[0]
 
-    if data_cfg["domain_type"] == "exclude_one":
+    if (
+        data_cfg["domain_type"] == "exclude_one"
+        or data_cfg["domain_type"] == "domain_gen"
+    ):
         print("Evaluating on Out-of-Domain data:")
         result_out_domain = trainer.test(model, domain_loader)[0]
     else:
@@ -285,6 +288,29 @@ def main(args) -> None:
             results["out_of_domain_test_full"] = trainer.test(
                 model, full_domain_loader
             )[0]
+
+        elif data_cfg["domain_type"] == "domain_gen":
+            domain_keys = data[data["domains"] == args.domain].index.to_list()
+            test_without_domain_keys = list(set(data_split["test"]) - set(domain_keys))
+            unseen_domain_keys = list(set(domain_keys) & set(data_split["test"]))
+            full_test_loader = one_test_dataloader(
+                data,
+                data_keys=test_without_domain_keys,
+                batch_size=full_batch_size,
+                noise_kwargs=data_cfg.get("noise_augmentation"),
+            )
+            results["in_domain_test_full"] = trainer.test(model, full_test_loader)[0]
+
+            full_domain_loader = one_test_dataloader(
+                data,
+                data_keys=unseen_domain_keys,
+                batch_size=full_batch_size,
+                noise_kwargs=data_cfg.get("noise_augmentation"),
+            )
+            results["out_of_domain_test_full"] = trainer.test(
+                model, full_domain_loader
+            )[0]
+
         else:
             err_msg = (
                 f"Unknown domain_type option: {data_cfg['domain_type']} "

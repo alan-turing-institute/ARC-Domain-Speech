@@ -343,9 +343,7 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         # remove the domain from the test set
         test_data = data.loc[list(set(test_keys) - set(domain_keys))]
         # dataset containing only the held-out domain for testing on OOD data
-        domain_data = data.loc[
-            list(set(domain_keys) - set(train_keys) - set(val_keys) - set(test_keys))
-        ]
+        domain_data = data.loc[list(set(domain_keys) & set(test_keys))]
 
         train_only = noise_kwargs is not None and noise_kwargs.get("train_only", False)
         if train_only:
