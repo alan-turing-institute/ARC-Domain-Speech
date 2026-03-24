@@ -329,3 +329,49 @@ class AdversarialLSTM(AdversarialNet):
         domain_logits = self.domain_classifier(domain_hidden)
 
         return speaker_scores, domain_logits
+
+
+class AdversarialDomainGen(AdversarialNet):
+    def __init__(self, target_domain: int, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.save_hyperparameters("target_domain")
+        self.target_domain = target_domain
+
+    def _compute_losses(
+        self,
+        speaker_truth: torch.Tensor,
+        domains: list[int],
+        speaker_outputs: torch.Tensor,
+        domain_logits: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Modified Internal helper: returns (total, speaker, domain) losses. Screens
+        OOD samples for ERM loss but uses the it for domain loss.
+
+        Args:
+            _speaker_truth (torch.Tensor): Annotations for speaker (not used).
+            domains (list[int]): List of domain indices for each sample.
+            domain_logits (torch.Tensor): Domain logits from the model.
+
+        Returns:
+            loss (torch.Tensor): Computed domain generation loss.
+        """
+        """Internal helper: returns (total, speaker, domain) losses."""
+        non_target_mask = torch.tensor([d != self.target_domain for d in domains])
+
+        if non_target_mask.sum() == 0:
+            # If all samples are from the target domain, skip speaker loss
+            # This should never occur using the stratified sampler
+            speaker_loss = torch.tensor(0.0, device=speaker_truth.device)
+        else:
+            speaker_loss = self.loss_output_function(
+                speaker_truth[non_target_mask],
+                [d for d in domains if d != self.target_domain],
+                speaker_outputs[non_target_mask],
+            )
+        domain_loss = self.loss_domain_function(speaker_truth, domains, domain_logits)
+        total_loss = speaker_loss + self.domain_loss_weight * domain_loss
+        return total_loss, speaker_loss, domain_loss
+
+
+class AdversarialLSTMDomainGen(AdversarialDomainGen, AdversarialLSTM):
+    pass

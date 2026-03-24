@@ -8,6 +8,7 @@ from safetensors.torch import save_model
 
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import (
+    domain_gen_dataloaders,
     domain_split_dataloaders,
     from_keys_dataloaders,
     one_test_dataloader,
@@ -54,7 +55,7 @@ def main(args) -> None:
 
     # Set seed early for reproducibility
     if (
-        exp_config.get("seed_pytorch", True)
+        exp_config.get("seed_pytorch", False)
         and exp_config.get("random_seed") is not None
     ):
         print("Seeding pytorch with seed:", exp_config["random_seed"])
@@ -92,6 +93,7 @@ def main(args) -> None:
     ):
         data_cfg["noise_augmentation"]["seed"] += args.split_idx * 10
 
+    model_args = {}
     if data_cfg["domain_type"] == "all":
         save_dir = MAIN_DIR / "outputs" / experiment_name / split_name
         save_dir.mkdir(parents=True, exist_ok=True)
@@ -159,6 +161,33 @@ def main(args) -> None:
             random_seed=exp_config["random_seed"],
             noise_kwargs=data_cfg.get("noise_augmentation"),
         )
+
+    elif data_cfg["domain_type"] == "domain_gen":
+        if args.domain is None:
+            err_msg = "Must specify --domain when domain_type is 'domain_gen'."
+            raise ValueError(err_msg)
+        save_dir = (
+            MAIN_DIR
+            / "outputs"
+            / experiment_name
+            / split_name
+            / f"domain_{args.domain}"
+        )
+        save_dir.mkdir(parents=True, exist_ok=True)
+        # Use domain_split_dataloaders to exclude the specified domain
+        train_loader, val_loader, test_loader, domain_loader = domain_gen_dataloaders(
+            data,
+            train_keys=data_split["train"],
+            val_keys=data_split["val"],
+            test_keys=data_split["test"],
+            domain=args.domain,
+            batch_size=batch_size,
+            time_slice=time_slice,
+            random_seed=exp_config["random_seed"],
+            noise_kwargs=data_cfg.get("noise_augmentation"),
+        )
+        model_args["target_domain"] = args.domain
+
     else:
         err_msg = f"Unknown domain_type option: {data_cfg['domain_type']}"
         raise ValueError(err_msg)
@@ -189,6 +218,7 @@ def main(args) -> None:
         trainer_cfg=trainer_cfg,
         data_cfg=data_cfg,
         dataloader_length=len(train_loader),
+        **model_args,
     )
 
     # Train the model

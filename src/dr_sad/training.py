@@ -8,7 +8,14 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
-from dr_sad.models import AdversarialLSTM, AdversarialNet, IRMv1Model, VRExModel
+from dr_sad.models import (
+    AdversarialDomainGen,
+    AdversarialLSTM,
+    AdversarialLSTMDomainGen,
+    AdversarialNet,
+    IRMv1Model,
+    VRExModel,
+)
 from dr_sad.pyannet import PyanNet
 
 # model registry
@@ -18,6 +25,8 @@ MODEL_DICT: dict[str, type[LightningModule]] = {
     "vrex_model": VRExModel,
     "adversarial_net": AdversarialNet,
     "adversarial_lstm": AdversarialLSTM,
+    "adversarial_net_domain_gen": AdversarialDomainGen,
+    "adversarial_lstm_domain_gen": AdversarialLSTMDomainGen,
 }
 
 
@@ -179,6 +188,37 @@ def create_model(
 
     # Add adversarial_net specific arguments
     if model_name == "adversarial_net" or model_name == "adversarial_lstm":
+        num_domains = _get_domain_num_from_data_cfg(data_cfg)
+        constructor_kwargs["num_domains"] = num_domains
+
+    if data_cfg["domain_type"] == "domain_gen" and (
+        model_name != "adversarial_net_domain_gen"
+        and model_name != "adversarial_lstm_domain_gen"
+    ):
+        err_msg = f"Model {model_name} is not compatible with domain generalisation"
+        raise ValueError(err_msg)
+
+    if (
+        model_name == "adversarial_net_domain_gen"
+        or model_name == "adversarial_lstm_domain_gen"
+    ):
+        if data_cfg.get("domain_type") != "domain_gen":
+            err_msg = (
+                f"Model {model_name} is only compatible with a domain "
+                "generalisation data config"
+            )
+            raise ValueError(err_msg)
+
+        if extra_kwargs.get("target_domain") is None:
+            err_msg = (
+                "target_domain must be provided in extra_kwargs for"
+                " domain generalisation"
+            )
+            raise ValueError(err_msg)
+
+        # pass the target domain to the model constructor
+        constructor_kwargs["target_domain"] = extra_kwargs["target_domain"]
+        # pass the normal adversarial net arguments
         num_domains = _get_domain_num_from_data_cfg(data_cfg)
         constructor_kwargs["num_domains"] = num_domains
 
