@@ -332,10 +332,23 @@ class AdversarialLSTM(AdversarialNet):
 
 
 class AdversarialDomainGen(AdversarialNet):
-    def __init__(self, target_domain: int, *args, **kwargs):
+    def __init__(
+        self, target_domain: int, binary_classification: bool = False, *args, **kwargs
+    ):
+        if binary_classification:
+            kwargs["num_domains"] = 2
         super().__init__(*args, **kwargs)
-        self.save_hyperparameters("target_domain")
+        self.save_hyperparameters("target_domain", "binary_classification")
         self.target_domain = target_domain
+        self.binary_classification = binary_classification
+
+    def get_domain_targets(self, domains: torch.Tensor) -> torch.Tensor:
+        """Converts domain indices to binary targets for domain generalisation.
+
+        Args:
+            domains (list[int]): List of domain indices for each sample.
+        """
+        return (domains == self.target_domain).int()
 
     def _compute_losses(
         self,
@@ -356,7 +369,13 @@ class AdversarialDomainGen(AdversarialNet):
             loss (torch.Tensor): Computed domain generation loss.
         """
         """Internal helper: returns (total, speaker, domain) losses."""
-        non_target_mask = domains != self.target_domain
+        if self.binary_classification:
+            domain_targets = self.get_domain_targets(domains)
+            non_target_mask = ~domain_targets.bool()
+
+        else:
+            domain_targets = domains
+            non_target_mask = domains != self.target_domain
 
         if non_target_mask.sum() == 0:
             # If all samples are from the target domain, skip speaker loss
@@ -365,10 +384,13 @@ class AdversarialDomainGen(AdversarialNet):
         else:
             speaker_loss = self.loss_output_function(
                 speaker_truth[non_target_mask],
-                domains[non_target_mask].tolist(),
+                domain_targets[non_target_mask].tolist(),
                 speaker_outputs[non_target_mask],
             )
-        domain_loss = self.loss_domain_function(speaker_truth, domains, domain_logits)
+
+        domain_loss = self.loss_domain_function(
+            speaker_truth, domain_targets.tolist(), domain_logits
+        )
         total_loss = speaker_loss + self.domain_loss_weight * domain_loss
         return total_loss, speaker_loss, domain_loss
 
