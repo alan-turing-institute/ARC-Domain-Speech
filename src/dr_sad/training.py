@@ -191,9 +191,13 @@ def create_model(
         num_domains = _get_domain_num_from_data_cfg(data_cfg)
         constructor_kwargs["num_domains"] = num_domains
 
-    if data_cfg["domain_type"] == "domain_gen" and (
-        model_name != "adversarial_net_domain_gen"
-        and model_name != "adversarial_lstm_domain_gen"
+    if (
+        data_cfg is not None
+        and data_cfg.get("domain_type") == "domain_gen"
+        and (
+            model_name != "adversarial_net_domain_gen"
+            and model_name != "adversarial_lstm_domain_gen"
+        )
     ):
         err_msg = f"Model {model_name} is not compatible with domain generalisation"
         raise ValueError(err_msg)
@@ -202,7 +206,7 @@ def create_model(
         model_name == "adversarial_net_domain_gen"
         or model_name == "adversarial_lstm_domain_gen"
     ):
-        if data_cfg.get("domain_type") != "domain_gen":
+        if data_cfg is not None and data_cfg.get("domain_type") != "domain_gen":
             err_msg = (
                 f"Model {model_name} is only compatible with a domain "
                 "generalisation data config"
