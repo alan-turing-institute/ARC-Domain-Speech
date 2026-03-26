@@ -22,6 +22,12 @@ def main(filepath_pattern: str) -> None:
         "irm_lambda": "IRM",
         "vrex_lambda": "V-REx",
     }
+    # models = {
+    #     "hparam_sweep_adversarial_domain_gen_lambda": "Linear Multi-class",
+    #     "hparam_sweep_adversarial_domain_gen_binary_lambda": "Linear Binary",
+    #     "hparam_sweep_adversarial_lstm_domain_gen_lambda": "LSTM Multi-class",
+    #     "hparam_sweep_adversarial_lstm_domain_gen_binary_lambda": "LSTM Binary",
+    # }
 
     results: dict[str, dict[str, list[float]]] = {
         model: {"lambdas": [], "means": [], "stds": []} for model in models
@@ -129,7 +135,7 @@ def main(filepath_pattern: str) -> None:
 
     fig.suptitle("Hparam Sweep Results", fontsize=16)
     fig.savefig(
-        f"outputs/figures/{filepath_pattern}_hparam_sweep.png",
+        f"outputs/figures/{filepath_pattern}_hparam_sweep_new.png",
         dpi=300,
         bbox_inches="tight",
     )

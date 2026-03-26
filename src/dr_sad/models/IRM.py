@@ -165,10 +165,11 @@ class IRMv1Model(PyanNet):
             env_penalties.append(penalty)
 
         # Sum losses and penalties across environments: Σ_e [...]
-        total_erm = torch.stack(env_erm_losses).mean()
-        total_penalty = torch.stack(env_penalties).sum()
+        total_erm = self.loss_function(labels, domain_ids, logits)
+        total_penalty = torch.stack(env_penalties).mean()
 
         # Equation (1): L_IRM = Σ_e R^e(w∘Φ) + λ·Σ_e ||∇_w R^e(w∘Φ)||²
+
         total_loss = total_erm + self.lambda_irm * total_penalty
 
         metrics = {
