@@ -18,6 +18,7 @@ from dr_sad.training import create_model
 MAIN_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
 
+
 def _save_chunk_safetensors(
     chunk_predictions: dict[str, torch.Tensor], output_path: Path, chunk_idx: int
 ) -> None:
@@ -93,6 +94,8 @@ def save_predictions_chunked(
     Returns:
         None: Predictions are saved to the specified output path in safetensors format.
     """
+    if device is None:
+        device = torch.device("cpu")
 
     model.eval()
 
@@ -102,7 +105,11 @@ def save_predictions_chunked(
     for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches")):
         # Get predictions for this batch
         file_ids = batch["file_id"]
-        prediction = model.predict_step(batch, batch_idx)
+        batch_on_device = {
+            **{k: v.to(device) for k, v in batch.items() if k != "file_id"},
+            "file_id": file_ids,
+        }  # put data on device, but keep file_ids on CPU for indexing
+        prediction = model.predict_step(batch_on_device, batch_idx)
 
         # Store predictions for current batch
         for index, file_id in enumerate(file_ids):

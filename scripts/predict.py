@@ -7,7 +7,7 @@ from safetensors.torch import load_file, save_file
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
 from dr_sad.predicting import load_data_eval, load_model_eval, save_predictions_chunked
 from dr_sad.pyannet import PyanNet
-from dr_sad.utils import get_experiment_name, get_device
+from dr_sad.utils import get_device, get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = MAIN_DIR / "data"
@@ -165,6 +165,7 @@ def main(
         validation_loader,
         prediction_dir / save_names["val"],
         chunk_size=CHUNK_SIZE,
+        device=DEVICE,
     )
     print("Saving test predictions...")
     save_predictions_chunked(
@@ -172,6 +173,7 @@ def main(
         test_loader,
         prediction_dir / save_names["test"],
         chunk_size=CHUNK_SIZE,
+        device=DEVICE,
     )
 
     if domain_loader is not None:
@@ -181,6 +183,7 @@ def main(
             domain_loader,
             prediction_dir / save_names["ood"],
             chunk_size=CHUNK_SIZE,
+            device=DEVICE,
         )
 
     if train_type == "all":

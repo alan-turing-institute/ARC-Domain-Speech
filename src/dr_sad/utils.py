@@ -26,10 +26,16 @@ def get_experiment_name(exp_name_arg: str, exp_config_dir: Path) -> tuple[str, P
 
     return experiment_name, experiment_path
 
+
 def get_device() -> torch.device:
     """Get the available device (GPU if available, otherwise CPU)."""
     return torch.device(
-        "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+    )
 
 
 class TrainingBatch(TypedDict):
