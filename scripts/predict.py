@@ -7,12 +7,14 @@ from safetensors.torch import load_file, save_file
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
 from dr_sad.predicting import load_data_eval, load_model_eval, save_predictions_chunked
 from dr_sad.pyannet import PyanNet
-from dr_sad.utils import get_experiment_name
+from dr_sad.utils import get_experiment_name, get_device
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = MAIN_DIR / "data"
 CONFIG_DIR = MAIN_DIR / "configs"
 EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
+
+DEVICE = get_device()
 
 CHUNK_SIZE = 25
 SAVE_NAMES = {
@@ -126,6 +128,7 @@ def main(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
         data_cfg=data_cfg,
+        device=DEVICE,
         **model_kwargs,
     )
     # Determine how to use domain based on training type
@@ -134,6 +137,7 @@ def main(
             "The '--domain' argument is not used when data_cfg['domain_type'] is 'all'."
         )
         print("------------------\n", warning_msg, "\n------------------")
+
     # Determine how to use domain based on training type
     exclude_domain = (
         domain if train_type == "exclude_one" or train_type == "domain_gen" else None

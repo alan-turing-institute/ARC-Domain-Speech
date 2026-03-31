@@ -18,7 +18,6 @@ from dr_sad.training import create_model
 MAIN_DIR = Path(__file__).resolve().parent.parent.parent
 CONFIG_DIR = MAIN_DIR / "configs"
 
-
 def _save_chunk_safetensors(
     chunk_predictions: dict[str, torch.Tensor], output_path: Path, chunk_idx: int
 ) -> None:
@@ -80,6 +79,7 @@ def save_predictions_chunked(
     dataloader: DataLoader,
     output_path: Path,
     chunk_size: int = 50,
+    device: torch.device | None = None,
 ) -> None:
     """
     Save predictions in chunks using safetensors format to avoid memory issues.
@@ -127,6 +127,7 @@ def load_model_eval(
     model_cfg: dict[str, str | int | float],
     trainer_cfg: dict[str, str | int | float],
     data_cfg: dict[str, str | int | float] | None = None,
+    device: torch.device | None = None,
     **model_kwargs,
 ) -> torch.nn.Module:
     """
@@ -157,6 +158,10 @@ def load_model_eval(
     # Load the model state dict from the safetensors file
     state_dict = load_file(model_path)
     weightless_model.load_state_dict(state_dict)
+
+    # Move model to the specified device
+    if device is not None:
+        weightless_model.to(device)
 
     # Set model to evaluation mode
     return weightless_model.eval()
