@@ -10,7 +10,7 @@ authors = [
 ]
 description = "ARC project on domain robust speech activity detection."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
   "Development Status :: 1 - Planning",
   "Intended Audience :: Science/Research",
@@ -30,21 +30,38 @@ dependencies = [
   "pytest >=6",
   "pytest-cov >=3",
   "pre-commit",
-  "torch>=2.8.0",
+  "torch>=2.10.0",
   "jupyterlab>=4.4.6",
   "lightning>=2.5.3",
   "asteroid-filterbanks>=0.4.0",
   "einops>=0.8.1",
   "pandas>=2.3.3",
   "soundfile>=0.12.1",
-  "datasets>=4.2.0",
+  "datasets>=4",
   "pyaml>=25.7.0",
   "tensorboard>=2.20.0",
   "safetensors>=0.6.2",
   "scipy>=1.15.3",
   "matplotlib>=3.10.7",
   "silero-vad>=6.2.0",
+  "torchmetrics>=1.5",  # Needed
+  "markupsafe>=3",  # Needed for torch
+  "requests>=2",  # Needed for datasets
 ]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu126", marker = "platform_machine == 'aarch64'"},
+  { index = "pypi", marker = "platform_machine != 'aarch64'"},
+]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
 
 [project.urls]
 Homepage = "https://github.com/alan-turing-institute/ARC-Domain-Speech"
