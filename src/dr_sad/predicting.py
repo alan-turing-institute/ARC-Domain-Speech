@@ -105,12 +105,7 @@ def save_predictions_chunked(
     for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches")):
         # Get predictions for this batch
         file_ids = batch["file_id"]
-        batch_on_device = {
-            "waveforms": batch["waveforms"].to(device),
-            "annotations": batch["annotations"].to(device),
-            "domains": batch["domains"],
-            "file_id": file_ids,
-        }  # put data on device, but keep file_ids on CPU for indexing
+        batch_on_device = {"waveforms": batch["waveforms"].to(device)}
         prediction = model.predict_step(batch_on_device, batch_idx)
 
         # Store predictions for current batch
