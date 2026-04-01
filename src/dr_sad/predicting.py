@@ -105,6 +105,7 @@ def save_predictions_chunked(
     for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches")):
         # Get predictions for this batch
         file_ids = batch["file_id"]
+        # move the waveforms to the specified device before prediction
         batch_on_device = {"waveforms": batch["waveforms"].to(device)}
         prediction = model.predict_step(batch_on_device, batch_idx)
 
