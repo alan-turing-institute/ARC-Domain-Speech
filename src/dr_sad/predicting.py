@@ -106,7 +106,7 @@ def save_predictions_chunked(
         # Get predictions for this batch
         file_ids = batch["file_id"]
         batch_on_device = {
-            "waveform": batch["waveform"].to(device),
+            "waveforms": batch["waveforms"].to(device),
             "annotations": batch["annotations"].to(device),
             "domains": batch["domains"],
             "file_id": file_ids,
