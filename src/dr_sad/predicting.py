@@ -106,7 +106,9 @@ def save_predictions_chunked(
         # Get predictions for this batch
         file_ids = batch["file_id"]
         batch_on_device = {
-            **{k: v.to(device) for k, v in batch.items() if k != "file_id"},
+            "waveform": batch["waveform"].to(device),
+            "annotations": batch["annotations"].to(device),
+            "domains": batch["domains"],
             "file_id": file_ids,
         }  # put data on device, but keep file_ids on CPU for indexing
         prediction = model.predict_step(batch_on_device, batch_idx)
