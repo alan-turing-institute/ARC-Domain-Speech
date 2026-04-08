@@ -80,13 +80,21 @@ class IRMv1Model(PyanNet):
 
     def configure_optimizers(self):
         """Override to exclude dummy_w from optimization"""
-        # Get all parameters except dummy_w
+        base_optim_cfg = super().configure_optimizers()
+
+        # Works whether parent returned an optimizer or an optimizer+scheduler dict
+        optimizer = (
+            base_optim_cfg["optimizer"]
+            if isinstance(base_optim_cfg, dict)
+            else base_optim_cfg
+        )
+
         params_to_optimize = [
             p for name, p in self.named_parameters() if name != "dummy_w"
         ]
+        optimizer.param_groups[0]["params"] = params_to_optimize
 
-        # Use parent's optimizer settings but with filtered parameters
-        return torch.optim.Adam(params_to_optimize, lr=self.hparams.learning_rate)
+        return base_optim_cfg
 
     def step_linear_lambda_scheduler(self) -> None:
         """Linearly increase lambda_irm over the specified number of steps"""
