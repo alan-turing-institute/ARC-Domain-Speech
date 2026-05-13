@@ -153,7 +153,7 @@ def main(filepath_pattern: str) -> None:
                 subs=np.arange(2, 10),
             )
         )
-        axes[i].set_ylim(*Y_LIM_OVERRIDE if Y_LIM_OVERRIDE else (min_DER, max_DER))
+        axes[i].set_ylim(*Y_LIM_OVERRIDE if Y_LIM_OVERRIDE else (min_DER, max_DER))  # type: ignore[redundant-expr]
 
         if len(axes[i].get_legend_handles_labels()[0]) > 0:
             axes[i].add_artist(axes[i].legend(loc="upper left", title="Model"))
@@ -228,7 +228,7 @@ def main(filepath_pattern: str) -> None:
                     subs=np.arange(2, 10),
                 )
             )
-            single_ax.set_ylim(*Y_LIM_OVERRIDE if Y_LIM_OVERRIDE else (7, 17))
+            single_ax.set_ylim(*Y_LIM_OVERRIDE if Y_LIM_OVERRIDE else (7, 17))  # type: ignore[redundant-expr]
 
             _ = plot_single_point(
                 single_ax,

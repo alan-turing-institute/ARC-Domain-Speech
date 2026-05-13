@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 from pathlib import Path
+from typing import cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,10 +30,10 @@ NOISE_DOMAIN_MAP = {
 }
 
 
-def load_pr_data(exp_name: str) -> dict:
+def load_pr_data(exp_name: str) -> dict[str, dict[str, dict[str, list[float]]]]:
     path = MAIN_DIR / "outputs" / exp_name / "precision_recall_curve_data.yaml"
     with open(path) as f:
-        return yaml.safe_load(f)
+        return cast(dict[str, dict[str, dict[str, list[float]]]], yaml.safe_load(f))
 
 
 def get_domain_idx_name_map(exp_cfg_path: Path) -> dict[int, str]:
