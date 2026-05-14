@@ -10,14 +10,14 @@ from dr_sad.data.data_fetching import remove_overlap
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "dihard"
 
 
-def main():
-    sources = DATA_DIR / "sources.tbl"
-    sources = np.loadtxt(sources, dtype=str, delimiter="\t", skiprows=1)
+def main() -> None:
+    sources_path = DATA_DIR / "sources.tbl"
+    sources = np.loadtxt(sources_path, dtype=str, delimiter="\t", skiprows=1)
 
     domain_file_id = {
         file_id.item(): domain.item() for file_id, _, domain, _ in sources
     }
-    all_ratios = dict.fromkeys(domain_file_id, 0)
+    all_ratios = dict.fromkeys(domain_file_id, 0.0)
 
     for file_id in tqdm(all_ratios, desc="Calculating speech ratios"):
         audio, sample_rate, speech_segments = load_audio_and_annotations(
