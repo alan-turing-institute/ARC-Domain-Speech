@@ -162,13 +162,13 @@ class IRMv1Model(PyanNet):
             erm_loss = self.loss_function(
                 env_labels, domains.tolist(), env_logits_scaled
             )
-            env_erm_losses.append(erm_loss)
 
             # IRM penalty: gradient of the loss w.r.t. dummy_w
             grad = torch.autograd.grad(
                 erm_loss, self.dummy_w, create_graph=True, retain_graph=True
             )[0]
             penalty = grad**2
+            env_penalties.append(penalty)
 
         # Sum losses and penalties across environments: Σ_e [...]
         total_erm = self.loss_function(labels, domain_ids, logits)
