@@ -144,7 +144,6 @@ class IRMv1Model(PyanNet):
         unique_domains = domain_ids.unique()
 
         # Collect per-environment losses to avoid inefficient tensor accumulation
-        env_erm_losses = []
         env_penalties = []
 
         # Compute ERM loss and IRM penalty for each environment to capture
@@ -170,7 +169,6 @@ class IRMv1Model(PyanNet):
                 erm_loss, self.dummy_w, create_graph=True, retain_graph=True
             )[0]
             penalty = grad**2
-            env_penalties.append(penalty)
 
         # Sum losses and penalties across environments: Σ_e [...]
         total_erm = self.loss_function(labels, domain_ids, logits)

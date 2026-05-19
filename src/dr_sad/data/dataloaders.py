@@ -932,10 +932,10 @@ def domain_gen_dataloaders(
             to the DataLoader constructor. Defaults to {}.
 
     Returns:
-        train_loader (DataLoader): DataLoader for the training set excluding the domain.
-        val_loader (DataLoader): DataLoader for the validation set excluding the domain.
-        test_loader (DataLoader): DataLoader for the test set excluding the domain.
-        domain_loader (DataLoader): DataLoader for the specified domain.
+        train_loader (DataLoader): DataLoader for the training set with all domains.
+        val_loader (DataLoader): DataLoader for the validation set with all domains.
+        test_loader (DataLoader): DataLoader for the test set excluding the specified domain.
+        domain_loader (DataLoader): DataLoader for the held-out domain (OOD test data).
     """
     if dataloader_kwargs is None:
         dataloader_kwargs = {}
