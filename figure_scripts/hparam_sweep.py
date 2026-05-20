@@ -14,7 +14,7 @@ from dr_sad.plotting import (
     set_plot_style,
 )
 
-FIG_SIZE = (4, 12)
+FIG_SIZE = (5, 7)
 
 Y_LIM_OVERRIDE = (20, 40)
 
@@ -35,18 +35,18 @@ def label_erm_tick(ax: plt.Axes, lambdas: np.ndarray) -> None:
 def main(filepath_pattern: str) -> None:
     set_plot_style()
 
-    models = {
-        "adversarial_lstm_lambda": "AvLSTM",
-        "adversarial_lambda": "AvHead",
-        "irm_lambda": "IRM",
-        "vrex_lambda": "V-REx",
-    }
     # models = {
-    #     "hparam_sweep_adversarial_domain_gen_lambda": "Linear Multi-class",
-    #     "hparam_sweep_adversarial_domain_gen_binary_lambda": "Linear Binary",
-    #     "hparam_sweep_adversarial_lstm_domain_gen_lambda": "LSTM Multi-class",
-    #     "hparam_sweep_adversarial_lstm_domain_gen_binary_lambda": "LSTM Binary",
+    #     "adversarial_lstm_lambda": "AvLSTM",
+    #     "adversarial_lambda": "AvHead",
+    #     "irm_lambda": "IRM",
+    #     "vrex_lambda": "V-REx",
     # }
+    models = {
+        "hparam_sweep_adversarial_domain_gen_lambda": "Linear Multi-class",
+        "hparam_sweep_adversarial_domain_gen_binary_lambda": "Linear Binary",
+        "hparam_sweep_adversarial_lstm_domain_gen_lambda": "LSTM Multi-class",
+        "hparam_sweep_adversarial_lstm_domain_gen_binary_lambda": "LSTM Binary",
+    }
 
     results: dict[str, dict[str, list[float]]] = {
         model: {"lambdas": [], "means": [], "stds": []} for model in models
@@ -56,8 +56,8 @@ def main(filepath_pattern: str) -> None:
     min_DER = float("inf")
 
     for model in models:
-        # experiment_names = glob(f"outputs/{filepath_pattern}_{model}*")
-        experiment_names = glob(f"outputs/{filepath_pattern}_hparam_sweep_{model}*")
+        experiment_names = glob(f"outputs/{filepath_pattern}_{model}*")
+        # experiment_names = glob(f"outputs/{filepath_pattern}_hparam_sweep_{model}*")
 
         for experiment_name in experiment_names:
             lambda_value = experiment_name.split("_")[-1].removeprefix("lambda")
@@ -74,7 +74,7 @@ def main(filepath_pattern: str) -> None:
             max_DER = max(max_DER, max(means) + max(stds))
             min_DER = min(min_DER, min(means) - max(stds))
 
-    n_rows = 4
+    n_rows = 2
     n_cols = len(models) // n_rows + int(len(models) % n_rows > 0)
 
     fig, axes = plt.subplots(
@@ -159,7 +159,7 @@ def main(filepath_pattern: str) -> None:
             axes[i].add_artist(axes[i].legend(loc="upper left", title="Model"))
         # Only label the x-axis for the bottom row and the y-axis for the leftmost
         # column
-        if i >= n_rows - 1:
+        if i >= len(axes) / n_rows * (n_rows - 1):
             axes[i].set_xlabel("$\\lambda$")
         if i % n_cols == 0:
             axes[i].set_ylabel("DER (%)")
@@ -305,12 +305,12 @@ def main(filepath_pattern: str) -> None:
         handles=split_legend_elements,
         # title="Data Split",
         loc="upper right",
-        bbox_to_anchor=(0.95, 0.75),
+        bbox_to_anchor=(0.97, 0.52),
         ncols=1,
     )
     fig.tight_layout()
     fig.savefig(
-        f"outputs/figures/{filepath_pattern}_hparam_sweep_new_single_col.png",
+        f"outputs/figures/{filepath_pattern}_hparam_sweep_domain_gen.png",
         dpi=300,
         bbox_inches="tight",
     )

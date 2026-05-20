@@ -188,7 +188,8 @@ def build_summary_df(
             elif source == "baseline_all":
                 row[display_name] = baseline_all_vals.get(display_name, "--")
         label = (
-            f"{MODEL_DISPLAY_NAMES.get(model_type, model_type)} (\u03bb={lambda_val})"
+            f"{MODEL_DISPLAY_NAMES.get(model_type, model_type)} "
+            f"($\\lambda$={lambda_val})"
         )
         rows[label] = row
 
