@@ -295,6 +295,102 @@ class DrSadDataset(Dataset):  # type: ignore[misc]
         )
 
     @classmethod
+    def from_split_domain_domain_gen(
+        cls,
+        data: pd.DataFrame,
+        train_keys: list[str],
+        val_keys: list[str],
+        test_keys: list[str],
+        domain: int,
+        time_slice: float | None = None,
+        sample_rate: int = 16_000,
+        noise_kwargs: dict[str, Any] | None = None,
+    ) -> tuple["DrSadDataset", "DrSadDataset", "DrSadDataset", "DrSadDataset"]:
+        """
+        Create a DrSadDataset for domain generalisation, domain is present in the train
+        and validation sets, removed from the test set. Held-out domain dataset is also
+        returned for testing on OOD data.
+
+        Args:
+            data (pd.DataFrame): The full dataset to filter.
+            train_keys (list): List of keys for the training set.
+            val_keys (list): List of keys for the validation set.
+            test_keys (list): List of keys for the test set.
+            domain (int): The domain index to filter by.
+            time_slice (float, optional): Cut the waveforms to this length in seconds.
+            sample_rate (int, optional): The sample rate of the waveforms.
+                Defaults to 16_000 Hz.
+            noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+                addition. Defaults to None.
+
+        Returns:
+            train (DrSadDataset): Training dataset with all domains.
+            val (DrSadDataset): Validation dataset with all domains.
+            test (DrSadDataset): Test dataset excluding the specified domain.
+            domain_data (DrSadDataset): Dataset containing only the specified domain.
+        """
+        domain_keys = data[data["domains"] == domain].index.to_list()
+        if len(domain_keys) == 0:
+            available_domains = sorted(data["domains"].unique().tolist())
+            msg = (
+                f"Domain {domain} has no associated data. "
+                f"Available domains: {available_domains}"
+            )
+            raise ValueError(msg)
+        # all domains in train and val
+        train_data = data.loc[list(set(train_keys))]
+        val_data = data.loc[list(set(val_keys))]
+        # remove the domain from the test set
+        test_data = data.loc[list(set(test_keys) - set(domain_keys))]
+        # dataset containing only the held-out domain for testing on OOD data
+        domain_data = data.loc[list(set(domain_keys) & set(test_keys))]
+
+        train_only = noise_kwargs is not None and noise_kwargs.get("train_only", False)
+        if train_only:
+            train_noise_kwargs: dict[str, Any] | None = noise_kwargs
+            val_noise_kwargs: dict[str, Any] | None = None
+            test_noise_kwargs: dict[str, Any] | None = None
+            domain_noise_kwargs: dict[str, Any] | None = None
+        else:
+            (
+                train_noise_kwargs,
+                val_noise_kwargs,
+                test_noise_kwargs,
+                domain_noise_kwargs,
+            ) = generate_noise_kwargs_list(noise_kwargs, 4)
+
+        return (
+            cls(
+                train_data,
+                domain=domain,
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+                noise_kwargs=train_noise_kwargs,
+            ),
+            cls(
+                val_data,
+                domain=domain,
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+                noise_kwargs=val_noise_kwargs,
+            ),
+            cls(
+                test_data,
+                domain=domain,
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+                noise_kwargs=test_noise_kwargs,
+            ),
+            cls(
+                domain_data,
+                domain=domain,
+                time_slice=time_slice,
+                sample_rate=sample_rate,
+                noise_kwargs=domain_noise_kwargs,
+            ),
+        )
+
+    @classmethod
     def from_splitting_keys(
         cls,
         data: pd.DataFrame,
@@ -758,6 +854,94 @@ def domain_split_dataloaders(
         dataloader_kwargs = {}
 
     train, val, test, domain_data = DrSadDataset.from_split_domain(
+        data,
+        train_keys,
+        val_keys,
+        test_keys,
+        domain,
+        time_slice=time_slice,
+        sample_rate=sample_rate,
+        noise_kwargs=noise_kwargs,
+    )
+    if random_seed is None:
+        random_seed = np.random.randint(0, 1_000_000)
+    train_rng = np.random.default_rng(random_seed)
+
+    # Create dataloaders
+    train_loader = make_dataloader(
+        train,
+        batch_size=batch_size,
+        shuffle=True,
+        random_state=train_rng,
+        **dataloader_kwargs,
+    )
+    val_loader = make_dataloader(
+        val,
+        batch_size=batch_size,
+        shuffle=False,
+        **dataloader_kwargs,
+    )
+    test_loader = make_dataloader(
+        test,
+        batch_size=batch_size,
+        shuffle=False,
+        **dataloader_kwargs,
+    )
+    domain_loader = make_dataloader(
+        domain_data,
+        batch_size=batch_size,
+        shuffle=False,
+        **dataloader_kwargs,
+    )
+
+    return train_loader, val_loader, test_loader, domain_loader
+
+
+def domain_gen_dataloaders(
+    data: pd.DataFrame,
+    train_keys: list[str],
+    val_keys: list[str],
+    test_keys: list[str],
+    domain: int,
+    batch_size: int = 4,
+    random_seed: int | None = None,
+    time_slice: float | None = None,
+    sample_rate: int = 16_000,
+    noise_kwargs: dict[str, Any] | None = None,
+    dataloader_kwargs: dict[str, Any] | None = None,
+) -> tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
+    """Create dataloaders for training, validation, testing, and a specific domain.
+
+    Args:
+        data (pd.DataFrame): The full dataset to split and load.
+            This must contain "waveforms", "annotations", and "domains" columns.
+        train_keys (list): List of keys for the training set.
+        val_keys (list): List of keys for the validation set.
+        test_keys (list): List of keys for the test set.
+        domain (int): The domain index to filter by.
+        batch_size (int, optional): Batch size for the dataloaders.
+            Defaults to 4.
+        random_seed (int, optional): Random seed for reproducibility.
+            Defaults to None (no seed).
+        time_slice (float, optional): Cut the waveforms to this length in seconds.
+        sample_rate (int, optional): The sample rate of the waveforms.
+            Defaults to 16_000 Hz.
+        noise_kwargs (dict[str, Any], optional): Keyword arguments for noise
+            addition. Defaults to None.
+        dataloader_kwargs (dict, optional): Additional keyword arguments to pass
+            to the DataLoader constructor. Defaults to {}.
+
+    Returns:
+        train_loader (DataLoader): DataLoader for the training set with all domains.
+        val_loader (DataLoader): DataLoader for the validation set with all domains.
+        test_loader (DataLoader): DataLoader for the test set excluding the specified
+            domain.
+        domain_loader (DataLoader): DataLoader for the held-out domain (OOD test data).
+    """
+    if dataloader_kwargs is None:
+        dataloader_kwargs = {}
+
+    train, val, test, domain_data = DrSadDataset.from_split_domain_domain_gen(
         data,
         train_keys,
         val_keys,

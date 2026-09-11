@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from dr_sad.data.data_fetching import load_data
 from dr_sad.data.dataloaders import (
+    domain_gen_dataloaders,
     domain_split_dataloaders,
     from_keys_dataloaders,
     single_domain_dataloaders,
@@ -79,6 +80,7 @@ def save_predictions_chunked(
     dataloader: DataLoader,
     output_path: Path,
     chunk_size: int = 50,
+    device: torch.device | None = None,
 ) -> None:
     """
     Save predictions in chunks using safetensors format to avoid memory issues.
@@ -92,6 +94,8 @@ def save_predictions_chunked(
     Returns:
         None: Predictions are saved to the specified output path in safetensors format.
     """
+    if device is None:
+        device = torch.device("cpu")
 
     model.eval()
 
@@ -101,7 +105,9 @@ def save_predictions_chunked(
     for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches")):
         # Get predictions for this batch
         file_ids = batch["file_id"]
-        prediction = model.predict_step(batch, batch_idx)
+        # move the waveforms to the specified device before prediction
+        batch_on_device = {"waveforms": batch["waveforms"].to(device)}
+        prediction = model.predict_step(batch_on_device, batch_idx)
 
         # Store predictions for current batch
         for index, file_id in enumerate(file_ids):
@@ -126,6 +132,8 @@ def load_model_eval(
     model_cfg: dict[str, str | int | float],
     trainer_cfg: dict[str, str | int | float],
     data_cfg: dict[str, str | int | float] | None = None,
+    device: torch.device | None = None,
+    **model_kwargs,
 ) -> torch.nn.Module:
     """
     Loads a model from a safetensors file and prepares it for evaluation.
@@ -149,11 +157,16 @@ def load_model_eval(
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
         data_cfg=data_cfg,
+        **model_kwargs,
     )
 
     # Load the model state dict from the safetensors file
     state_dict = load_file(model_path)
     weightless_model.load_state_dict(state_dict)
+
+    # Move model to the specified device
+    if device is not None:
+        weightless_model.to(device)
 
     # Set model to evaluation mode
     return weightless_model.eval()
@@ -203,7 +216,7 @@ def load_data_eval(
         )
         raise ValueError(msg)
 
-    if data_cfg["domain_type"] != "exclude_one":
+    if data_cfg["domain_type"] not in ("exclude_one", "domain_gen"):
         if exclude_domain is not None:
             err_msg = (
                 "Cannot exclude domain when domain_type is 'all' or 'single_domain'."
@@ -254,6 +267,24 @@ def load_data_eval(
             raise ValueError(err_msg)
         # Use domain_split_dataloaders to exclude the specified domain
         _, validation_loader, test_loader, domain_loader = domain_split_dataloaders(
+            data,
+            train_keys=data_split["train"],
+            val_keys=data_split["val"],
+            test_keys=data_split["test"],
+            domain=exclude_domain,
+            batch_size=int(trainer_cfg["batch_size"]),
+            random_seed=int(exp_config["random_seed"]),
+            noise_kwargs=data_cfg.get("noise_augmentation"),
+        )
+
+        return validation_loader, test_loader, domain_loader
+
+    if data_cfg["domain_type"] == "domain_gen":
+        if exclude_domain is None:
+            err_msg = "Must specify exclude_domain when domain_type is 'domain_gen'."
+            raise ValueError(err_msg)
+        # Use domain_split_dataloaders to exclude the specified domain
+        _, validation_loader, test_loader, domain_loader = domain_gen_dataloaders(
             data,
             train_keys=data_split["train"],
             val_keys=data_split["val"],

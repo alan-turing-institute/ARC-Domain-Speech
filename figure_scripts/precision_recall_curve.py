@@ -129,7 +129,7 @@ def main(
     nrows = 2
     ncols = int(np.ceil(num_domains / nrows)) if num_domains > 0 else 1
 
-    fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 8))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(3.5 * ncols, 7))
     axes = np.atleast_1d(axes).flatten()
 
     if len(axes) > num_domains:
@@ -157,27 +157,36 @@ def main(
             / split_names[0].rstrip(".yaml")
             / f"domain_{domain}"
         )
-        eval_split_names = [
-            path.stem
-            for path in list(
-                experiment_output_pattern.glob("saved_predictions/*.safetensors")
-            )
-        ]
 
-        if "validation" in eval_split_names:
-            eval_split_names.remove("validation")
-        if "train" in eval_split_names:
-            eval_split_names.remove("train")
+        # Determine eval split names from cached data or filesystem
+        if loaded_results:
+            domain_key = f"domain_{domain}"
+            if domain_key in all_results:
+                eval_split_names = list(all_results[domain_key].keys())
+            else:
+                eval_split_names = []
+        else:
+            eval_split_names = [
+                path.stem
+                for path in list(
+                    experiment_output_pattern.glob("saved_predictions/*.safetensors")
+                )
+            ]
+
+            if "validation" in eval_split_names:
+                eval_split_names.remove("validation")
+            if "train" in eval_split_names:
+                eval_split_names.remove("train")
 
         results_dict: dict[str, dict[str, list[float]]] = {
             eval_split: {"precision": [], "recall": []}
             for eval_split in eval_split_names
         }
 
-        model_metadata = yaml.safe_load(
-            (experiment_output_pattern / "model_metadata.yaml").read_text()
-        )
         if not loaded_results:
+            model_metadata = yaml.safe_load(
+                (experiment_output_pattern / "model_metadata.yaml").read_text()
+            )
             for eval_split in eval_split_names:
                 for split_name in split_names:
                     prediction_path = (
@@ -257,6 +266,8 @@ def main(
                 )
             else:
                 plot_label = eval_split.replace("_", " ").capitalize()
+            if eval_split == "test_single":
+                plot_label = f"{plot_label} only"
 
             axes[domain] = plot_pr_curves(
                 stacked_results[eval_split],
@@ -265,15 +276,18 @@ def main(
                 colour_index=index,
             )
 
-        axes[domain].set_xlabel("Recall")
-        axes[domain].set_ylabel("Precision")
-        axes[domain].legend(loc="lower left")
+        axes[domain].set_xlabel("Recall", fontsize=14)
+        axes[domain].set_ylabel("Precision", fontsize=14)
+        axes[domain].legend(loc="lower left", fontsize=12)
         if domain in domain_idx_name_map:
             axes[domain].set_title(
-                f"{domain_idx_name_map[domain].replace('_', ' ').title()}"
+                f"{domain_idx_name_map[domain].replace('_', ' ').title()}", fontsize=16
             )
         else:
             axes[domain].set_title(f"Domain {domain}")
+
+        axes[domain].set_xlim(0.5, 1)
+        axes[domain].set_ylim(0.5, 1)
 
     fig.tight_layout()
     fig.savefig(figure_save_path / "precision_recall_curves_by_domain.pdf")

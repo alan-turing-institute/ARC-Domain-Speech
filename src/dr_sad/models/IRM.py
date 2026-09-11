@@ -80,13 +80,21 @@ class IRMv1Model(PyanNet):
 
     def configure_optimizers(self):
         """Override to exclude dummy_w from optimization"""
-        # Get all parameters except dummy_w
+        base_optim_cfg = super().configure_optimizers()
+
+        # Works whether parent returned an optimizer or an optimizer+scheduler dict
+        optimizer = (
+            base_optim_cfg["optimizer"]
+            if isinstance(base_optim_cfg, dict)
+            else base_optim_cfg
+        )
+
         params_to_optimize = [
             p for name, p in self.named_parameters() if name != "dummy_w"
         ]
+        optimizer.param_groups[0]["params"] = params_to_optimize
 
-        # Use parent's optimizer settings but with filtered parameters
-        return torch.optim.Adam(params_to_optimize, lr=self.hparams.learning_rate)
+        return base_optim_cfg
 
     def step_linear_lambda_scheduler(self) -> None:
         """Linearly increase lambda_irm over the specified number of steps"""
@@ -136,7 +144,6 @@ class IRMv1Model(PyanNet):
         unique_domains = domain_ids.unique()
 
         # Collect per-environment losses to avoid inefficient tensor accumulation
-        env_erm_losses = []
         env_penalties = []
 
         # Compute ERM loss and IRM penalty for each environment to capture
@@ -155,7 +162,6 @@ class IRMv1Model(PyanNet):
             erm_loss = self.loss_function(
                 env_labels, domains.tolist(), env_logits_scaled
             )
-            env_erm_losses.append(erm_loss)
 
             # IRM penalty: gradient of the loss w.r.t. dummy_w
             grad = torch.autograd.grad(
@@ -165,10 +171,11 @@ class IRMv1Model(PyanNet):
             env_penalties.append(penalty)
 
         # Sum losses and penalties across environments: Σ_e [...]
-        total_erm = torch.stack(env_erm_losses).sum()
-        total_penalty = torch.stack(env_penalties).sum()
+        total_erm = self.loss_function(labels, domain_ids, logits)
+        total_penalty = torch.stack(env_penalties).mean()
 
         # Equation (1): L_IRM = Σ_e R^e(w∘Φ) + λ·Σ_e ||∇_w R^e(w∘Φ)||²
+
         total_loss = total_erm + self.lambda_irm * total_penalty
 
         metrics = {

@@ -25,8 +25,7 @@ def mock_model():
 
     # Mock predict_step to return tensors
     def predict_step(batch, _batch_idx):
-        batch_size = len(batch["file_id"])
-        # Return a tensor with shape (batch_size, 10, 3) as typical output
+        batch_size = batch["waveforms"].shape[0]
         return torch.randn(batch_size, 10, 3)
 
     model.predict_step = predict_step
@@ -38,9 +37,9 @@ def mock_dataloader():
     """Create a mock DataLoader for testing."""
     # Create 3 batches with 2 samples each
     batches = [
-        {"file_id": ["file_001", "file_002"]},
-        {"file_id": ["file_003", "file_004"]},
-        {"file_id": ["file_005", "file_006"]},
+        {"file_id": ["file_001", "file_002"], "waveforms": torch.zeros(2, 1, 16000)},
+        {"file_id": ["file_003", "file_004"], "waveforms": torch.zeros(2, 1, 16000)},
+        {"file_id": ["file_005", "file_006"], "waveforms": torch.zeros(2, 1, 16000)},
     ]
 
     class MockDataLoader:

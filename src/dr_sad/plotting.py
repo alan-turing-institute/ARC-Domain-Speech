@@ -28,6 +28,12 @@ def set_plot_style() -> None:
     plt.rcParams["grid.linestyle"] = "--"
     plt.rcParams["grid.alpha"] = 0.5
     plt.rcParams["axes.grid"] = True
+    plt.rcParams["axes.grid.which"] = "major"
+
+    plt.rcParams["xtick.major.size"] = 3.5
+    plt.rcParams["ytick.major.size"] = 3.5
+    plt.rcParams["xtick.minor.size"] = 2.25
+    plt.rcParams["ytick.minor.size"] = 2.25
 
 
 def _interpolate_pr_curves(
@@ -120,8 +126,9 @@ def plot_pr_curves(
             color=f"C{colour_index}",
             alpha=0.2,
         )
-    ax.set_xlabel("Recall")
-    ax.set_ylabel("Precision")
+
+    # ax.set_xlabel("Recall")
+    # ax.set_ylabel("Precision")
     ax.legend()
     return ax
 
@@ -367,6 +374,54 @@ def plot_hparam_sweep_with_error_bands(
     return lambdas
 
 
+def plot_single_point(
+    axis: plt.Axes,
+    data: dict[str, list[float]],
+    color: str,
+    lambda_value: float | None = None,
+):
+    """
+    Plot a single point for the hparam sweep results.
+
+    args:
+        axis: Matplotlib axis to plot on
+        data: Dictionary containing 'lambdas', 'means', and 'stds' lists
+        color: Color for the plot
+        lambda_value: The lambda value to plot
+    returns:
+        the unsorted lambda values for potential use in plotting other curves on
+        the same axis.
+    """
+
+    lambda_val = 0 if lambda_value is None else lambda_value
+
+    lambdas = np.array(data["lambdas"])
+    means = np.stack(data["means"])
+    stds = np.stack(data["stds"])
+
+    axis.scatter(lambda_val, means[0], color=color)
+    axis.errorbar(
+        lambda_val,  # small negative value to avoid plotting error bar at x=0
+        means[0],
+        yerr=stds[0],
+        fmt="none",
+        capsize=2,
+        ecolor=color,
+        alpha=0.7,
+    )
+    axis.scatter(lambda_val, means[1], marker="x", color=color, alpha=0.7)
+    axis.errorbar(
+        lambda_val,
+        means[1],
+        yerr=stds[1],
+        fmt="none",
+        capsize=2,
+        ecolor=color,
+        alpha=0.7,
+    )
+    return lambdas
+
+
 def plot_hparam_sweep_points_error_bars(
     axis: plt.Axes,
     data: dict[str, list[float]],
@@ -448,28 +503,29 @@ def plot_baseline(
         linewidth=mean_linewidth,
         alpha=0.7,
     )
-    axis.plot(
-        baseline_result_dict["lambdas"],
-        [
-            baseline_result_dict["means"][0] + baseline_result_dict["stds"][0],
-            baseline_result_dict["means"][0] + baseline_result_dict["stds"][0],
-        ],
-        color=color,
-        linestyle="-",
-        linewidth=std_linewidth,
-        alpha=0.7,
-    )
-    axis.plot(
-        baseline_result_dict["lambdas"],
-        [
-            baseline_result_dict["means"][0] - baseline_result_dict["stds"][0],
-            baseline_result_dict["means"][0] - baseline_result_dict["stds"][0],
-        ],
-        color=color,
-        linestyle="-",
-        linewidth=std_linewidth,
-        alpha=0.7,
-    )
+    if std_linewidth is not None:
+        axis.plot(
+            baseline_result_dict["lambdas"],
+            [
+                baseline_result_dict["means"][0] + baseline_result_dict["stds"][0],
+                baseline_result_dict["means"][0] + baseline_result_dict["stds"][0],
+            ],
+            color=color,
+            linestyle="-",
+            linewidth=std_linewidth,
+            alpha=0.7,
+        )
+        axis.plot(
+            baseline_result_dict["lambdas"],
+            [
+                baseline_result_dict["means"][0] - baseline_result_dict["stds"][0],
+                baseline_result_dict["means"][0] - baseline_result_dict["stds"][0],
+            ],
+            color=color,
+            linestyle="-",
+            linewidth=std_linewidth,
+            alpha=0.7,
+        )
 
     axis.plot(
         baseline_result_dict["lambdas"],
@@ -479,25 +535,26 @@ def plot_baseline(
         linewidth=mean_linewidth,
         alpha=0.7,
     )
-    axis.plot(
-        baseline_result_dict["lambdas"],
-        [
-            baseline_result_dict["means"][1] + baseline_result_dict["stds"][1],
-            baseline_result_dict["means"][1] + baseline_result_dict["stds"][1],
-        ],
-        color=color,
-        linestyle="--",
-        linewidth=std_linewidth,
-        alpha=0.7,
-    )
-    axis.plot(
-        baseline_result_dict["lambdas"],
-        [
-            baseline_result_dict["means"][1] - baseline_result_dict["stds"][1],
-            baseline_result_dict["means"][1] - baseline_result_dict["stds"][1],
-        ],
-        color=color,
-        linestyle="--",
-        linewidth=std_linewidth,
-        alpha=0.7,
-    )
+    if std_linewidth is not None:
+        axis.plot(
+            baseline_result_dict["lambdas"],
+            [
+                baseline_result_dict["means"][1] + baseline_result_dict["stds"][1],
+                baseline_result_dict["means"][1] + baseline_result_dict["stds"][1],
+            ],
+            color=color,
+            linestyle="--",
+            linewidth=std_linewidth,
+            alpha=0.7,
+        )
+        axis.plot(
+            baseline_result_dict["lambdas"],
+            [
+                baseline_result_dict["means"][1] - baseline_result_dict["stds"][1],
+                baseline_result_dict["means"][1] - baseline_result_dict["stds"][1],
+            ],
+            color=color,
+            linestyle="--",
+            linewidth=std_linewidth,
+            alpha=0.7,
+        )

@@ -1,0 +1,3 @@
+model_name: adversarial_net_domain_gen
+domain_loss_weight: 1.0
+binary_classification: true

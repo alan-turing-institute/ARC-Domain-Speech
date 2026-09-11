@@ -7,12 +7,14 @@ from safetensors.torch import load_file, save_file
 from dr_sad.data.data_fetching import DOMAIN_SETTINGS
 from dr_sad.predicting import load_data_eval, load_model_eval, save_predictions_chunked
 from dr_sad.pyannet import PyanNet
-from dr_sad.utils import get_experiment_name
+from dr_sad.utils import get_device, get_experiment_name
 
 MAIN_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = MAIN_DIR / "data"
 CONFIG_DIR = MAIN_DIR / "configs"
 EXP_CONFIG_DIR = CONFIG_DIR / "experiment"
+
+DEVICE = get_device()
 
 CHUNK_SIZE = 25
 SAVE_NAMES = {
@@ -116,11 +118,18 @@ def main(
 
     model_folder = Path(experiment_folder)
 
+    model_kwargs = {}
+
+    if data_cfg.get("domain_type") == "domain_gen":
+        model_kwargs["target_domain"] = domain
+
     model = load_model_eval(
         model_path=model_folder / "trained_model_weights.safetensors",
         model_cfg=model_cfg,
         trainer_cfg=trainer_cfg,
         data_cfg=data_cfg,
+        device=DEVICE,
+        **model_kwargs,
     )
     # Determine how to use domain based on training type
     if data_cfg.get("domain_type") == "all" and domain is not None:
@@ -128,8 +137,11 @@ def main(
             "The '--domain' argument is not used when data_cfg['domain_type'] is 'all'."
         )
         print("------------------\n", warning_msg, "\n------------------")
+
     # Determine how to use domain based on training type
-    exclude_domain = domain if train_type == "exclude_one" else None
+    exclude_domain = (
+        domain if train_type == "exclude_one" or train_type == "domain_gen" else None
+    )
     train_domain = domain if train_type == "single_domain" else None
 
     validation_loader, test_loader, domain_loader = load_data_eval(
@@ -153,6 +165,7 @@ def main(
         validation_loader,
         prediction_dir / save_names["val"],
         chunk_size=CHUNK_SIZE,
+        device=DEVICE,
     )
     print("Saving test predictions...")
     save_predictions_chunked(
@@ -160,6 +173,7 @@ def main(
         test_loader,
         prediction_dir / save_names["test"],
         chunk_size=CHUNK_SIZE,
+        device=DEVICE,
     )
 
     if domain_loader is not None:
@@ -169,6 +183,7 @@ def main(
             domain_loader,
             prediction_dir / save_names["ood"],
             chunk_size=CHUNK_SIZE,
+            device=DEVICE,
         )
 
     if train_type == "all":

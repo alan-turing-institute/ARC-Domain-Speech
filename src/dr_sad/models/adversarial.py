@@ -229,6 +229,7 @@ class AdversarialNet(PyanNet):
                 domains, dtype=torch.long, device=domain_logits.device
             )
 
+        # take mean temporally to get one prediction per utterance
         pooled_logits = domain_logits.mean(dim=1)
         preds = pooled_logits.argmax(dim=-1)
         correct = (preds == domains).float()
@@ -329,3 +330,112 @@ class AdversarialLSTM(AdversarialNet):
         domain_logits = self.domain_classifier(domain_hidden)
 
         return speaker_scores, domain_logits
+
+
+class AdversarialDomainGen(AdversarialNet):
+    def __init__(
+        self, target_domain: int, binary_classification: bool = False, *args, **kwargs
+    ):
+        if binary_classification:
+            kwargs["num_domains"] = 2
+        super().__init__(*args, **kwargs)
+        self.save_hyperparameters("target_domain", "binary_classification")
+        self.target_domain = target_domain
+        self.binary_classification = binary_classification
+
+    def get_domain_targets(self, domains: torch.Tensor) -> torch.Tensor:
+        """Converts domain indices to binary targets for domain generalisation.
+
+        Args:
+            domains (list[int]): List of domain indices for each sample.
+        """
+        return (domains == self.target_domain).int()
+
+    def _compute_losses(
+        self,
+        speaker_truth: torch.Tensor,
+        domains: torch.Tensor,
+        speaker_outputs: torch.Tensor,
+        domain_logits: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Modified Internal helper: returns (total, speaker, domain) losses.
+        Screens OOD samples for ERM loss but uses the it for domain loss. If
+        binary_classification is True, converts domain indices to binary targets for
+        the speaker loss.
+
+        Args:
+            _speaker_truth (torch.Tensor): Annotations for speaker (not used).
+            domains (torch.Tensor): Tensor of domain indices for each sample.
+            domain_logits (torch.Tensor): Domain logits from the model.
+
+        Returns:
+            loss (torch.Tensor): Computed domain generation loss.
+        """
+
+        if self.binary_classification:
+            domain_targets = self.get_domain_targets(domains)
+            non_target_mask = ~domain_targets.bool()
+        else:
+            domain_targets = domains
+            non_target_mask = domains != self.target_domain
+
+        if non_target_mask.sum() == 0:
+            # If all samples are from the target domain, skip speaker loss
+            # This should never occur using the stratified sampler
+            speaker_loss = torch.tensor(0.0, device=speaker_truth.device)
+        else:
+            speaker_loss = self.loss_output_function(
+                speaker_truth[non_target_mask],
+                domain_targets[non_target_mask].tolist(),
+                speaker_outputs[non_target_mask],
+            )
+
+        domain_loss = self.loss_domain_function(
+            speaker_truth, domain_targets.tolist(), domain_logits
+        )
+        total_loss = speaker_loss + self.domain_loss_weight * domain_loss
+        return total_loss, speaker_loss, domain_loss
+
+    # Override test_step to use the inherited loss functions as we want to compute
+    # the metrics on all samples, not just the in-domain ones
+    def test_step(self, batch: Any, batch_idx: int) -> None:  # noqa: ARG002
+        waveforms, annotations, domains = (
+            batch["waveforms"],
+            batch["annotations"],
+            batch["domains"],
+        )
+        outputs, domain_logits = self(waveforms)
+        outputs = outputs.swapaxes(1, 2)
+        speaker_truth = self.prepare_annotation(waveforms, annotations)
+
+        if self.binary_classification:
+            domains_tensor = torch.tensor(
+                domains, dtype=torch.long, device=domain_logits.device
+            )
+            domain_targets = self.get_domain_targets(domains_tensor)
+        else:
+            domain_targets = domains
+
+        speaker_loss = self.loss_output_function(speaker_truth, domain_targets, outputs)
+        domain_loss = self.loss_domain_function(
+            speaker_truth,
+            domain_targets.tolist()
+            if torch.is_tensor(domain_targets)
+            else domain_targets,
+            domain_logits,
+        )
+        total_loss = speaker_loss + self.domain_loss_weight * domain_loss
+
+        accuracy = self.accuracy_function(speaker_truth, domain_targets, outputs)
+        domain_accuracy = self.domain_accuracy_function(domain_targets, domain_logits)
+
+        self.log("test_loss", total_loss)
+        self.log("test_accuracy", accuracy)
+        self.log("test_speaker_loss", speaker_loss)
+        self.log("test_domain_loss", domain_loss)
+        self.log("test_domain_accuracy", domain_accuracy)
+
+
+class AdversarialLSTMDomainGen(AdversarialDomainGen, AdversarialLSTM):
+    pass
