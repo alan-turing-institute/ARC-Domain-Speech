@@ -23,7 +23,7 @@ OUTPUTS_DIR = Path(__file__).resolve().parent.parent / "outputs"
 # e.g. 'cyclicLR_hparam_sweep' -> strip '_hparam_sweep' -> 'cyclicLR'
 PREFIX_STRIP_SEGMENTS = ["_hparam_sweep"]
 
-# Order matters: check more specific patterns first to avoid partial matches
+# check more specific patterns first to avoid partial matches
 MODEL_TYPE_PATTERNS = [
     ("adversarial_lstm", "_adversarial_lstm_lambda_"),
     ("adversarial", "_adversarial_lambda_"),
@@ -32,7 +32,6 @@ MODEL_TYPE_PATTERNS = [
 ]
 
 # (source, raw_column, display_name)
-# source is one of: "model", "baseline_domain", "baseline_single", "baseline_all"
 COLUMN_SPEC: list[tuple[str, str, str]] = [
     ("model", "validation", "ID Val"),
     ("model", "test", "ID Test"),

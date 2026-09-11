@@ -32,15 +32,9 @@ def label_erm_tick(ax: plt.Axes, lambdas: np.ndarray) -> None:
     ax.get_xticklabels()[closest_idx].set_ha("center")
 
 
-def main(filepath_pattern: str) -> None:
+def main(filepath_pattern: str, run_lstm: bool) -> None:
     set_plot_style()
 
-    # models = {
-    #     "adversarial_lstm_lambda": "AvLSTM",
-    #     "adversarial_lambda": "AvHead",
-    #     "irm_lambda": "IRM",
-    #     "vrex_lambda": "V-REx",
-    # }
     models = {
         "hparam_sweep_adversarial_domain_gen_lambda": "Linear Multi-class",
         "hparam_sweep_adversarial_domain_gen_binary_lambda": "Linear Binary",
@@ -57,7 +51,6 @@ def main(filepath_pattern: str) -> None:
 
     for model in models:
         experiment_names = glob(f"outputs/{filepath_pattern}_{model}*")
-        # experiment_names = glob(f"outputs/{filepath_pattern}_hparam_sweep_{model}*")
 
         for experiment_name in experiment_names:
             lambda_value = experiment_name.split("_")[-1].removeprefix("lambda")
@@ -108,13 +101,6 @@ def main(filepath_pattern: str) -> None:
             "means": baseline_means,
             "stds": baseline_stds,
         }
-        # plot_baseline(
-        #     axes[i],
-        #     baseline_result_dict,
-        #     color="dimgrey",
-        #     mean_linewidth=1.0,
-        #     std_linewidth=0.5,
-        # )
 
         axes[i].text(
             0.05,
@@ -172,7 +158,7 @@ def main(filepath_pattern: str) -> None:
         )
 
         # plot comparison to original paper
-        if args.run_lstm and i == 1:
+        if run_lstm and i == 1:
             single_fig, single_ax = plt.subplots(figsize=(6, 4))
             lambdas = plot_hparam_sweep_points_error_bars(
                 single_ax,
@@ -303,7 +289,6 @@ def main(filepath_pattern: str) -> None:
 
     fig.legend(
         handles=split_legend_elements,
-        # title="Data Split",
         loc="upper right",
         bbox_to_anchor=(0.97, 0.52),
         ncols=1,
@@ -333,4 +318,4 @@ if __name__ == "__main__":
         help="Set to True to run the LSTM comparison plot",
     )
     args = argparser.parse_args()
-    main(args.filepath_pattern)
+    main(args.filepath_pattern, args.run_lstm)
