@@ -386,8 +386,8 @@ def plot_single_point(
     args:
         axis: Matplotlib axis to plot on
         data: Dictionary containing 'lambdas', 'means', and 'stds' lists
-        label: Label for the plot
         color: Color for the plot
+        lambda_value: The lambda value to plot
     returns:
         the unsorted lambda values for potential use in plotting other curves on
         the same axis.

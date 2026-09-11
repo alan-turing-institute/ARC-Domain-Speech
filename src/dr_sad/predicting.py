@@ -281,7 +281,7 @@ def load_data_eval(
 
     if data_cfg["domain_type"] == "domain_gen":
         if exclude_domain is None:
-            err_msg = "Must specify exclude_domain when domain_type is 'exclude_one'."
+            err_msg = "Must specify exclude_domain when domain_type is 'domain_gen'."
             raise ValueError(err_msg)
         # Use domain_split_dataloaders to exclude the specified domain
         _, validation_loader, test_loader, domain_loader = domain_gen_dataloaders(
